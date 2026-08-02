@@ -8,6 +8,9 @@ export interface User {
     email_verified_at?: string;
     lang?: string;
     permissions?: string[];
+    roles?: string[];
+    activatedPackages?: string[];
+    industry_type?: 'standard' | 'textile';
 }
 
 export interface NavItem {

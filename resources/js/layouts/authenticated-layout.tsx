@@ -41,6 +41,12 @@ function AuthenticatedLayoutContent({
     const { t } = useTranslation();
     const { auth, companyAllSetting, adminAllSetting } = usePage<PageProps>().props as any;
     const { settings } = useBrand();
+    const isTextileCompany = auth?.user?.type === 'company' && (
+        auth?.user?.industry_type === 'textile' ||
+        (auth?.user?.activatedPackages || []).some((module: string) => module.toLowerCase().includes('textile'))
+    );
+    const dashboardLabel = isTextileCompany ? t('Textile Dashboard') : t('Dashboard');
+    const dashboardRoute = isTextileCompany ? route('textile.dashboard.index') : route('dashboard');
     useFavicon();
     useFlashMessages();
 
@@ -86,7 +92,7 @@ function AuthenticatedLayoutContent({
                             <BreadcrumbList className={`flex ${ settings.layoutDirection === "rtl" ? "justify-end" : "justify-start" }`} >
                             <BreadcrumbItem>
                                 <BreadcrumbLink asChild>
-                                    <Link href={route("dashboard")}>{t('Dashboard')}</Link>
+                                    <Link href={dashboardRoute}>{dashboardLabel}</Link>
                                 </BreadcrumbLink>
                             </BreadcrumbItem>
                             {breadcrumbs?.map((crumb, index) => (

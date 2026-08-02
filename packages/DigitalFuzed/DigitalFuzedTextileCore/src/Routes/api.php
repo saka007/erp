@@ -1,0 +1,64 @@
+<?php
+
+use DigitalFuzed\TextileCore\Http\Controllers\Api\TextileWorkflowApiController;
+use DigitalFuzed\TextileCore\Http\Controllers\Api\TextileProcurementApiController;
+use DigitalFuzed\TextileCore\Http\Controllers\Api\TextileSalesApiController;
+use DigitalFuzed\TextileCore\Http\Controllers\Api\TextileManufacturingApiController;
+use DigitalFuzed\TextileCore\Http\Controllers\Api\TextileProcessingApiController;
+use DigitalFuzed\TextileCore\Http\Controllers\Api\TextileCostingApiController;
+use Illuminate\Support\Facades\Route;
+
+Route::prefix('api')->middleware(['api.json'])->group(function () {
+    Route::group(['middleware' => ['auth:sanctum'], 'prefix' => 'textile'], function () {
+        Route::post('workflow/store', [TextileWorkflowApiController::class, 'store']);
+        Route::get('workflow/{type}', [TextileWorkflowApiController::class, 'index']);
+        Route::post('workflow/{documentId}/transition', [TextileWorkflowApiController::class, 'transition']);
+        Route::get('dashboard/summary', [TextileWorkflowApiController::class, 'summary']);
+
+        Route::post('procurement/requisitions/store', [TextileProcurementApiController::class, 'storeRequisition']);
+        Route::post('procurement/requisitions/{id}/approve', [TextileProcurementApiController::class, 'approveRequisition']);
+
+        Route::post('procurement/purchase-orders/store', [TextileProcurementApiController::class, 'storePurchaseOrder']);
+        Route::post('procurement/purchase-orders/{id}/approve', [TextileProcurementApiController::class, 'approvePurchaseOrder']);
+
+        Route::post('procurement/grns/store', [TextileProcurementApiController::class, 'storeGrn']);
+        Route::post('procurement/grns/{id}/release', [TextileProcurementApiController::class, 'releaseGrn']);
+
+        Route::post('procurement/incoming-qc/store', [TextileProcurementApiController::class, 'storeIncomingQc']);
+        Route::post('procurement/incoming-qc/{id}/finalize', [TextileProcurementApiController::class, 'finalizeIncomingQc']);
+
+        Route::post('sales/orders/store', [TextileSalesApiController::class, 'storeSalesOrder']);
+        Route::post('sales/orders/{id}/approve', [TextileSalesApiController::class, 'approveSalesOrder']);
+
+        Route::post('sales/allocations/store', [TextileSalesApiController::class, 'storeAllocation']);
+        Route::post('sales/allocations/{id}/release', [TextileSalesApiController::class, 'releaseAllocation']);
+
+        Route::post('sales/dispatches/store', [TextileSalesApiController::class, 'storeDispatch']);
+        Route::post('sales/dispatches/{id}/release', [TextileSalesApiController::class, 'releaseDispatch']);
+
+        Route::post('sales/challans/store', [TextileSalesApiController::class, 'storeChallan']);
+        Route::post('sales/challans/{id}/pod', [TextileSalesApiController::class, 'markPod']);
+
+        Route::post('manufacturing/beams/store', [TextileManufacturingApiController::class, 'storeBeam']);
+        Route::post('manufacturing/beams/{id}/approve', [TextileManufacturingApiController::class, 'approveBeam']);
+
+        Route::post('manufacturing/batches/store', [TextileManufacturingApiController::class, 'storeProductionBatch']);
+        Route::post('manufacturing/batches/{id}/release', [TextileManufacturingApiController::class, 'releaseProductionBatch']);
+
+        Route::post('manufacturing/weaving-output/store', [TextileManufacturingApiController::class, 'storeWeavingOutput']);
+        Route::post('manufacturing/waste/store', [TextileManufacturingApiController::class, 'storeWaste']);
+        Route::post('manufacturing/rework/store', [TextileManufacturingApiController::class, 'storeRework']);
+
+        Route::post('processing/outward/store', [TextileProcessingApiController::class, 'storeOutward']);
+        Route::post('processing/outward/{id}/release', [TextileProcessingApiController::class, 'releaseOutward']);
+        Route::post('processing/batches/store', [TextileProcessingApiController::class, 'storeBatch']);
+        Route::post('processing/batches/{id}/release', [TextileProcessingApiController::class, 'releaseBatch']);
+        Route::post('processing/inward/store', [TextileProcessingApiController::class, 'storeInward']);
+        Route::post('processing/inward/{id}/finalize', [TextileProcessingApiController::class, 'finalizeInward']);
+        Route::post('processing/reconcile', [TextileProcessingApiController::class, 'reconcile']);
+
+        Route::post('costing/entries/store', [TextileCostingApiController::class, 'storeCostingEntry']);
+        Route::post('costing/entries/{id}/finalize', [TextileCostingApiController::class, 'finalizeCostingEntry']);
+        Route::get('costing/summary', [TextileCostingApiController::class, 'summary']);
+    });
+});

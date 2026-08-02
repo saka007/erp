@@ -41,8 +41,8 @@ export default function BrandSettings({ userSettings, auth }: BrandSettingsProps
     logo_dark: userSettings?.logo_dark || '',
     logo_light: userSettings?.logo_light || '',
     favicon: userSettings?.favicon || '',
-    titleText: userSettings?.titleText || 'WorkDo',
-    footerText: userSettings?.footerText || `© ${new Date().getFullYear()} WorkDo. All rights reserved.`,
+    titleText: userSettings?.titleText || 'DigitalFuzed',
+    footerText: userSettings?.footerText || `© ${new Date().getFullYear()} DigitalFuzed. All rights reserved.`,
     sidebarVariant: userSettings?.sidebarVariant || 'inset',
     sidebarStyle: userSettings?.sidebarStyle || 'plain',
     layoutDirection: userSettings?.layoutDirection || 'ltr',
@@ -58,8 +58,8 @@ export default function BrandSettings({ userSettings, auth }: BrandSettingsProps
         logo_dark: userSettings?.logo_dark || '',
         logo_light: userSettings?.logo_light || '',
         favicon: userSettings?.favicon || '',
-        titleText: userSettings?.titleText || 'WorkDo',
-        footerText: userSettings?.footerText || `© ${new Date().getFullYear()} WorkDo. All rights reserved.`,
+        titleText: userSettings?.titleText || 'DigitalFuzed',
+        footerText: userSettings?.footerText || `© ${new Date().getFullYear()} DigitalFuzed. All rights reserved.`,
         sidebarVariant: userSettings?.sidebarVariant || 'inset',
         sidebarStyle: userSettings?.sidebarStyle || 'plain',
         layoutDirection: userSettings?.layoutDirection || 'ltr',
@@ -264,7 +264,7 @@ export default function BrandSettings({ userSettings, auth }: BrandSettingsProps
                       name="titleText"
                       value={settings.titleText}
                       onChange={handleInputChange}
-                      placeholder="WorkDo"
+                      placeholder="DigitalFuzed"
                       disabled={!canEdit}
                     />
                     <p className="text-xs text-muted-foreground">
@@ -279,7 +279,7 @@ export default function BrandSettings({ userSettings, auth }: BrandSettingsProps
                       name="footerText"
                       value={settings.footerText}
                       onChange={handleInputChange}
-                      placeholder={t(`© ${new Date().getFullYear()} WorkDo. All rights reserved.`)}
+                      placeholder={t(`© ${new Date().getFullYear()} DigitalFuzed. All rights reserved.`)}
                       disabled={!canEdit}
                     />
                     <p className="text-xs text-muted-foreground">

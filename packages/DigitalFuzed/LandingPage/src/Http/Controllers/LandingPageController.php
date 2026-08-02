@@ -34,7 +34,7 @@ class LandingPageController extends Controller
 
         $enableRegistration = admin_setting('enableRegistration');
 
-        $settingsData = $settings ? $settings->toArray() : [];
+        $settingsData = $settings ? $this->normalizeLandingPageSettings($settings->toArray()) : [];
         $settingsData['enable_registration'] = $enableRegistration === 'on';
         $settingsData['is_authenticated'] = $request->user() !== null;
 
@@ -63,7 +63,7 @@ class LandingPageController extends Controller
         $landingPageSettings = LandingPageSetting::first();
         $enableRegistration = admin_setting('enableRegistration');
 
-        $settingsData = $landingPageSettings ? $landingPageSettings->toArray() : [];
+        $settingsData = $landingPageSettings ? $this->normalizeLandingPageSettings($landingPageSettings->toArray()) : [];
         $settingsData['enable_registration'] = $enableRegistration === 'on';
         $settingsData['is_authenticated'] = $request->user() !== null;
 
@@ -139,6 +139,7 @@ class LandingPageController extends Controller
             // Handle image paths - store only filename
             if (isset($validated['config_sections']['sections'])) {
                 $this->processImagePaths($validated['config_sections']['sections']);
+                $this->normalizeLinkPaths($validated['config_sections']['sections']);
             }
 
             LandingPageSetting::updateOrCreate(['id' => 1], $validated);
@@ -173,5 +174,54 @@ class LandingPageController extends Controller
             return $imagePath;
         }
         return basename($imagePath);
+    }
+
+    private function normalizeLandingPageSettings(array $settings): array
+    {
+        if (isset($settings['config_sections']['sections']) && is_array($settings['config_sections']['sections'])) {
+            $settings['config_sections']['sections'] = $this->normalizeLinkPaths($settings['config_sections']['sections']);
+        }
+
+        return $settings;
+    }
+
+    private function normalizeLinkPaths(array $sections): array
+    {
+        foreach ($sections as $sectionKey => &$sectionData) {
+            if (!is_array($sectionData)) {
+                continue;
+            }
+
+            foreach (['primary_button_link', 'secondary_button_link'] as $linkKey) {
+                if (isset($sectionData[$linkKey]) && is_string($sectionData[$linkKey])) {
+                    $sectionData[$linkKey] = $this->normalizeInternalLink($sectionData[$linkKey]);
+                }
+            }
+        }
+
+        return $sections;
+    }
+
+    private function normalizeInternalLink(string $link): string
+    {
+        if (!preg_match('#^https?://#i', $link)) {
+            return $link;
+        }
+
+        $parsedUrl = parse_url($link);
+        $host = $parsedUrl['host'] ?? '';
+
+        if (!in_array($host, ['127.0.0.1', 'localhost'], true)) {
+            $appHost = parse_url(config('app.url') ?? '', PHP_URL_HOST);
+            if ($appHost && $host !== $appHost) {
+                return $link;
+            }
+        }
+
+        $path = $parsedUrl['path'] ?? '/';
+        $query = isset($parsedUrl['query']) ? '?' . $parsedUrl['query'] : '';
+        $fragment = isset($parsedUrl['fragment']) ? '#' . $parsedUrl['fragment'] : '';
+
+        return $path . $query . $fragment;
     }
 }

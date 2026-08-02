@@ -62,6 +62,16 @@ class HomeController extends Controller
 
     private function regularDashboard()
     {
+        $user = Auth::user();
+
+        if (
+            $user &&
+            $this->isTextileIndustryUser($user) &&
+            \Route::has('textile.dashboard.index')
+        ) {
+            return redirect()->route('textile.dashboard.index');
+        }
+
         $packagesPath = base_path('packages/DigitalFuzed');
 
         // find dashboard menu from all  active package and redirect if found
@@ -81,5 +91,30 @@ class HomeController extends Controller
         }
 
         return Inertia::render('dashboard');
+    }
+
+    private function isTextileIndustryUser(User $user): bool
+    {
+        if ($user->type === 'superadmin') {
+            return false;
+        }
+
+        $companyUserId = $user->type === 'company' ? $user->id : $user->created_by;
+
+        if (! $companyUserId) {
+            return false;
+        }
+
+        if (Module_is_active('TextileCore', $companyUserId)) {
+            return true;
+        }
+
+        return \App\Models\UserActiveModule::query()
+            ->where('user_id', $companyUserId)
+            ->where(function ($query) {
+                $query->where('module', 'like', '%Textile%')
+                    ->orWhere('module', 'like', '%textile%');
+            })
+            ->exists();
     }
 }

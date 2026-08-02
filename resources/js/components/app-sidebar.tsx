@@ -35,6 +35,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const { t } = useTranslation();
     const { settings, getCompleteSidebarProps } = useBrand();
     const [searchQuery, setSearchQuery] = React.useState("");
+    const isTextileCompany = auth?.user?.type === 'company' && (
+      auth?.user?.industry_type === 'textile' ||
+      (auth?.user?.activatedPackages || []).some((module) => module.toLowerCase().includes('textile'))
+    );
+  const homeRoute = isTextileCompany ? route('textile.dashboard.index') : route('dashboard');
 
     const sidebarProps = getCompleteSidebarProps();
 
@@ -51,7 +56,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href={route('dashboard')} className="flex items-center !py-4 h-auto justify-center">
+              <Link href={homeRoute} className="flex items-center !py-4 h-auto justify-center">
                 {/* Logo for expanded sidebar */}
                 <div className="group-data-[collapsible=icon]:hidden flex items-center">
                   {(() => {
@@ -68,7 +73,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       />
                     ) : (
                       <div className="h-12 text-inherit font-semibold flex items-center text-lg tracking-tight">
-                        {settings.titleText || 'WorkDo'}
+                        {settings.titleText || 'DigitalFuzed'}
                       </div>
                     );
                   })()}
@@ -88,7 +93,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       />
                     ) : (
                       <div className="h-8 w-8 bg-primary text-white rounded flex items-center justify-center font-bold shadow-sm">
-                        W
+                        D
                       </div>
                     );
                   })()}
@@ -101,7 +106,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <div className="relative">
             <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground group-data-[collapsible=icon]:hidden" />
             <SidebarInput
-              placeholder="Search menu..."
+              placeholder={isTextileCompany ? t('Search textile menu...') : t('Search menu...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-8 group-data-[collapsible=icon]:hidden border-sidebar-border focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary"

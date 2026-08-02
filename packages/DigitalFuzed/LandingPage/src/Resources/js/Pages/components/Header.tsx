@@ -159,7 +159,7 @@ export default function Header({ settings }: HeaderProps) {
             return (
                 <div className={`flex ${isMobile ? 'flex-col space-y-2' : 'space-x-2'}`}>
                     <button 
-                        onClick={() => router.visit(route('login'))}
+                        onClick={() => router.visit('/login')}
                         className={`border rounded-md font-medium transition-colors ${
                             isMobile ? 'px-4 py-2 text-sm w-full' : 
                             variant === 'header3' ? 'px-3 py-1 text-xs' : 'px-4 py-2 text-sm'
@@ -177,7 +177,7 @@ export default function Header({ settings }: HeaderProps) {
                         {t('Sign In')}
                     </button>
                     <button 
-                        onClick={() => router.visit(route('register'))}
+                        onClick={() => router.visit('/register')}
                         className={`text-white rounded-md font-medium transition-colors ${
                             isMobile ? 'px-4 py-2 text-sm w-full' : 
                             variant === 'header3' ? 'px-3 py-1 text-xs' : 'px-4 py-2 text-sm'
@@ -194,7 +194,7 @@ export default function Header({ settings }: HeaderProps) {
         
         return (
             <button 
-                onClick={() => router.visit(route('login'))}
+                onClick={() => router.visit('/login')}
                 className={`text-white rounded-md font-medium transition-colors ${
                     isMobile ? 'px-4 py-2 text-sm w-full' : 
                     variant === 'header3' ? 'px-3 py-1 text-xs' : 'px-4 py-2 text-sm'

@@ -1,0 +1,188 @@
+<?php
+
+namespace Tests\Feature\Textile;
+
+use App\Models\AddOn;
+use App\Models\Plan;
+use App\Models\User;
+use App\Models\UserActiveModule;
+use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
+use Tests\TestCase;
+
+class TextileProcurementAdminTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_company_can_run_procurement_lifecycle_and_tenant_data_is_isolated(): void
+    {
+        AddOn::create([
+            'module' => 'TextileCore',
+            'name' => 'Textile Core',
+            'package_name' => 'textile-core',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        AddOn::create([
+            'module' => 'TextileInventory',
+            'name' => 'Textile Inventory',
+            'package_name' => 'textile-inventory',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        $companyA = $this->company();
+        $companyB = $this->company();
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.requisitions.store'), [
+                'party_name' => 'Alpha Fibers',
+                'lot_reference' => 'LOT-A-1',
+                'quantity' => 100,
+                'unit' => 'kg',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $requisitionA = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'purchase_requisition')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($requisitionA);
+        $this->assertSame('draft', $requisitionA->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.requisitions.approve'), [
+                'requisition_id' => $requisitionA->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $requisitionA->refresh();
+        $this->assertSame('approved', $requisitionA->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.purchase-orders.store'), [
+                'requisition_id' => $requisitionA->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $purchaseOrderA = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'purchase_order')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($purchaseOrderA);
+        $this->assertSame('draft', $purchaseOrderA->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.purchase-orders.approve'), [
+                'purchase_order_id' => $purchaseOrderA->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $purchaseOrderA->refresh();
+        $this->assertSame('approved', $purchaseOrderA->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.grns.store'), [
+                'purchase_order_id' => $purchaseOrderA->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $grnA = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'grn')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($grnA);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.grns.release'), [
+                'grn_id' => $grnA->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $grnA->refresh();
+        $this->assertSame('released', $grnA->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.incoming-qc.store'), [
+                'grn_id' => $grnA->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $incomingQcA = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'incoming_qc')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($incomingQcA);
+        $this->assertSame('draft', $incomingQcA->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.incoming-qc.finalize'), [
+                'incoming_qc_id' => $incomingQcA->id,
+                'decision' => 'pass',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $incomingQcA->refresh();
+        $this->assertSame('approved', $incomingQcA->status);
+
+        $this->actingAs($companyB)
+            ->get(route('textile.procurement.index'))
+            ->assertOk()
+            ->assertDontSee('LOT-A-1')
+            ->assertDontSee('Alpha Fibers');
+
+        $this->actingAs($companyA)
+            ->get(route('textile.procurement.index'))
+            ->assertOk()
+            ->assertSee('LOT-A-1')
+            ->assertSee('Alpha Fibers');
+    }
+
+    private function company(): User
+    {
+        $plan = Plan::create([
+            'name' => 'Textile Procurement Plan',
+            'modules' => ['TextileCore', 'TextileInventory'],
+        ]);
+
+        $company = User::factory()->create([
+            'type' => 'company',
+            'active_plan' => $plan->id,
+            'email_verified_at' => now(),
+        ]);
+
+        $role = Role::firstOrCreate([
+            'name' => 'company',
+            'guard_name' => 'web',
+        ], [
+            'label' => 'Company',
+            'created_by' => $company->id,
+        ]);
+
+        $company->assignRole($role);
+
+        UserActiveModule::create([
+            'user_id' => $company->id,
+            'module' => 'TextileCore',
+        ]);
+
+        UserActiveModule::create([
+            'user_id' => $company->id,
+            'module' => 'TextileInventory',
+        ]);
+
+        return $company;
+    }
+}

@@ -1,0 +1,185 @@
+<?php
+
+namespace DigitalFuzed\TextileCore\Http\Controllers;
+
+use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Services\TextileSalesService;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
+use RuntimeException;
+
+class TextileSalesController extends Controller
+{
+    public function index()
+    {
+        $this->authorizeTextileAccess();
+
+        return Inertia::render('DigitalFuzedTextileCore/Sales/Index', [
+            'salesOrders' => $this->documents('sales_order'),
+            'allocations' => $this->documents('allocation'),
+            'dispatches' => $this->documents('dispatch'),
+            'challans' => $this->documents('challan'),
+            'pods' => $this->documents('pod'),
+        ]);
+    }
+
+    public function storeSalesOrder(Request $request, TextileSalesService $service)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'source_reference_type' => ['required', 'string', 'max:100'],
+            'source_reference_id' => ['required', 'integer', 'min:1'],
+            'source_action' => ['nullable', 'string', 'max:100'],
+            'party_name' => ['nullable', 'string', 'max:100'],
+            'lot_reference' => ['required', 'string', 'max:100'],
+            'quantity' => ['required', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        try {
+            $service->createSalesOrder($validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['source_reference_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Sales order created successfully.'));
+    }
+
+    public function approveSalesOrder(Request $request, TextileSalesService $service)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'sales_order_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $service->approveSalesOrder((int) $validated['sales_order_id']);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['sales_order_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Sales order approved successfully.'));
+    }
+
+    public function storeAllocation(Request $request, TextileSalesService $service)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'sales_order_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $service->createAllocation((int) $validated['sales_order_id']);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['sales_order_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Allocation created successfully.'));
+    }
+
+    public function releaseAllocation(Request $request, TextileSalesService $service)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'allocation_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $service->releaseAllocation((int) $validated['allocation_id']);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['allocation_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Allocation released successfully.'));
+    }
+
+    public function storeDispatch(Request $request, TextileSalesService $service)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'allocation_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $service->createDispatch((int) $validated['allocation_id']);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['allocation_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Dispatch created successfully.'));
+    }
+
+    public function releaseDispatch(Request $request, TextileSalesService $service)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'dispatch_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $service->releaseDispatch((int) $validated['dispatch_id']);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['dispatch_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Dispatch released successfully.'));
+    }
+
+    public function storeChallan(Request $request, TextileSalesService $service)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'dispatch_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $service->createChallan((int) $validated['dispatch_id']);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['dispatch_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Challan created successfully.'));
+    }
+
+    public function markPod(Request $request, TextileSalesService $service)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'challan_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $service->markPod((int) $validated['challan_id']);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['challan_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('POD marked successfully.'));
+    }
+
+    private function documents(string $type)
+    {
+        return TextileWorkflowDocument::query()
+            ->where('created_by', creatorId())
+            ->where('document_type', $type)
+            ->latest()
+            ->get();
+    }
+
+    private function authorizeTextileAccess(): void
+    {
+        $user = Auth::user();
+
+        abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+    }
+}

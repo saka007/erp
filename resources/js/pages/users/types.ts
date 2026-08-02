@@ -10,6 +10,8 @@ export interface User {
     is_enable_login: boolean;
     is_disable?: number;
     avatar?: string;
+    active_plan_name?: string | null;
+    industry_type?: 'standard' | 'textile';
     created_at: string;
 }
 
@@ -60,7 +62,7 @@ export interface UserFilters {
 export type PaginatedUsers = PaginatedData<User>;
 export interface UserModalState {
     isOpen: boolean;
-    mode: '' | 'add' | 'edit' | 'change-password';
+    mode: '' | 'add' | 'edit' | 'change-password' | 'industry';
     data: User | null;
 }
 

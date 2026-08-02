@@ -5,6 +5,60 @@ import { getSuperAdminMenu } from './menus/superadmin-menu';
 import { getCompanyMenu } from './menus/company-menu';
 import * as LucideIcons from 'lucide-react';
 
+const TEXTILE_PACKAGE_KEYWORD = 'textile';
+
+const isTextileIndustryCompany = (userType: string | undefined, userRoles: string[], industryType: string | undefined, activatedPackages: string[]): boolean => {
+    if (userType === 'superadmin' || userRoles.includes('superadmin')) {
+        return false;
+    }
+
+    if (industryType === 'textile') {
+        return true;
+    }
+
+    if (!Array.isArray(activatedPackages)) {
+        return false;
+    }
+
+    return activatedPackages.some((moduleName) => moduleName.toLowerCase().includes(TEXTILE_PACKAGE_KEYWORD));
+};
+
+const filterPackagesForIndustry = (userType: string | undefined, userRoles: string[], industryType: string | undefined, activatedPackages: string[]): string[] => {
+    if (!isTextileIndustryCompany(userType, userRoles, industryType, activatedPackages)) {
+        return activatedPackages;
+    }
+
+    return activatedPackages.filter((moduleName) => moduleName.toLowerCase().includes(TEXTILE_PACKAGE_KEYWORD));
+};
+
+const filterCoreMenusForIndustry = (coreMenus: NavItem[], userType: string | undefined, userRoles: string[], industryType: string | undefined, activatedPackages: string[], t: (key: string) => string): NavItem[] => {
+    if (!isTextileIndustryCompany(userType, userRoles, industryType, activatedPackages)) {
+        return coreMenus;
+    }
+
+    const allowedPermissions = new Set(['manage-dashboard', 'manage-users', 'manage-settings']);
+
+    return coreMenus
+        .filter((item) => {
+            if (!item.permission) {
+                return item.name === 'dashboard';
+            }
+
+            return allowedPermissions.has(item.permission);
+        })
+        .map((item) => {
+            if (item.name === 'dashboard') {
+                return {
+                    ...item,
+                    title: t('Textile Dashboard'),
+                    href: route('textile.dashboard.index'),
+                };
+            }
+
+            return item;
+        });
+};
+
 // Get role-based core menu items
 const getCoreMenuItems = (userRoles: string[], t: (key: string) => string): NavItem[] => {
     if (userRoles.includes('superadmin')) {
@@ -26,8 +80,18 @@ const getPackageMenuItems = (userRoles: string[], activatedPackages: string[], t
     }
 
     activatedPackages.forEach(packageName => {
-        const menuPath = `../../../packages/DigitalFuzed/${packageName}/src/Resources/js/menus/${menuType}.ts`;
-        const module = allModules[menuPath] as any;
+        const directPath = `../../../packages/DigitalFuzed/${packageName}/src/Resources/js/menus/${menuType}.ts`;
+        const prefixedPath = `../../../packages/DigitalFuzed/DigitalFuzed${packageName}/src/Resources/js/menus/${menuType}.ts`;
+
+        const resolvedPath = allModules[directPath]
+            ? directPath
+            : (allModules[prefixedPath] ? prefixedPath : null);
+
+        if (!resolvedPath) {
+            return;
+        }
+
+        const module = allModules[resolvedPath] as any;
 
         if (module) {
             Object.values(module).forEach((item: any) => {
@@ -126,11 +190,14 @@ export const allMenuItems = (): NavItem[] => {
     const { t } = useTranslation();
     const userPermissions = auth?.user?.permissions || [];
     const userRoles = auth?.user?.roles || [];
+    const userType = auth?.user?.type;
+    const industryType = auth?.user?.industry_type;
     const activatedPackages = auth?.user?.activatedPackages || [];
 
-    const coreMenuItems = getCoreMenuItems(userRoles, t);
+    const coreMenuItems = filterCoreMenusForIndustry(getCoreMenuItems(userRoles, t), userType, userRoles, industryType, activatedPackages, t);
 
-    const packageMenuItems = getPackageMenuItems(userRoles, activatedPackages, t);
+    const industryPackages = filterPackagesForIndustry(userType, userRoles, industryType, activatedPackages);
+    const packageMenuItems = getPackageMenuItems(userRoles, industryPackages, t);
     
     const customMenuItems = getCustomMenuItems(userRoles, t);
     

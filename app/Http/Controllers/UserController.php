@@ -14,6 +14,10 @@ use App\Models\EmailTemplate;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 use Illuminate\Support\Facades\Session;
+use App\Models\Plan;
+use App\Models\UserActiveModule;
+use App\Models\AddOn;
+use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
@@ -45,6 +49,31 @@ class UserController extends Controller
                 ->select('users.*')
                 ->paginate(request('per_page', 10))
                 ->withQueryString();
+
+            $companyUsers = $users->getCollection()->where('type', 'company');
+            $plans = Plan::whereIn('id', $companyUsers->pluck('active_plan')->filter())
+                ->get(['id', 'name', 'modules'])
+                ->keyBy('id');
+            $manualModules = UserActiveModule::whereIn('user_id', $companyUsers->pluck('id'))
+                ->get()
+                ->groupBy('user_id');
+            $textileModules = ['TextileCore', 'TextileInventory'];
+
+            $users->getCollection()->transform(function (User $user) use ($plans, $manualModules, $textileModules) {
+                if ($user->type !== 'company') {
+                    return $user;
+                }
+
+                $plan = $plans->get($user->active_plan);
+                $planModules = is_array($plan?->modules) ? $plan->modules : [];
+                $userModules = ($manualModules->get($user->id) ?? collect())->pluck('module')->all();
+                $effectiveModules = array_unique(array_merge($planModules, $userModules));
+
+                $user->setAttribute('active_plan_name', $plan?->name);
+                $user->setAttribute('industry_type', count(array_intersect($textileModules, $effectiveModules)) > 0 ? 'textile' : 'standard');
+
+                return $user;
+            });
 
             $roles = Role::where('created_by', creatorId())->pluck('label', 'id');
 
@@ -137,6 +166,61 @@ class UserController extends Controller
         }
         else{
             return redirect()->route('users.index')->with('error', __('Permission denied'));
+        }
+    }
+
+    public function updateIndustry(Request $request, User $user)
+    {
+        $actor = Auth::user();
+
+        if (! $actor || ($actor->type !== 'superadmin' && ! $actor->hasRole('superadmin'))) {
+            abort(403);
+        }
+
+        if ($user->type !== 'company' || (int) $user->created_by !== (int) $actor->id) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'industry_type' => 'required|in:standard,textile',
+        ]);
+
+        $textileModules = ['TextileCore', 'TextileInventory'];
+
+        if ($validated['industry_type'] === 'textile') {
+            $this->ensureTextileAddOnsEnabled($textileModules);
+
+            foreach ($textileModules as $module) {
+                UserActiveModule::firstOrCreate([
+                    'user_id' => $user->id,
+                    'module' => $module,
+                ]);
+            }
+        } else {
+            UserActiveModule::where('user_id', $user->id)
+                ->whereIn('module', $textileModules)
+                ->delete();
+        }
+
+        return back()->with('success', __('Company industry access updated successfully.'));
+    }
+
+    private function ensureTextileAddOnsEnabled(array $textileModules): void
+    {
+        foreach ($textileModules as $module) {
+            $packageName = strtolower(preg_replace('/(?<!^)[A-Z]/', '-$0', $module));
+
+            AddOn::updateOrCreate(
+                ['module' => $module],
+                [
+                    'name' => str_replace('Textile', 'Textile ', $module),
+                    'package_name' => $packageName,
+                    'monthly_price' => 0,
+                    'yearly_price' => 0,
+                    'is_enable' => true,
+                    'for_admin' => false,
+                ]
+            );
         }
     }
 

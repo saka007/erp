@@ -17,7 +17,7 @@ class SettingController extends Controller
 {
     public function index()
     {
-        if(Auth::user()->can('manage-settings'))
+        if ($this->canAccessSettings('manage-settings'))
         {
             $globalSettings = getCompanyAllSetting();
             $emailProviders = config('email-providers');
@@ -48,7 +48,7 @@ class SettingController extends Controller
 
     public function updateBrandSettings(Request $request)
     {
-        if(Auth::user()->can('edit-brand-settings'))
+        if ($this->canAccessSettings('edit-brand-settings'))
         {
             $request->validate([
                 'settings.logo_dark' => 'nullable|string|max:500',
@@ -154,7 +154,7 @@ class SettingController extends Controller
 
     public function updateCompanySettings(Request $request)
     {
-        if(Auth::user()->can('edit-company-settings'))
+        if ($this->canAccessSettings('edit-company-settings'))
         {
             $request->validate([
                 'settings.company_name' => 'nullable|string|max:255',
@@ -206,7 +206,7 @@ class SettingController extends Controller
 
     public function updateSystemSettings(Request $request)
     {
-        if(Auth::user()->can('edit-system-settings'))
+        if ($this->canAccessSettings('edit-system-settings'))
         {
             $request->validate([
                 'settings.defaultLanguage' => 'required|string|max:10',
@@ -256,7 +256,7 @@ class SettingController extends Controller
 
     public function updateCurrencySettings(Request $request)
     {
-        if(Auth::user()->can('edit-system-settings'))
+        if ($this->canAccessSettings('edit-system-settings'))
         {
             $request->validate([
                 'settings.defaultCurrency' => 'required|string|max:10',
@@ -304,7 +304,7 @@ class SettingController extends Controller
 
     public function clearCache(Request $request)
     {
-        if(Auth::user()->can('clear-cache'))
+        if ($this->canAccessSettings('clear-cache'))
         {
             try {
                 Artisan::call('cache:clear');
@@ -325,7 +325,7 @@ class SettingController extends Controller
 
     public function optimizeSite(Request $request)
     {
-        if(Auth::user()->can('clear-cache'))
+        if ($this->canAccessSettings('clear-cache'))
         {
             try {
                 Artisan::call('optimize:clear');
@@ -369,7 +369,7 @@ class SettingController extends Controller
 
     public function updateCookieSettings(Request $request)
     {
-        if(Auth::user()->can('edit-cookie-settings'))
+        if ($this->canAccessSettings('edit-cookie-settings'))
         {
             $request->validate([
                 'settings.enableLogging' => 'required|boolean',
@@ -421,7 +421,7 @@ class SettingController extends Controller
 
     public function updateEmailSettings(Request $request)
     {
-        if(Auth::user()->can('edit-email-settings'))
+        if ($this->canAccessSettings('edit-email-settings'))
         {
             $request->validate([
                 'settings.provider' => 'required|string|max:50',
@@ -474,7 +474,7 @@ class SettingController extends Controller
 
     public function testEmail(Request $request)
     {
-        if(Auth::user()->can('test-email'))
+        if ($this->canAccessSettings('test-email'))
         {
             $request->validate([
                 'email' => 'required|email'
@@ -502,7 +502,7 @@ class SettingController extends Controller
 
     public function updateSeoSettings(Request $request)
     {
-        if(Auth::user()->can('edit-seo-settings'))
+        if ($this->canAccessSettings('edit-seo-settings'))
         {
             $request->validate([
                 'settings.metaKeywords' => 'required|string|max:500',
@@ -543,7 +543,7 @@ class SettingController extends Controller
 
     public function updateStorageSettings(Request $request)
     {
-        if(Auth::user()->can('edit-storage-settings'))
+        if ($this->canAccessSettings('edit-storage-settings'))
         {
             $request->validate([
                 'settings.storageType' => 'required|string|in:local,aws_s3,wasabi',
@@ -616,7 +616,7 @@ class SettingController extends Controller
 
     public function downloadCookieData()
     {
-        if(Auth::user()->can('manage-cookie-settings'))
+        if ($this->canAccessSettings('manage-cookie-settings'))
         {
             $cookieDataPath = storage_path('app/cookie_data.csv');
 
@@ -665,7 +665,7 @@ class SettingController extends Controller
 
     public function updateBankTransferSettings(Request $request)
     {
-        if(Auth::user()->can('edit-bank-transfer-settings'))
+        if ($this->canAccessSettings('edit-bank-transfer-settings'))
         {
             $request->validate([
                 'settings.bankTransferEnabled' => 'required|string|in:on,off',
@@ -694,7 +694,7 @@ class SettingController extends Controller
 
     public function updatePusherSettings(Request $request)
     {
-        if(Auth::user()->can('edit-pusher-settings'))
+        if ($this->canAccessSettings('edit-pusher-settings'))
         {
             $request->validate([
                 'settings.app_id' => 'required|string|max:50',
@@ -739,5 +739,20 @@ class SettingController extends Controller
             }
         }
         return redirect()->back()->with('success', __('Mail Notification Setting save sucessfully.'));
+    }
+
+    private function canAccessSettings(string $permission): bool
+    {
+        $user = Auth::user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->hasRole('superadmin')) {
+            return true;
+        }
+
+        return $user->can($permission);
     }
 }

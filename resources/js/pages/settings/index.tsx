@@ -11,6 +11,10 @@ import { getSettingsComponent } from '@/utils/settings-components';
 export default function Settings() {
   const { t } = useTranslation();
   const { auth, globalSettings = {}, emailProviders = {}, cacheSize = '0.00' } = usePage().props as any;
+  const isTextileCompany =
+    auth?.user?.industry_type === 'textile' ||
+    (auth?.user?.type !== 'superadmin' && (auth?.user?.activatedPackages || []).some((module: string) => module.toLowerCase().includes('textile')));
+  const settingsTitle = isTextileCompany ? t('Textile Settings') : t('Settings');
   const [activeSection, setActiveSection] = useState('brand-settings');
 
   const sidebarNavItems = allSettingsItems();
@@ -48,10 +52,10 @@ export default function Settings() {
 
   return (
     <AuthenticatedLayout
-      breadcrumbs={[{ label: t('Settings') }]}
-      pageTitle={t('Settings')}
+      breadcrumbs={[{ label: settingsTitle }]}
+      pageTitle={settingsTitle}
     >
-      <Head title={t('Settings')} />
+      <Head title={settingsTitle} />
 
       <div className="flex flex-col md:flex-row gap-8">
         {/* Sidebar Navigation */}

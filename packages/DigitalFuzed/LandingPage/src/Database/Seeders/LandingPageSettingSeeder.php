@@ -51,9 +51,9 @@ class LandingPageSettingSeeder extends Seeder
                 'title' => 'The Complete Cloud ERP Platform for Modern Enterprises',
                 'subtitle' => 'Streamline your entire business lifecycle, from finance to operations, with ERPGo SaaS. One platform, infinite possibilities.',
                 'primary_button_text' => 'Start Free Trial',
-                'primary_button_link' => route('register'),
+                'primary_button_link' => '/register',
                 'secondary_button_text' => 'Login',
-                'secondary_button_link' => route('login'),
+                'secondary_button_link' => '/login',
                 'highlight_text' => 'ERPGo SaaS',
                 'image' => 'packages/workdo/LandingPage/src/Resources/assets/img/hero.png'
             ],

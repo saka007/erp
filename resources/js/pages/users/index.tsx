@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { Dialog } from "@/components/ui/dialog";
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
-import { Plus, Edit, Trash2, Key, Users as UsersIcon, User as UserIcon, UserCheck, History, Lock } from "lucide-react";
+import { Plus, Edit, Trash2, Key, Users as UsersIcon, User as UserIcon, UserCheck, History, Lock, Factory } from "lucide-react";
 import { getImagePath } from '@/utils/helpers';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { FilterButton } from '@/components/ui/filter-button';
@@ -22,6 +22,7 @@ import { ListGridToggle } from '@/components/ui/list-grid-toggle';
 import Create from './create';
 import EditUser from './edit';
 import ChangePassword from './change-password';
+import IndustryAccess from './industry-access';
 import NoRecordsFound from '@/components/no-records-found';
 import { User, UsersIndexProps, UserFilters, UserModalState } from './types';
 
@@ -48,6 +49,12 @@ export default function Index() {
         data: null
     });
     const [showFilters, setShowFilters] = useState(false);
+    const isSuperAdmin = auth.user?.type === 'superadmin';
+    const isTextileCompany =
+        (auth.user as any)?.industry_type === 'textile' ||
+        (auth.user?.type !== 'superadmin' && ((auth.user as any)?.activatedPackages || []).some((module: string) => module.toLowerCase().includes('textile')));
+    const usersBreadcrumb = isTextileCompany ? t('Textile Users') : t('Users');
+    const usersPageTitle = isTextileCompany ? t('Manage Textile Users') : t('Manage Users');
 
     // Add hook here
     const pageButtons = usePageButtons('userBtn','Test data');
@@ -79,7 +86,7 @@ export default function Index() {
         router.get(route('users.index'), {per_page: perPage, view: viewMode});
     };
 
-    const openModal = (mode: 'add' | 'edit' | 'change-password', data: User | null = null) => {
+    const openModal = (mode: 'add' | 'edit' | 'change-password' | 'industry', data: User | null = null) => {
         setModalState({
             isOpen: true,
             mode,
@@ -137,6 +144,23 @@ export default function Index() {
                 </span>
             )
         },
+        ...(isSuperAdmin ? [{
+            key: 'active_plan_name',
+            header: t('Access Plan'),
+            render: (value: string | null, user: User) => user.type === 'company' ? (
+                <span className="text-sm text-gray-700">{value || t('No plan')}</span>
+            ) : '-'
+        }, {
+            key: 'industry_type',
+            header: t('Industry'),
+            render: (value: User['industry_type'], user: User) => user.type === 'company' ? (
+                <span className={`capitalize px-2 py-1 rounded-full text-sm ${
+                    value === 'textile' ? 'bg-violet-100 text-violet-800' : 'bg-gray-100 text-gray-700'
+                }`}>
+                    {value === 'textile' ? t('Textile') : t('Standard')}
+                </span>
+            ) : '-'
+        }] : []),
         {
             key: 'is_enable_login',
             header: t('Login Status'),
@@ -149,7 +173,7 @@ export default function Index() {
                 </span>
             )
         },
-        ...(auth.user?.permissions?.some((p: string) => ['change-password-users', 'edit-users', 'delete-users'].includes(p)) ? [{
+        ...(auth.user?.permissions?.some((p: string) => ['change-password-users', 'edit-users', 'delete-users'].includes(p)) || isSuperAdmin ? [{
             key: 'actions',
             header: t('Actions'),
             render: (_: any, user: User) => (
@@ -208,6 +232,18 @@ export default function Index() {
                                     </TooltipContent>
                                 </Tooltip>
                             )}
+                            {isSuperAdmin && user.type === 'company' && (
+                                <Tooltip delayDuration={0}>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="sm" onClick={() => openModal('industry', user)} className="h-8 w-8 p-0 text-violet-600 hover:text-violet-700">
+                                            <Factory className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{t('Assign Industry')}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            )}
                             {auth.user?.permissions?.includes('delete-users') && (
                                 <Tooltip delayDuration={0}>
                                     <TooltipTrigger asChild>
@@ -234,8 +270,8 @@ export default function Index() {
 
     return (
         <AuthenticatedLayout
-            breadcrumbs={[{label: t('Users')}]}
-            pageTitle={t('Manage Users')}
+            breadcrumbs={[{label: usersBreadcrumb}]}
+            pageTitle={usersPageTitle}
             pageActions={
                 <div className="flex gap-2">
                     <TooltipProvider>
@@ -270,7 +306,7 @@ export default function Index() {
                 </div>
             }
         >
-            <Head title={t('Users')} />
+            <Head title={usersBreadcrumb} />
 
             {/* Main Content Card */}
             <Card className="shadow-sm">
@@ -435,6 +471,18 @@ export default function Index() {
                                                             </div>
                                                         )}
                                                     </div>
+                                                    {isSuperAdmin && user.type === 'company' && (
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <div>
+                                                                <p className="text-xs font-medium text-gray-600 mb-1">{t('Access Plan')}</p>
+                                                                <p className="text-xs text-gray-900 truncate">{user.active_plan_name || t('No plan')}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs font-medium text-gray-600 mb-1">{t('Industry')}</p>
+                                                                <p className="text-xs text-gray-900 capitalize">{user.industry_type || t('Standard')}</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 <div className="flex items-center justify-between pt-3 border-t">
@@ -496,6 +544,18 @@ export default function Index() {
                                                                         </TooltipTrigger>
                                                                         <TooltipContent>
                                                                             <p>{t('Edit')}</p>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                )}
+                                                                {isSuperAdmin && user.type === 'company' && (
+                                                                    <Tooltip delayDuration={300}>
+                                                                        <TooltipTrigger asChild>
+                                                                            <Button variant="ghost" size="sm" onClick={() => openModal('industry', user)} className="h-8 w-8 p-0 text-violet-600">
+                                                                                <Factory className="h-4 w-4" />
+                                                                            </Button>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            <p>{t('Assign Industry')}</p>
                                                                         </TooltipContent>
                                                                     </Tooltip>
                                                                 )}
@@ -563,6 +623,12 @@ export default function Index() {
                 )}
                 {modalState.mode === 'change-password' && modalState.data && (
                     <ChangePassword
+                        user={modalState.data}
+                        onSuccess={closeModal}
+                    />
+                )}
+                {modalState.mode === 'industry' && modalState.data && (
+                    <IndustryAccess
                         user={modalState.data}
                         onSuccess={closeModal}
                     />

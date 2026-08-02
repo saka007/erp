@@ -21,7 +21,7 @@ class PlanController extends Controller
 {
     public function index()
     {
-        if (Auth::user()->can('manage-plans')) {
+        if ($this->canAccessPlans('manage-plans')) {
             $user = Auth::user();
 
             // Super admin sees all plans, company users see only active plans
@@ -114,7 +114,7 @@ class PlanController extends Controller
 
     public function create()
     {
-        if (Auth::user()->can('create-plans')) {
+        if ($this->canAccessPlans('create-plans')) {
             $user = Auth::user();
 
             // Get all enabled addons
@@ -163,7 +163,7 @@ class PlanController extends Controller
 
     public function store(StorePlanRequest $request)
     {
-        if (Auth::user()->can('create-plans')) {
+        if ($this->canAccessPlans('create-plans')) {
             $validated = $request->validated();
             $plan = new Plan();
             $plan->name = $validated['name'];
@@ -194,7 +194,7 @@ class PlanController extends Controller
 
     public function edit(Plan $plan)
     {
-        if (Auth::user()->can('edit-plans')) {
+        if ($this->canAccessPlans('edit-plans')) {
             $user = Auth::user();
 
             // Get all enabled addons
@@ -248,7 +248,7 @@ class PlanController extends Controller
 
     public function update(UpdatePlanRequest $request, Plan $plan)
     {
-        if (Auth::user()->can('edit-plans')) {
+        if ($this->canAccessPlans('edit-plans')) {
             $validated = $request->validated();
             
             $plan->name = $validated['name'];
@@ -273,7 +273,7 @@ class PlanController extends Controller
 
     public function destroy(Plan $plan)
     {
-        if (Auth::user()->can('delete-plans')) {
+        if ($this->canAccessPlans('delete-plans')) {
 
             $plan->delete();
 
@@ -349,7 +349,7 @@ class PlanController extends Controller
 
     public function subscribe(\Illuminate\Http\Request $request, Plan $plan)
     {
-        if (Auth::user()->can('view-plans')) {
+        if ($this->canAccessPlans('view-plans')) {
             $user = Auth::user();
 
             // Get enabled addons with details
@@ -458,5 +458,20 @@ class PlanController extends Controller
         } else {
             return back()->with('error', $result['error'] ?? 'Failed to assign free plan.');
         }
+    }
+
+    private function canAccessPlans(string $permission): bool
+    {
+        $user = Auth::user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->hasRole('superadmin')) {
+            return true;
+        }
+
+        return $user->can($permission);
     }
 }

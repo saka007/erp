@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -51,6 +52,14 @@ class HandleInertiaRequests extends Middleware
             $defaultLanguages = array_values($languages);
         }
 
+        $activatedPackages = ActivatedModule();
+        $industryType = 'standard';
+
+        if ($request->user()) {
+            $industryType = $this->detectIndustryType($request->user());
+            $activatedPackages = $this->filterActivatedPackagesForIndustry($request->user(), $activatedPackages, $industryType);
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
@@ -60,10 +69,11 @@ class HandleInertiaRequests extends Middleware
                         [
                             'permissions' => $this->getUserPermissions($request->user()),
                             'roles' => $this->getUserRoles($request->user()),
-                            'activatedPackages' => ActivatedModule(),
+                            'activatedPackages' => $activatedPackages,
+                            'industry_type' => $industryType,
                         ]
                     )
-                    : ['activatedPackages' => ActivatedModule()],
+                    : ['activatedPackages' => $activatedPackages, 'industry_type' => $industryType],
                 'impersonating' => $request->session()->has('impersonator_id'),
                 'lang' => $locale,
             ],
@@ -121,5 +131,87 @@ class HandleInertiaRequests extends Middleware
     private function isInstalled(): bool
     {
         return File::exists(storage_path('installed'));
+    }
+
+    private function detectIndustryType($user): string
+    {
+        if (! $user || $this->isSuperAdminUser($user)) {
+            return 'standard';
+        }
+
+        $companyContextUser = $this->resolveCompanyContextUser($user);
+        if (! $companyContextUser) {
+            return 'standard';
+        }
+
+        if ($this->hasTenantTextileModule($companyContextUser->id)) {
+            return 'textile';
+        }
+
+        return 'standard';
+    }
+
+    private function filterActivatedPackagesForIndustry($user, array $activatedPackages, string $industryType): array
+    {
+        if (! $user || $this->isSuperAdminUser($user) || $industryType !== 'textile') {
+            return $activatedPackages;
+        }
+
+        $textilePackages = array_values(array_filter($activatedPackages, function ($moduleName) {
+            return stripos((string) $moduleName, 'textile') !== false;
+        }));
+
+        $companyContextUser = $this->resolveCompanyContextUser($user);
+        if ($companyContextUser) {
+            $tenantAssignedTextileModules = $this->tenantAssignedTextileModules($companyContextUser->id);
+            $textilePackages = array_values(array_unique(array_merge($textilePackages, $tenantAssignedTextileModules)));
+        }
+
+        return $textilePackages;
+    }
+
+    private function resolveCompanyContextUser($user): ?User
+    {
+        if (! $user) {
+            return null;
+        }
+
+        if ($user->type === 'company') {
+            return $user;
+        }
+
+        if (empty($user->created_by)) {
+            return null;
+        }
+
+        return User::find($user->created_by);
+    }
+
+    private function isSuperAdminUser($user): bool
+    {
+        return $user->type === 'superadmin' || (method_exists($user, 'hasRole') && $user->hasRole('superadmin'));
+    }
+
+    private function hasTenantTextileModule(int $companyUserId): bool
+    {
+        return \App\Models\UserActiveModule::query()
+            ->where('user_id', $companyUserId)
+            ->where(function ($query) {
+                $query->where('module', 'like', '%Textile%')
+                    ->orWhere('module', 'like', '%textile%');
+            })
+            ->exists();
+    }
+
+    private function tenantAssignedTextileModules(int $companyUserId): array
+    {
+        return \App\Models\UserActiveModule::query()
+            ->where('user_id', $companyUserId)
+            ->where(function ($query) {
+                $query->where('module', 'like', '%Textile%')
+                    ->orWhere('module', 'like', '%textile%');
+            })
+            ->pluck('module')
+            ->toArray();
     }
 }

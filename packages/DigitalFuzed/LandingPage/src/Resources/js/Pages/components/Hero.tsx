@@ -62,9 +62,9 @@ export default function Hero({ settings }: HeroProps) {
     const title = sectionData.title || 'Transform Your Business with ERPGo SaaS';
     const subtitle = sectionData.subtitle || 'The complete all-in-one business management solution that combines ERP, Accounting, CRM, POS, HRM, and Project Management into a single powerful platform.';
     const primaryButtonText = sectionData.primary_button_text || 'Start Free Trial';
-    const primaryButtonLink = sectionData.primary_button_link || route('register');
+    const primaryButtonLink = sectionData.primary_button_link || '/register';
     const secondaryButtonText = sectionData.secondary_button_text || 'Request Demo';
-    const secondaryButtonLink = sectionData.secondary_button_link || route('login');
+    const secondaryButtonLink = sectionData.secondary_button_link || '/login';
     const highlightText = sectionData.highlight_text;
     const heroImage = sectionData.image;
     const colors = settings?.config_sections?.colors || { primary: '#10b77f', secondary: '#059669', accent: '#f59e0b' };
