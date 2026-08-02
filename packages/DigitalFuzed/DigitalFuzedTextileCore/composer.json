@@ -1,0 +1,25 @@
+{
+    "name": "digitalfuzed/textile-core",
+    "description": "Textile core package for specifications, quality profiles, and shared textile masters",
+    "type": "library",
+    "license": "MIT",
+    "require": {},
+    "autoload": {
+        "psr-4": {
+            "DigitalFuzed\\TextileCore\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "DigitalFuzed",
+            "email": "support@digitalfuzed.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [
+                "DigitalFuzed\\TextileCore\\Providers\\TextileCoreServiceProvider"
+            ]
+        }
+    }
+}

@@ -1,0 +1,11 @@
+{
+    "name": "TextileCore",
+    "alias": "TextileCore",
+    "description": "Core textile masters and specifications",
+    "priority": 260,
+    "version": 1.0,
+    "monthly_price": 0,
+    "yearly_price": 0,
+    "child_module": [],
+    "package_name": "textile-core"
+}

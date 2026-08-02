@@ -1,0 +1,25 @@
+{
+    "name": "digitalfuzed/textile-inventory",
+    "description": "Textile inventory package for lots, rolls, and movement history",
+    "type": "library",
+    "license": "MIT",
+    "require": {},
+    "autoload": {
+        "psr-4": {
+            "DigitalFuzed\\TextileInventory\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "DigitalFuzed",
+            "email": "support@digitalfuzed.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [
+                "DigitalFuzed\\TextileInventory\\Providers\\TextileInventoryServiceProvider"
+            ]
+        }
+    }
+}

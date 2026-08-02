@@ -1,0 +1,11 @@
+{
+    "name": "TextileInventory",
+    "alias": "TextileInventory",
+    "description": "Textile inventory movement and lot tracking",
+    "priority": 270,
+    "version": 1.0,
+    "monthly_price": 0,
+    "yearly_price": 0,
+    "child_module": [],
+    "package_name": "textile-inventory"
+}
