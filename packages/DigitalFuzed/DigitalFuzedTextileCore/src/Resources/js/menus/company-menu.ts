@@ -63,8 +63,16 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                         capability: 'manufacturing',
                         children: [
                             {
+                                title: t('Warp Planning'),
+                                href: route('textile.manufacturing.index', { section: 'warp-planning' }),
+                            },
+                            {
                                 title: t('Beam and Batch'),
                                 href: route('textile.manufacturing.index', { section: 'beam-batch' }),
+                            },
+                            {
+                                title: t('Loom Management'),
+                                href: route('textile.manufacturing.index', { section: 'loom-management' }),
                             },
                             {
                                 title: t('Weaving Output'),
@@ -111,6 +119,14 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                     {
                         title: t('Unit Conversions'),
                         href: route('textile.unit-conversions.index'),
+                    },
+                    {
+                        title: t('Source Types'),
+                        href: route('textile.source-types.index'),
+                    },
+                    {
+                        title: t('Machine Types'),
+                        href: route('textile.machine-types.index'),
                     },
                     {
                         title: t('Approvals'),

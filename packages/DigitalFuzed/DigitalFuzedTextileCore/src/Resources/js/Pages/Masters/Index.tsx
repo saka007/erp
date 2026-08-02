@@ -11,7 +11,7 @@ import { TextileField as Field } from '@/components/textile/textile-field';
 import { TextileFormCard } from '@/components/textile/textile-form-card';
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 
-type Master = 'quality-profiles' | 'route-recipes' | 'unit-conversions';
+type Master = 'quality-profiles' | 'route-recipes' | 'unit-conversions' | 'source-types' | 'machine-types';
 type RecordItem = Record<string, string | number | string[] | null> & { id: number };
 
 const metadata = {
@@ -33,14 +33,26 @@ const metadata = {
         updateRoute: 'textile.unit-conversions.update',
         archiveRoute: 'textile.unit-conversions.archive',
     },
+    'source-types': {
+        title: 'Source Types',
+        createRoute: 'textile.source-types.store',
+        updateRoute: 'textile.source-types.update',
+        archiveRoute: 'textile.source-types.archive',
+    },
+    'machine-types': {
+        title: 'Machine Types',
+        createRoute: 'textile.machine-types.store',
+        updateRoute: 'textile.machine-types.update',
+        archiveRoute: 'textile.machine-types.archive',
+    },
 } as const;
 
 export default function Index({ master, records }: { master: Master; records: RecordItem[] }) {
     const { t } = useTranslation();
     const config = metadata[master];
     const [editingId, setEditingId] = useState<number | null>(null);
-    const { data, setData, post, processing, reset } = useForm({ name: '', code: '', grade: '', parameters: '', steps: '', from_unit: '', to_unit: '', factor: '' });
-    const { data: editData, setData: setEditData, post: postEdit, processing: editing, reset: resetEdit } = useForm({ record_id: '', name: '', code: '', grade: '', parameters: '', steps: '', from_unit: '', to_unit: '', factor: '' });
+    const { data, setData, post, processing, reset } = useForm({ name: '', code: '', description: '', grade: '', parameters: '', steps: '', from_unit: '', to_unit: '', factor: '' });
+    const { data: editData, setData: setEditData, post: postEdit, processing: editing, reset: resetEdit } = useForm({ record_id: '', name: '', code: '', description: '', grade: '', parameters: '', steps: '', from_unit: '', to_unit: '', factor: '' });
 
     const submit = (event: React.FormEvent) => {
         event.preventDefault();
@@ -64,6 +76,7 @@ export default function Index({ master, records }: { master: Master; records: Re
             from_unit: stringValue(row.from_unit),
             to_unit: stringValue(row.to_unit),
             factor: stringValue(row.factor),
+            description: stringValue(row.description),
         });
     };
 
@@ -79,19 +92,25 @@ export default function Index({ master, records }: { master: Master; records: Re
         ? <><Field label={t('Name')} value={data.name} onChange={(value) => setData('name', value)} required /><Field label={t('Code')} value={data.code} onChange={(value) => setData('code', value)} /><Field label={t('Grade')} value={data.grade} onChange={(value) => setData('grade', value)} /><Field label={t('Parameters')} value={data.parameters} onChange={(value) => setData('parameters', value)} /></>
         : master === 'route-recipes'
             ? <><Field label={t('Name')} value={data.name} onChange={(value) => setData('name', value)} required /><Field label={t('Code')} value={data.code} onChange={(value) => setData('code', value)} /><Field label={t('Steps')} value={data.steps} onChange={(value) => setData('steps', value)} placeholder={t('One process step per line')} /></>
-            : <><Field label={t('From Unit')} value={data.from_unit} onChange={(value) => setData('from_unit', value)} required /><Field label={t('To Unit')} value={data.to_unit} onChange={(value) => setData('to_unit', value)} required /><Field label={t('Factor')} value={data.factor} onChange={(value) => setData('factor', value)} type="number" required /></>;
+            : master === 'unit-conversions'
+                ? <><Field label={t('From Unit')} value={data.from_unit} onChange={(value) => setData('from_unit', value)} required /><Field label={t('To Unit')} value={data.to_unit} onChange={(value) => setData('to_unit', value)} required /><Field label={t('Factor')} value={data.factor} onChange={(value) => setData('factor', value)} type="number" required /></>
+                : <><Field label={t('Name')} value={data.name} onChange={(value) => setData('name', value)} required /><Field label={t('Code')} value={data.code} onChange={(value) => setData('code', value)} /><Field label={t('Description')} value={data.description} onChange={(value) => setData('description', value)} /></>;
 
     const columns = master === 'quality-profiles'
         ? [{ key: 'name', header: t('Name') }, { key: 'code', header: t('Code'), render: optional }, { key: 'grade', header: t('Grade'), render: optional }, { key: 'parameters', header: t('Parameters'), render: optional }]
         : master === 'route-recipes'
             ? [{ key: 'name', header: t('Name') }, { key: 'code', header: t('Code'), render: optional }, { key: 'steps', header: t('Steps'), render: (value: string[] | null) => value?.join(' -> ') || '-' }]
-            : [{ key: 'from_unit', header: t('From Unit') }, { key: 'to_unit', header: t('To Unit') }, { key: 'factor', header: t('Factor') }];
+            : master === 'unit-conversions'
+                ? [{ key: 'from_unit', header: t('From Unit') }, { key: 'to_unit', header: t('To Unit') }, { key: 'factor', header: t('Factor') }]
+                : [{ key: 'name', header: t('Name') }, { key: 'code', header: t('Code'), render: optional }, { key: 'description', header: t('Description'), render: optional }];
 
     const editFields = master === 'quality-profiles'
         ? <><Field label={t('Name')} value={editData.name} onChange={(value) => setEditData('name', value)} required /><Field label={t('Code')} value={editData.code} onChange={(value) => setEditData('code', value)} /><Field label={t('Grade')} value={editData.grade} onChange={(value) => setEditData('grade', value)} /><Field label={t('Parameters')} value={editData.parameters} onChange={(value) => setEditData('parameters', value)} /></>
         : master === 'route-recipes'
             ? <><Field label={t('Name')} value={editData.name} onChange={(value) => setEditData('name', value)} required /><Field label={t('Code')} value={editData.code} onChange={(value) => setEditData('code', value)} /><Field label={t('Steps')} value={editData.steps} onChange={(value) => setEditData('steps', value)} placeholder={t('One process step per line')} /></>
-            : <><Field label={t('From Unit')} value={editData.from_unit} onChange={(value) => setEditData('from_unit', value)} required /><Field label={t('To Unit')} value={editData.to_unit} onChange={(value) => setEditData('to_unit', value)} required /><Field label={t('Factor')} value={editData.factor} onChange={(value) => setEditData('factor', value)} type="number" required /></>;
+            : master === 'unit-conversions'
+                ? <><Field label={t('From Unit')} value={editData.from_unit} onChange={(value) => setEditData('from_unit', value)} required /><Field label={t('To Unit')} value={editData.to_unit} onChange={(value) => setEditData('to_unit', value)} required /><Field label={t('Factor')} value={editData.factor} onChange={(value) => setEditData('factor', value)} type="number" required /></>
+                : <><Field label={t('Name')} value={editData.name} onChange={(value) => setEditData('name', value)} required /><Field label={t('Code')} value={editData.code} onChange={(value) => setEditData('code', value)} /><Field label={t('Description')} value={editData.description} onChange={(value) => setEditData('description', value)} /></>;
 
     const columnsWithActions = [...columns, {
         key: 'actions',

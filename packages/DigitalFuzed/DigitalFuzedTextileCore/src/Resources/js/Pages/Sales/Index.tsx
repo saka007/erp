@@ -11,6 +11,7 @@ import { TextileSelectField as SelectField } from '@/components/textile/textile-
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { TextileDataTableSection } from '@/components/textile/textile-data-table-section';
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
+import { buildUnitOptions, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 
 interface WorkflowDocument {
@@ -38,6 +39,8 @@ export default function Index({
     challans,
     pods,
     customers,
+    sourceTypeOptions,
+    unitOptions,
 }: {
     salesOrders: WorkflowDocument[];
     allocations: WorkflowDocument[];
@@ -45,6 +48,8 @@ export default function Index({
     challans: WorkflowDocument[];
     pods: WorkflowDocument[];
     customers: CustomerOption[];
+    sourceTypeOptions: string[];
+    unitOptions: string[];
 }) {
     const { t } = useTranslation();
     const sectionParam = new URLSearchParams(window.location.search).get('section');
@@ -73,6 +78,10 @@ export default function Index({
     const approvedSalesOrders = salesOrders.filter((row) => row.status === 'approved');
     const releasedAllocations = allocations.filter((row) => row.status === 'released');
     const releasedDispatches = dispatches.filter((row) => row.status === 'released');
+    const resolvedSourceTypeOptions = sourceTypeOptions.length > 0
+        ? sourceTypeOptions.map((value) => ({ value, label: value }))
+        : textileSourceTypeOptions;
+    const resolvedUnitOptions = buildUnitOptions(unitOptions);
 
     const allDocuments = [...salesOrders, ...allocations, ...dispatches, ...challans, ...pods];
     const draftedCount = allDocuments.filter((row) => row.status === 'draft').length;
@@ -130,7 +139,16 @@ export default function Index({
                                         onSuccess: () => salesOrderForm.reset('source_reference_id', 'customer_id', 'party_name', 'lot_reference', 'quantity'),
                                     });
                                 }}>
-                                    <Field label={t('Source Type')} value={salesOrderForm.data.source_reference_type} onChange={(value: string) => salesOrderForm.setData('source_reference_type', value)} required />
+                                    <SelectField
+                                        label={t('Source Type')}
+                                        value={salesOrderForm.data.source_reference_type}
+                                        onChange={(value: string) => salesOrderForm.setData('source_reference_type', value)}
+                                        options={resolvedSourceTypeOptions}
+                                        includeEmpty
+                                        emptyLabel={t('Select source type')}
+                                        helperText={t('Source types are managed from Textile Master Setup.')}
+                                        required
+                                    />
                                     <Field label={t('Source ID')} type="number" value={salesOrderForm.data.source_reference_id} onChange={(value: string) => salesOrderForm.setData('source_reference_id', value)} required />
                                     <Field label={t('Source Action')} value={salesOrderForm.data.source_action} onChange={(value: string) => salesOrderForm.setData('source_action', value)} required />
                                     <SelectField
@@ -154,7 +172,15 @@ export default function Index({
                                     <Field label={t('Lot Reference')} value={salesOrderForm.data.lot_reference} onChange={(value: string) => salesOrderForm.setData('lot_reference', value)} required />
                                     <div className="grid grid-cols-2 gap-3">
                                         <Field label={t('Quantity')} type="number" value={salesOrderForm.data.quantity} onChange={(value: string) => salesOrderForm.setData('quantity', value)} required />
-                                        <Field label={t('Unit')} value={salesOrderForm.data.unit} onChange={(value: string) => salesOrderForm.setData('unit', value)} />
+                                        <SelectField
+                                            label={t('Unit')}
+                                            value={salesOrderForm.data.unit}
+                                            onChange={(value: string) => salesOrderForm.setData('unit', value)}
+                                            options={resolvedUnitOptions}
+                                            includeEmpty
+                                            emptyLabel={t('Select unit')}
+                                            helperText={t('Units are derived from Unit Conversion master.')}
+                                        />
                                     </div>
                                     <Button type="submit" disabled={salesOrderForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Sales Order')}</Button>
                                 </form>

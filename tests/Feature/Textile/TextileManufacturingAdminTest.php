@@ -60,6 +60,59 @@ class TextileManufacturingAdminTest extends TestCase
         $this->assertSame('approved', $beam->status);
 
         $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.beam-issues.store'), [
+                'beam_id' => $beam->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $beamIssue = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'beam_issue')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($beamIssue);
+        $this->assertSame('approved', $beamIssue->status);
+        $this->assertSame($beam->id, $beamIssue->source_reference_id);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.beam-returns.store'), [
+                'beam_issue_id' => $beamIssue->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $beamReturn = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'beam_return')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($beamReturn);
+        $this->assertSame('approved', $beamReturn->status);
+        $this->assertSame($beamIssue->id, $beamReturn->source_reference_id);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.loom-masters.store'), [
+                'source_reference_type' => 'factory',
+                'source_reference_id' => 9001,
+                'source_action' => 'loom_register',
+                'party_name' => 'Loom-A1',
+                'lot_reference' => 'Rapier',
+                'quantity' => 540,
+                'unit' => 'rpm',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $loomMaster = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'loom_master')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($loomMaster);
+        $this->assertSame('approved', $loomMaster->status);
+
+        $this->actingAs($companyA)
             ->post(route('textile.manufacturing.batches.store'), [
                 'beam_id' => $beam->id,
             ])
@@ -134,17 +187,147 @@ class TextileManufacturingAdminTest extends TestCase
         $this->assertNotNull($rework);
         $this->assertSame('approved', $rework->status);
 
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.warp-plans.store'), [
+                'source_reference_type' => 'textile_lot',
+                'source_reference_id' => 7001,
+                'source_action' => 'warp_plan',
+                'party_name' => 'Warp Unit A',
+                'lot_reference' => 'WARP-LOT-1',
+                'quantity' => 120,
+                'unit' => 'kg',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $warpPlan = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'warp_plan')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($warpPlan);
+        $this->assertSame('draft', $warpPlan->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.warp-plans.approve'), [
+                'warp_plan_id' => $warpPlan->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $warpPlan->refresh();
+        $this->assertSame('approved', $warpPlan->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.yarn-allocations.store'), [
+                'warp_plan_id' => $warpPlan->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $yarnAllocation = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'yarn_allocation')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($yarnAllocation);
+        $this->assertSame('approved', $yarnAllocation->status);
+        $this->assertSame($warpPlan->id, $yarnAllocation->source_reference_id);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.warp-sheets.store'), [
+                'yarn_allocation_id' => $yarnAllocation->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $warpSheet = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'warp_sheet')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($warpSheet);
+        $this->assertSame('approved', $warpSheet->status);
+        $this->assertSame($yarnAllocation->id, $warpSheet->source_reference_id);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.warp-productions.store'), [
+                'warp_sheet_id' => $warpSheet->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $warpProduction = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'warp_production')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($warpProduction);
+        $this->assertSame('approved', $warpProduction->status);
+        $this->assertSame($warpSheet->id, $warpProduction->source_reference_id);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.sizing-recipes.store'), [
+                'warp_production_id' => $warpProduction->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $sizingRecipe = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'sizing_recipe')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($sizingRecipe);
+        $this->assertSame('approved', $sizingRecipe->status);
+        $this->assertSame($warpProduction->id, $sizingRecipe->source_reference_id);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.beams.from-sizing-recipe'), [
+                'sizing_recipe_id' => $sizingRecipe->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $beamFromSizing = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'beam')
+            ->where('source_reference_id', $sizingRecipe->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($beamFromSizing);
+        $this->assertSame('draft', $beamFromSizing->status);
+
         $this->actingAs($companyB)
             ->get(route('textile.manufacturing.index'))
             ->assertOk()
             ->assertDontSee('LOT-M-1')
-            ->assertDontSee('Mill Unit A');
+            ->assertDontSee('Mill Unit A')
+            ->assertDontSee('WARP-LOT-1')
+            ->assertDontSee('Warp Unit A')
+            ->assertDontSee('Loom-A1')
+            ->assertDontSee($beamIssue->document_number)
+            ->assertDontSee($beamReturn->document_number)
+            ->assertDontSee($loomMaster->document_number)
+            ->assertDontSee($beamFromSizing->document_number)
+            ->assertDontSee($warpSheet->document_number)
+            ->assertDontSee($warpProduction->document_number)
+            ->assertDontSee($sizingRecipe->document_number);
 
         $this->actingAs($companyA)
             ->get(route('textile.manufacturing.index'))
             ->assertOk()
             ->assertSee('LOT-M-1')
-            ->assertSee('Mill Unit A');
+            ->assertSee('Mill Unit A')
+            ->assertSee('WARP-LOT-1')
+            ->assertSee('Warp Unit A')
+            ->assertSee('Loom-A1')
+            ->assertSee($beamIssue->document_number)
+            ->assertSee($beamReturn->document_number)
+                ->assertSee($beamFromSizing->document_number)
+                ->assertSee($loomMaster->document_number)
+                ->assertSee($warpSheet->document_number)
+                ->assertSee($warpProduction->document_number)
+                ->assertSee($sizingRecipe->document_number);
     }
 
     private function company(): User

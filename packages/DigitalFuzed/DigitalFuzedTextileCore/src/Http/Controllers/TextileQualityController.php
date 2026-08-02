@@ -3,6 +3,8 @@
 namespace DigitalFuzed\TextileCore\Http\Controllers;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
+use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileCore\Services\TextileQualityService;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use Illuminate\Http\Request;
@@ -21,6 +23,8 @@ class TextileQualityController extends Controller
             'inspections' => $this->documents('inspection'),
             'holds' => $this->documents('hold_release'),
             'lots' => TextileLot::query()->where('created_by', creatorId())->latest()->get(),
+            'sourceTypeOptions' => $this->sourceTypeOptions(),
+            'unitOptions' => $this->unitOptions(),
         ]);
     }
 
@@ -108,6 +112,32 @@ class TextileQualityController extends Controller
             ->where('document_type', $type)
             ->latest()
             ->get();
+    }
+
+    private function sourceTypeOptions(): array
+    {
+        return TextileReferenceMaster::query()
+            ->type('source_type')
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->pluck('name')
+            ->values()
+            ->all();
+    }
+
+    private function unitOptions(): array
+    {
+        return TextileUnitConversion::query()
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->get(['from_unit', 'to_unit'])
+            ->flatMap(fn ($row) => [$row->from_unit, $row->to_unit])
+            ->filter(fn ($unit) => is_string($unit) && trim($unit) !== '')
+            ->map(fn ($unit) => trim((string) $unit))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function authorizeTextileAccess(): void

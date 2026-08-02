@@ -10,6 +10,7 @@ import { TextileFormCard } from '@/components/textile/textile-form-card';
 import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
+import { buildUnitOptions } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 
 interface WorkflowDocument {
@@ -28,11 +29,13 @@ export default function Index({
     purchaseOrders,
     grns,
     incomingQcs,
+    unitOptions,
 }: {
     requisitions: WorkflowDocument[];
     purchaseOrders: WorkflowDocument[];
     grns: WorkflowDocument[];
     incomingQcs: WorkflowDocument[];
+    unitOptions: string[];
 }) {
     const { t } = useTranslation();
     const sectionParam = new URLSearchParams(window.location.search).get('section');
@@ -52,6 +55,7 @@ export default function Index({
     const approvedRequisitions = requisitions.filter((row) => row.status === 'approved');
     const approvedPurchaseOrders = purchaseOrders.filter((row) => row.status === 'approved');
     const releasedGrns = grns.filter((row) => row.status === 'released');
+    const resolvedUnitOptions = buildUnitOptions(unitOptions);
 
     const allDocuments = [...requisitions, ...purchaseOrders, ...grns, ...incomingQcs];
     const draftCount = allDocuments.filter((row) => row.status === 'draft').length;
@@ -118,7 +122,15 @@ export default function Index({
                                     <Field label={t('Lot Reference')} value={requisitionForm.data.lot_reference} onChange={(v) => requisitionForm.setData('lot_reference', v)} required />
                                     <div className="grid grid-cols-2 gap-3">
                                         <Field label={t('Quantity')} type="number" value={requisitionForm.data.quantity} onChange={(v) => requisitionForm.setData('quantity', v)} required />
-                                        <Field label={t('Unit')} value={requisitionForm.data.unit} onChange={(v) => requisitionForm.setData('unit', v)} />
+                                        <SelectField
+                                            label={t('Unit')}
+                                            value={requisitionForm.data.unit}
+                                            onChange={(v) => requisitionForm.setData('unit', v)}
+                                            options={resolvedUnitOptions}
+                                            includeEmpty
+                                            emptyLabel={t('Select unit')}
+                                            helperText={t('Units are derived from Unit Conversion master.')}
+                                        />
                                     </div>
                                     <Button type="submit" disabled={requisitionForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Requisition')}</Button>
                                 </form>

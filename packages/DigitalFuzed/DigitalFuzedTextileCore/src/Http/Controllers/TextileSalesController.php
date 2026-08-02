@@ -3,6 +3,8 @@
 namespace DigitalFuzed\TextileCore\Http\Controllers;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
+use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileCore\Services\TextileSalesService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -25,6 +27,8 @@ class TextileSalesController extends Controller
             'challans' => $this->documents('challan'),
             'pods' => $this->documents('pod'),
             'customers' => $this->customerOptions(),
+            'sourceTypeOptions' => $this->sourceTypeOptions(),
+            'unitOptions' => $this->unitOptions(),
         ]);
     }
 
@@ -200,6 +204,32 @@ class TextileSalesController extends Controller
                 ];
             })
             ->values();
+    }
+
+    private function sourceTypeOptions(): array
+    {
+        return TextileReferenceMaster::query()
+            ->type('source_type')
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->pluck('name')
+            ->values()
+            ->all();
+    }
+
+    private function unitOptions(): array
+    {
+        return TextileUnitConversion::query()
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->get(['from_unit', 'to_unit'])
+            ->flatMap(fn ($row) => [$row->from_unit, $row->to_unit])
+            ->filter(fn ($unit) => is_string($unit) && trim($unit) !== '')
+            ->map(fn ($unit) => trim((string) $unit))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function authorizeTextileAccess(): void

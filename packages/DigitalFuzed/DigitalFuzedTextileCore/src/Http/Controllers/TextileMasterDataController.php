@@ -3,6 +3,7 @@
 namespace DigitalFuzed\TextileCore\Http\Controllers;
 
 use DigitalFuzed\TextileCore\Models\TextileQualityProfile;
+use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
 use DigitalFuzed\TextileCore\Models\TextileRouteRecipe;
 use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use Illuminate\Http\Request;
@@ -12,6 +13,9 @@ use Inertia\Inertia;
 
 class TextileMasterDataController extends Controller
 {
+    private const SOURCE_TYPE_MASTER = 'source_type';
+    private const MACHINE_TYPE_MASTER = 'machine_type';
+
     public function qualityProfiles()
     {
         $this->authorizeTextileAccess();
@@ -177,6 +181,56 @@ class TextileMasterDataController extends Controller
         ]);
     }
 
+    public function sourceTypes()
+    {
+        $this->authorizeTextileAccess();
+
+        return Inertia::render('DigitalFuzedTextileCore/Masters/Index', [
+            'master' => 'source-types',
+            'records' => $this->referenceMasterRecords(self::SOURCE_TYPE_MASTER),
+        ]);
+    }
+
+    public function storeSourceType(Request $request)
+    {
+        return $this->storeReferenceMaster($request, self::SOURCE_TYPE_MASTER, 'Textile source type created successfully.');
+    }
+
+    public function updateSourceType(Request $request)
+    {
+        return $this->updateReferenceMaster($request, self::SOURCE_TYPE_MASTER, 'Textile source type updated successfully.');
+    }
+
+    public function archiveSourceType(Request $request)
+    {
+        return $this->archiveReferenceMaster($request, self::SOURCE_TYPE_MASTER, 'Textile source type deactivated successfully.');
+    }
+
+    public function machineTypes()
+    {
+        $this->authorizeTextileAccess();
+
+        return Inertia::render('DigitalFuzedTextileCore/Masters/Index', [
+            'master' => 'machine-types',
+            'records' => $this->referenceMasterRecords(self::MACHINE_TYPE_MASTER),
+        ]);
+    }
+
+    public function storeMachineType(Request $request)
+    {
+        return $this->storeReferenceMaster($request, self::MACHINE_TYPE_MASTER, 'Textile machine type created successfully.');
+    }
+
+    public function updateMachineType(Request $request)
+    {
+        return $this->updateReferenceMaster($request, self::MACHINE_TYPE_MASTER, 'Textile machine type updated successfully.');
+    }
+
+    public function archiveMachineType(Request $request)
+    {
+        return $this->archiveReferenceMaster($request, self::MACHINE_TYPE_MASTER, 'Textile machine type deactivated successfully.');
+    }
+
     public function storeUnitConversion(Request $request)
     {
         $this->authorizeTextileAccess();
@@ -243,5 +297,86 @@ class TextileMasterDataController extends Controller
         $user = Auth::user();
 
         abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+    }
+
+    private function referenceMasterRecords(string $masterType)
+    {
+        return TextileReferenceMaster::query()
+            ->type($masterType)
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->latest()
+            ->get();
+    }
+
+    private function storeReferenceMaster(Request $request, string $masterType, string $successMessage)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'code' => 'nullable|string|max:100',
+            'description' => 'nullable|string|max:500',
+        ]);
+
+        TextileReferenceMaster::create([
+            'master_type' => $masterType,
+            'name' => trim($validated['name']),
+            'code' => isset($validated['code']) ? trim((string) $validated['code']) : null,
+            'description' => isset($validated['description']) ? trim((string) $validated['description']) : null,
+            'is_active' => true,
+            'created_by' => creatorId(),
+            'creator_id' => Auth::id(),
+        ]);
+
+        return back()->with('success', __($successMessage));
+    }
+
+    private function updateReferenceMaster(Request $request, string $masterType, string $successMessage)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'record_id' => 'required|integer|min:1',
+            'name' => 'required|string|max:255',
+            'code' => 'nullable|string|max:100',
+            'description' => 'nullable|string|max:500',
+        ]);
+
+        $record = TextileReferenceMaster::query()
+            ->type($masterType)
+            ->where('created_by', creatorId())
+            ->where('id', $validated['record_id'])
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $record->update([
+            'name' => trim($validated['name']),
+            'code' => isset($validated['code']) ? trim((string) $validated['code']) : null,
+            'description' => isset($validated['description']) ? trim((string) $validated['description']) : null,
+        ]);
+
+        return back()->with('success', __($successMessage));
+    }
+
+    private function archiveReferenceMaster(Request $request, string $masterType, string $successMessage)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'record_id' => 'required|integer|min:1',
+        ]);
+
+        $record = TextileReferenceMaster::query()
+            ->type($masterType)
+            ->where('created_by', creatorId())
+            ->where('id', $validated['record_id'])
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $record->is_active = false;
+        $record->save();
+
+        return back()->with('success', __($successMessage));
     }
 }

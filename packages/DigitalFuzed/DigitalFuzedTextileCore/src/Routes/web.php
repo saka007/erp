@@ -32,6 +32,14 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/unit-conversions', [TextileMasterDataController::class, 'storeUnitConversion'])->name('textile.unit-conversions.store');
     Route::post('/textile/unit-conversions/update', [TextileMasterDataController::class, 'updateUnitConversion'])->name('textile.unit-conversions.update');
     Route::post('/textile/unit-conversions/archive', [TextileMasterDataController::class, 'archiveUnitConversion'])->name('textile.unit-conversions.archive');
+    Route::get('/textile/source-types', [TextileMasterDataController::class, 'sourceTypes'])->name('textile.source-types.index');
+    Route::post('/textile/source-types', [TextileMasterDataController::class, 'storeSourceType'])->name('textile.source-types.store');
+    Route::post('/textile/source-types/update', [TextileMasterDataController::class, 'updateSourceType'])->name('textile.source-types.update');
+    Route::post('/textile/source-types/archive', [TextileMasterDataController::class, 'archiveSourceType'])->name('textile.source-types.archive');
+    Route::get('/textile/machine-types', [TextileMasterDataController::class, 'machineTypes'])->name('textile.machine-types.index');
+    Route::post('/textile/machine-types', [TextileMasterDataController::class, 'storeMachineType'])->name('textile.machine-types.store');
+    Route::post('/textile/machine-types/update', [TextileMasterDataController::class, 'updateMachineType'])->name('textile.machine-types.update');
+    Route::post('/textile/machine-types/archive', [TextileMasterDataController::class, 'archiveMachineType'])->name('textile.machine-types.archive');
 
     Route::get('/textile/procurement', [TextileProcurementController::class, 'index'])->name('textile.procurement.index');
     Route::post('/textile/procurement/requisitions', [TextileProcurementController::class, 'storeRequisition'])->name('textile.procurement.requisitions.store');
@@ -55,6 +63,16 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/sales/challans/pod', [TextileSalesController::class, 'markPod'])->name('textile.sales.challans.pod');
 
     Route::get('/textile/manufacturing', [TextileManufacturingController::class, 'index'])->name('textile.manufacturing.index');
+    Route::post('/textile/manufacturing/warp-plans', [TextileManufacturingController::class, 'storeWarpPlan'])->name('textile.manufacturing.warp-plans.store');
+    Route::post('/textile/manufacturing/warp-plans/approve', [TextileManufacturingController::class, 'approveWarpPlan'])->name('textile.manufacturing.warp-plans.approve');
+    Route::post('/textile/manufacturing/yarn-allocations', [TextileManufacturingController::class, 'storeYarnAllocation'])->name('textile.manufacturing.yarn-allocations.store');
+    Route::post('/textile/manufacturing/warp-sheets', [TextileManufacturingController::class, 'storeWarpSheet'])->name('textile.manufacturing.warp-sheets.store');
+    Route::post('/textile/manufacturing/warp-productions', [TextileManufacturingController::class, 'storeWarpProduction'])->name('textile.manufacturing.warp-productions.store');
+    Route::post('/textile/manufacturing/sizing-recipes', [TextileManufacturingController::class, 'storeSizingRecipe'])->name('textile.manufacturing.sizing-recipes.store');
+    Route::post('/textile/manufacturing/beams/from-sizing-recipe', [TextileManufacturingController::class, 'storeBeamFromSizingRecipe'])->name('textile.manufacturing.beams.from-sizing-recipe');
+    Route::post('/textile/manufacturing/beam-issues', [TextileManufacturingController::class, 'storeBeamIssue'])->name('textile.manufacturing.beam-issues.store');
+    Route::post('/textile/manufacturing/beam-returns', [TextileManufacturingController::class, 'storeBeamReturn'])->name('textile.manufacturing.beam-returns.store');
+    Route::post('/textile/manufacturing/loom-masters', [TextileManufacturingController::class, 'storeLoomMaster'])->name('textile.manufacturing.loom-masters.store');
     Route::post('/textile/manufacturing/beams', [TextileManufacturingController::class, 'storeBeam'])->name('textile.manufacturing.beams.store');
     Route::post('/textile/manufacturing/beams/approve', [TextileManufacturingController::class, 'approveBeam'])->name('textile.manufacturing.beams.approve');
     Route::post('/textile/manufacturing/batches', [TextileManufacturingController::class, 'storeProductionBatch'])->name('textile.manufacturing.batches.store');

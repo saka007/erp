@@ -3,6 +3,8 @@
 namespace DigitalFuzed\TextileCore\Http\Controllers;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
+use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextileProcessingService;
 use Illuminate\Http\Request;
@@ -27,6 +29,8 @@ class TextileProcessingController extends Controller
             'batches' => $this->documents('processing_batch'),
             'inwards' => $this->documents('job_work_inward'),
             'reconciliations' => $this->documents('job_work_reconciliation'),
+            'sourceTypeOptions' => $this->sourceTypeOptions(),
+            'unitOptions' => $this->unitOptions(),
         ]);
     }
 
@@ -170,6 +174,32 @@ class TextileProcessingController extends Controller
             ->where('document_type', $type)
             ->latest()
             ->get();
+    }
+
+    private function sourceTypeOptions(): array
+    {
+        return TextileReferenceMaster::query()
+            ->type('source_type')
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->pluck('name')
+            ->values()
+            ->all();
+    }
+
+    private function unitOptions(): array
+    {
+        return TextileUnitConversion::query()
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->get(['from_unit', 'to_unit'])
+            ->flatMap(fn ($row) => [$row->from_unit, $row->to_unit])
+            ->filter(fn ($unit) => is_string($unit) && trim($unit) !== '')
+            ->map(fn ($unit) => trim((string) $unit))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function authorizeTextileAccess(): void

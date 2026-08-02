@@ -27,10 +27,16 @@ Required reuse-first order:
 2. Extend shared components when a new UX need appears; do not duplicate the same logic across multiple pages.
 3. Keep behavior consistent across Procurement, Sales, Manufacturing, and Processing screens by implementing cross-flow UX improvements in shared files first.
 4. A task remains `[~]` (not `[x]`) if it introduces divergent page-level UX that should have been centralized.
+5. Standard page composition is mandatory: KPI overview at top, then focused create/update forms, then records list/tables; use Inventory and Procurement pages as the reference layout pattern.
+6. Menu and submenu wiring is mandatory: every new workflow slice must add or update sidebar menu placement and submenu links so the page or section is directly reachable in UI.
+7. Controlled vocabulary fields (for example `*type`, `unit`, `machine`) must be select-based and sourced from textile master CRUD; avoid free-text for such fields in workflow forms.
 
 Verification gate for this rule:
 - Confirm changed textile pages consume shared components rather than introducing one-off equivalents.
 - Confirm common behavior changes (grouping, action visibility, state messaging) are implemented in shared files and inherited by pages.
+- Confirm each workflow-heavy page follows KPI -> forms -> list ordering before marking the task complete.
+- Confirm menu and submenu entries exist for each delivered slice and navigate to the expected section/route before marking the task complete.
+- Confirm controlled vocabulary fields are wired to master CRUD options (not free-text) before marking the task complete.
 
 For enterprise backlog items, this tracker also references feature classification from the traceability matrix:
 - `Reuse` = already available in ERPGo and/or current textile slices.
@@ -433,20 +439,27 @@ Progress note (2026-08-03):
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| Warp Planning | 🆕 New Module Required | P2 | `[ ]` |
-| Yarn Allocation | 🟡 Extend Existing | P2 | `[~]` |
-| Warp Sheet | 🆕 New Module Required | P1 | `[ ]` |
-| Warp Production | 🆕 New Module Required | P1 | `[ ]` |
+| Warp Planning | 🆕 New Module Required | P2 | `[x]` |
+| Yarn Allocation | 🟡 Extend Existing | P2 | `[x]` |
+| Warp Sheet | 🆕 New Module Required | P1 | `[x]` |
+| Warp Production | 🆕 New Module Required | P1 | `[x]` |
 | Warp Cost | 🔵 Modify Existing | P2 | `[~]` |
+
+- Warp Planning + Yarn Allocation admin slice now supports create/approve warp-plan and approved-plan yarn-allocation flow in Textile Manufacturing, with tenant isolation verification in TextileManufacturingAdminTest.
+- Warp Sheet slice now supports create-from-yarn-allocation flow in Textile Manufacturing (web + API + shared UX), with tenant isolation verification extended in TextileManufacturingAdminTest.
+- Warp Production slice now supports create-from-warp-sheet flow in Textile Manufacturing (web + API + shared UX), with tenant isolation verification extended in TextileManufacturingAdminTest.
 ### Domain 9: Sizing (5 features)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| Sizing Recipe | 🟡 Extend Existing | P1 | `[~]` |
+| Sizing Recipe | 🟡 Extend Existing | P1 | `[x]` |
 | Chemical Consumption | 🆕 New Module Required | P1 | `[ ]` |
-| Beam Creation | 🟡 Extend Existing | P1 | `[~]` |
+| Beam Creation | 🟡 Extend Existing | P1 | `[x]` |
 | Beam Inspection | 🟡 Extend Existing | P2 | `[~]` |
 | Beam Cost | 🔵 Modify Existing | P2 | `[~]` |
+
+- Sizing Recipe slice now supports create-from-warp-production flow in Textile Manufacturing (web + API + shared UX), with tenant isolation verification extended in TextileManufacturingAdminTest.
+- Beam Creation slice now supports create-from-sizing-recipe flow in Textile Manufacturing (web + API + shared UX), with tenant isolation verification extended in TextileManufacturingAdminTest.
 ### Domain 10: Beam Management (7 features)
 
 | Task | Classification | Priority | Status |
@@ -455,15 +468,18 @@ Progress note (2026-08-03):
 | Beam Number | ✅ Already Available | P1 | `[x]` |
 | Beam Status | ✅ Already Available | P1 | `[x]` |
 | Beam Warehouse | ✅ Already Available | P1 | `[x]` |
-| Beam Issue | 🟡 Extend Existing | P1 | `[~]` |
-| Beam Return | 🟡 Extend Existing | P1 | `[~]` |
-| Remaining Beam | 🔵 Modify Existing | P1 | `[~]` |
-| Beam History | 🟡 Extend Existing | P2 | `[~]` |
+| Beam Issue | 🟡 Extend Existing | P1 | `[x]` |
+| Beam Return | 🟡 Extend Existing | P1 | `[x]` |
+| Remaining Beam | 🔵 Modify Existing | P1 | `[x]` |
+| Beam History | 🟡 Extend Existing | P2 | `[x]` |
+
+- Beam Management slice now supports beam issue and beam return workflows plus remaining-beam summary visibility inside Textile Manufacturing (web + API + shared UX), verified in TextileManufacturingAdminTest.
+- Beam History is now available in Textile Manufacturing as a unified issue/return timeline (event type, beam link, source document, quantity, status, timestamp), verified in TextileManufacturingAdminTest.
 ### Domain 11: Loom Management (8 features)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| Loom Master | 🆕 New Module Required | P1 | `[ ]` |
+| Loom Master | 🆕 New Module Required | P1 | `[x]` |
 | Machine Type | 🟡 Extend Existing | P1 | `[~]` |
 | RPM | 🔵 Modify Existing | P2 | `[~]` |
 | Width | 🔵 Modify Existing | P1 | `[~]` |
@@ -474,6 +490,8 @@ Progress note (2026-08-03):
 | Breakdown | 🆕 New Module Required | P2 | `[ ]` |
 | Maintenance | 🆕 New Module Required | P2 | `[ ]` |
 | Operator Assignment | 🟡 Extend Existing | P2 | `[~]` |
+
+- Loom Management slice now includes loom master registration in Textile Manufacturing (web + API + shared UX), with tenant isolation verified in TextileManufacturingAdminTest.
 ### Domain 12: Production Planning (6 features)
 
 | Task | Classification | Priority | Status |

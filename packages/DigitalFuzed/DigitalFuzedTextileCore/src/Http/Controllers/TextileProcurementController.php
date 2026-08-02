@@ -3,6 +3,7 @@
 namespace DigitalFuzed\TextileCore\Http\Controllers;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextileProcurementService;
 use Illuminate\Http\Request;
@@ -27,6 +28,7 @@ class TextileProcurementController extends Controller
             'purchaseOrders' => $this->documents('purchase_order'),
             'grns' => $this->documents('grn'),
             'incomingQcs' => $this->documents('incoming_qc'),
+            'unitOptions' => $this->unitOptions(),
         ]);
     }
 
@@ -209,6 +211,20 @@ class TextileProcurementController extends Controller
 
                 return $document;
             });
+    }
+
+    private function unitOptions(): array
+    {
+        return TextileUnitConversion::query()
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->get(['from_unit', 'to_unit'])
+            ->flatMap(fn ($row) => [$row->from_unit, $row->to_unit])
+            ->filter(fn ($unit) => is_string($unit) && trim($unit) !== '')
+            ->map(fn ($unit) => trim((string) $unit))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function authorizeTextileAccess(): void

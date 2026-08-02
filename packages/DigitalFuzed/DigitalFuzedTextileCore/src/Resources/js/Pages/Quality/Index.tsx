@@ -9,6 +9,7 @@ import { TextileField as Field } from '@/components/textile/textile-field';
 import { TextileFormCard } from '@/components/textile/textile-form-card';
 import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
+import { buildUnitOptions, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 
 interface WorkflowDocument {
@@ -26,8 +27,12 @@ interface TextileLot {
     status: string;
 }
 
-export default function Index({ inspections, holds, lots }: { inspections: WorkflowDocument[]; holds: WorkflowDocument[]; lots: TextileLot[] }) {
+export default function Index({ inspections, holds, lots, sourceTypeOptions, unitOptions }: { inspections: WorkflowDocument[]; holds: WorkflowDocument[]; lots: TextileLot[]; sourceTypeOptions: string[]; unitOptions: string[] }) {
     const { t } = useTranslation();
+    const resolvedSourceTypeOptions = sourceTypeOptions.length > 0
+        ? sourceTypeOptions.map((value) => ({ value, label: value }))
+        : textileSourceTypeOptions;
+    const resolvedUnitOptions = buildUnitOptions(unitOptions);
 
     const inspectionForm = useForm({
         source_reference_type: '',
@@ -61,14 +66,30 @@ export default function Index({ inspections, holds, lots }: { inspections: Workf
                                 });
                             }}
                         >
-                            <Field label={t('Source Type')} value={inspectionForm.data.source_reference_type} onChange={(v) => inspectionForm.setData('source_reference_type', v)} />
+                            <SelectField
+                                label={t('Source Type')}
+                                value={inspectionForm.data.source_reference_type}
+                                onChange={(v) => inspectionForm.setData('source_reference_type', v)}
+                                options={resolvedSourceTypeOptions}
+                                includeEmpty
+                                emptyLabel={t('Select source type')}
+                                helperText={t('Source types are managed from Textile Master Setup.')}
+                            />
                             <Field label={t('Source ID')} type="number" value={inspectionForm.data.source_reference_id} onChange={(v) => inspectionForm.setData('source_reference_id', v)} />
                             <Field label={t('Source Action')} value={inspectionForm.data.source_action} onChange={(v) => inspectionForm.setData('source_action', v)} />
                             <Field label={t('Party')} value={inspectionForm.data.party_name} onChange={(v) => inspectionForm.setData('party_name', v)} />
                             <Field label={t('Lot Reference')} value={inspectionForm.data.lot_reference} onChange={(v) => inspectionForm.setData('lot_reference', v)} required />
                             <div className="grid grid-cols-2 gap-3">
                                 <Field label={t('Quantity')} type="number" value={inspectionForm.data.quantity} onChange={(v) => inspectionForm.setData('quantity', v)} required />
-                                <Field label={t('Unit')} value={inspectionForm.data.unit} onChange={(v) => inspectionForm.setData('unit', v)} />
+                                <SelectField
+                                    label={t('Unit')}
+                                    value={inspectionForm.data.unit}
+                                    onChange={(v) => inspectionForm.setData('unit', v)}
+                                    options={resolvedUnitOptions}
+                                    includeEmpty
+                                    emptyLabel={t('Select unit')}
+                                    helperText={t('Units are derived from Unit Conversion master.')}
+                                />
                             </div>
                             <Button type="submit" disabled={inspectionForm.processing} className="w-full">
                                 <Plus className="mr-2 h-4 w-4" />{t('Create Inspection')}

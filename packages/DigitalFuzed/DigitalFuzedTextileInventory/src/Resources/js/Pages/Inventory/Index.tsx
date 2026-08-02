@@ -94,9 +94,45 @@ export default function Index({
     filters: InventoryFilters;
 }) {
     const { t } = useTranslation();
-    const sectionParam = new URLSearchParams(window.location.search).get('section');
+    const searchParams = new URLSearchParams(window.location.search);
+    const sectionParam = searchParams.get('section');
+    const subSectionParam = searchParams.get('sub');
     const validSections = new Set(['transactions', 'controls', 'records']);
     const activeSection = sectionParam && validSections.has(sectionParam) ? sectionParam : 'transactions';
+
+    const sectionSubsections: Record<string, string[]> = {
+        transactions: ['lot-create', 'movement-create', 'reservation-create'],
+        controls: [
+            'location-create',
+            'location-archive',
+            'lot-status-update',
+            'lot-status-archive',
+            'lot-freeze',
+            'lot-unfreeze',
+            'physical-verification',
+            'cycle-count',
+            'reservation-release',
+            'reservation-allocate',
+        ],
+        records: ['record-locations', 'record-lots', 'record-movements', 'record-cycle-counts', 'record-reservations'],
+    };
+
+    const defaultSubsectionBySection: Record<string, string> = {
+        transactions: 'lot-create',
+        controls: 'location-create',
+        records: 'record-locations',
+    };
+
+    const resolveSubsection = (section: string) => {
+        const validSubsections = sectionSubsections[section] || [];
+        if (subSectionParam && validSubsections.includes(subSectionParam)) {
+            return subSectionParam;
+        }
+
+        return defaultSubsectionBySection[section] || '';
+    };
+
+    const activeSubsection = resolveSubsection(activeSection);
 
     const toNumber = (value: string | number | null | undefined) => {
         if (typeof value === 'number') {
@@ -334,7 +370,7 @@ export default function Index({
 
             <Tabs
                 value={activeSection}
-                onValueChange={(value) => router.get(route('textile.inventory.index'), { section: value }, { preserveState: true, replace: true })}
+                onValueChange={(value) => router.get(route('textile.inventory.index'), { section: value, sub: defaultSubsectionBySection[value] || '' }, { preserveState: true, replace: true })}
                 className="space-y-6"
             >
                 <TabsList className="grid w-full grid-cols-3 h-auto p-1">
@@ -344,7 +380,11 @@ export default function Index({
                 </TabsList>
 
                 <TabsContent value="transactions" className="space-y-6">
-                    <Tabs defaultValue="lot-create" className="space-y-4">
+                    <Tabs
+                        value={activeSection === 'transactions' ? activeSubsection : defaultSubsectionBySection.transactions}
+                        onValueChange={(value) => router.get(route('textile.inventory.index'), { section: 'transactions', sub: value }, { preserveState: true, replace: true })}
+                        className="space-y-4"
+                    >
                         <TabsList className="grid w-full grid-cols-1 gap-2 h-auto p-1 sm:grid-cols-3">
                             <TabsTrigger value="lot-create">{t('New Lot')}</TabsTrigger>
                             <TabsTrigger value="movement-create">{t('Record Movement')}</TabsTrigger>
@@ -430,7 +470,11 @@ export default function Index({
                 </TabsContent>
 
                 <TabsContent value="controls" className="space-y-6">
-                    <Tabs defaultValue="location-create" className="space-y-4">
+                    <Tabs
+                        value={activeSection === 'controls' ? activeSubsection : defaultSubsectionBySection.controls}
+                        onValueChange={(value) => router.get(route('textile.inventory.index'), { section: 'controls', sub: value }, { preserveState: true, replace: true })}
+                        className="space-y-4"
+                    >
                         <TabsList className="grid w-full grid-cols-1 gap-2 h-auto p-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
                             <TabsTrigger value="location-create">{t('Create Location')}</TabsTrigger>
                             <TabsTrigger value="location-archive">{t('Archive Location')}</TabsTrigger>
@@ -638,7 +682,11 @@ export default function Index({
                 </TabsContent>
 
                 <TabsContent value="records" className="space-y-6">
-                    <Tabs defaultValue="record-locations" className="space-y-4">
+                    <Tabs
+                        value={activeSection === 'records' ? activeSubsection : defaultSubsectionBySection.records}
+                        onValueChange={(value) => router.get(route('textile.inventory.index'), { section: 'records', sub: value }, { preserveState: true, replace: true })}
+                        className="space-y-4"
+                    >
                         <TabsList className="grid w-full grid-cols-1 gap-2 h-auto p-1 sm:grid-cols-3 lg:grid-cols-5">
                             <TabsTrigger value="record-locations">{t('Locations')}</TabsTrigger>
                             <TabsTrigger value="record-lots">{t('Lots')}</TabsTrigger>

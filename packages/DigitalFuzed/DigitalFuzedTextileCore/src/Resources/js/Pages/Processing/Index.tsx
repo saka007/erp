@@ -10,6 +10,7 @@ import { TextileSelectField as SelectField } from '@/components/textile/textile-
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { TextileDataTableSection } from '@/components/textile/textile-data-table-section';
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
+import { buildUnitOptions, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 
 interface WorkflowDocument {
@@ -27,11 +28,15 @@ export default function Index({
     batches,
     inwards,
     reconciliations,
+    sourceTypeOptions,
+    unitOptions,
 }: {
     outwards: WorkflowDocument[];
     batches: WorkflowDocument[];
     inwards: WorkflowDocument[];
     reconciliations: WorkflowDocument[];
+    sourceTypeOptions: string[];
+    unitOptions: string[];
 }) {
     const { t } = useTranslation();
 
@@ -51,6 +56,10 @@ export default function Index({
     const releasedOutwards = outwards.filter((row) => row.status === 'released');
     const releasedBatches = batches.filter((row) => row.status === 'released');
     const approvedInwards = inwards.filter((row) => row.status === 'approved');
+    const resolvedSourceTypeOptions = sourceTypeOptions.length > 0
+        ? sourceTypeOptions.map((value) => ({ value, label: value }))
+        : textileSourceTypeOptions;
+    const resolvedUnitOptions = buildUnitOptions(unitOptions);
 
     const allDocuments = [...outwards, ...batches, ...inwards, ...reconciliations];
     const draftCount = allDocuments.filter((row) => row.status === 'draft').length;
@@ -95,14 +104,31 @@ export default function Index({
                                 });
                             }}
                         >
-                            <Field label={t('Source Type')} value={outwardForm.data.source_reference_type} onChange={(value) => outwardForm.setData('source_reference_type', value)} required />
+                            <SelectField
+                                label={t('Source Type')}
+                                value={outwardForm.data.source_reference_type}
+                                onChange={(value) => outwardForm.setData('source_reference_type', value)}
+                                options={resolvedSourceTypeOptions}
+                                includeEmpty
+                                emptyLabel={t('Select source type')}
+                                helperText={t('Source types are managed from Textile Master Setup.')}
+                                required
+                            />
                             <Field label={t('Source ID')} type="number" value={outwardForm.data.source_reference_id} onChange={(value) => outwardForm.setData('source_reference_id', value)} required />
                             <Field label={t('Source Action')} value={outwardForm.data.source_action} onChange={(value) => outwardForm.setData('source_action', value)} required />
                             <Field label={t('Processor/Party')} value={outwardForm.data.party_name} onChange={(value) => outwardForm.setData('party_name', value)} />
                             <Field label={t('Lot Reference')} value={outwardForm.data.lot_reference} onChange={(value) => outwardForm.setData('lot_reference', value)} required />
                             <div className="grid grid-cols-2 gap-3">
                                 <Field label={t('Quantity')} type="number" value={outwardForm.data.quantity} onChange={(value) => outwardForm.setData('quantity', value)} required />
-                                <Field label={t('Unit')} value={outwardForm.data.unit} onChange={(value) => outwardForm.setData('unit', value)} />
+                                <SelectField
+                                    label={t('Unit')}
+                                    value={outwardForm.data.unit}
+                                    onChange={(value) => outwardForm.setData('unit', value)}
+                                    options={resolvedUnitOptions}
+                                    includeEmpty
+                                    emptyLabel={t('Select unit')}
+                                    helperText={t('Units are derived from Unit Conversion master.')}
+                                />
                             </div>
                             <Button type="submit" disabled={outwardForm.processing} className="w-full">
                                 <Plus className="mr-2 h-4 w-4" />{t('Create Outward')}
@@ -161,7 +187,15 @@ export default function Index({
                                 required
                             />
                             <Field label={t('Quantity')} type="number" value={inwardForm.data.quantity} onChange={(value) => inwardForm.setData('quantity', value)} />
-                            <Field label={t('Unit')} value={inwardForm.data.unit} onChange={(value) => inwardForm.setData('unit', value)} />
+                            <SelectField
+                                label={t('Unit')}
+                                value={inwardForm.data.unit}
+                                onChange={(value) => inwardForm.setData('unit', value)}
+                                options={resolvedUnitOptions}
+                                includeEmpty
+                                emptyLabel={t('Select unit')}
+                                helperText={t('Units are derived from Unit Conversion master.')}
+                            />
                             <Button type="submit" disabled={inwardForm.processing} className="self-end">
                                 <Plus className="mr-2 h-4 w-4" />{t('Create Inward')}
                             </Button>

@@ -26,6 +26,10 @@ Priority modules:
 - Keep finance downstream of operational textile truth where appropriate.
 - Respect tenant/company scoping on all reads and writes.
 - Follow the roadmap in small vertical slices rather than trying to implement everything at once.
+- Frontend textile pages must follow shared UX format: reuse shared components under resources/js/components/textile and keep standard page flow as KPI cards -> forms -> list/tables.
+- Use Inventory and Procurement textile pages as baseline reference for layout and behavior consistency when implementing new workflow screens.
+- Menu and submenu are mandatory for every delivered slice: no feature is complete until its sidebar placement, submenu link, and route target are added and verifiable in UI.
+- Type/unit/machine/source-style fields must not be free-text in workflow forms when they represent controlled values; deliver and wire domain master CRUD (under textile setup) and consume them via select controls.
 
 ## Resume guidance
 1. Review the roadmap and identify the next unchecked task.

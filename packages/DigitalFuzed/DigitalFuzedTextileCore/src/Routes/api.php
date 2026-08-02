@@ -47,6 +47,16 @@ Route::prefix('api')->middleware(['api.json'])->group(function () {
 
         Route::post('manufacturing/beams/store', [TextileManufacturingApiController::class, 'storeBeam']);
         Route::post('manufacturing/beams/{id}/approve', [TextileManufacturingApiController::class, 'approveBeam']);
+        Route::post('manufacturing/warp-plans/store', [TextileManufacturingApiController::class, 'storeWarpPlan']);
+        Route::post('manufacturing/warp-plans/{id}/approve', [TextileManufacturingApiController::class, 'approveWarpPlan']);
+        Route::post('manufacturing/yarn-allocations/store', [TextileManufacturingApiController::class, 'storeYarnAllocation']);
+        Route::post('manufacturing/warp-sheets/store', [TextileManufacturingApiController::class, 'storeWarpSheet']);
+        Route::post('manufacturing/warp-productions/store', [TextileManufacturingApiController::class, 'storeWarpProduction']);
+        Route::post('manufacturing/sizing-recipes/store', [TextileManufacturingApiController::class, 'storeSizingRecipe']);
+        Route::post('manufacturing/beams/from-sizing-recipe/store', [TextileManufacturingApiController::class, 'storeBeamFromSizingRecipe']);
+        Route::post('manufacturing/beam-issues/store', [TextileManufacturingApiController::class, 'storeBeamIssue']);
+        Route::post('manufacturing/beam-returns/store', [TextileManufacturingApiController::class, 'storeBeamReturn']);
+        Route::post('manufacturing/loom-masters/store', [TextileManufacturingApiController::class, 'storeLoomMaster']);
 
         Route::post('manufacturing/batches/store', [TextileManufacturingApiController::class, 'storeProductionBatch']);
         Route::post('manufacturing/batches/{id}/release', [TextileManufacturingApiController::class, 'releaseProductionBatch']);
