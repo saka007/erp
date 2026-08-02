@@ -10,8 +10,11 @@ use DigitalFuzed\TextileInventory\Models\TextileLot;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use RuntimeException;
+use Workdo\Account\Models\Customer;
+use Workdo\Account\Models\Vendor;
 
 class TextileQualityController extends Controller
 {
@@ -24,7 +27,10 @@ class TextileQualityController extends Controller
             'holds' => $this->documents('hold_release'),
             'lots' => TextileLot::query()->where('created_by', creatorId())->latest()->get(),
             'sourceTypeOptions' => $this->sourceTypeOptions(),
+            'sourceActionOptions' => $this->sourceActionOptions(),
             'unitOptions' => $this->unitOptions(),
+            'partyOptions' => $this->partyOptions(),
+            'lotReferenceOptions' => $this->lotReferenceOptions(),
         ]);
     }
 
@@ -116,14 +122,31 @@ class TextileQualityController extends Controller
 
     private function sourceTypeOptions(): array
     {
-        return TextileReferenceMaster::query()
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultSourceTypeOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
             ->type('source_type')
             ->where('created_by', creatorId())
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->pluck('name')
-            ->values()
-            ->all();
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('quality');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultSourceTypeOptions();
+    }
+
+    private function defaultSourceTypeOptions(): array
+    {
+        return [
+            'incoming_qc',
+            'in_process_qc',
+            'final_qc',
+        ];
     }
 
     private function unitOptions(): array
@@ -135,6 +158,91 @@ class TextileQualityController extends Controller
             ->flatMap(fn ($row) => [$row->from_unit, $row->to_unit])
             ->filter(fn ($unit) => is_string($unit) && trim($unit) !== '')
             ->map(fn ($unit) => trim((string) $unit))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function sourceActionOptions(): array
+    {
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultSourceActionOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
+            ->type('source_action')
+            ->where('created_by', creatorId())
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('quality');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultSourceActionOptions();
+    }
+
+    private function defaultSourceActionOptions(): array
+    {
+        return [
+            'incoming_qc',
+            'in_process_qc',
+            'final_qc',
+            'hold',
+            'release',
+        ];
+    }
+
+    private function partyOptions(): array
+    {
+        $customerNames = collect();
+        if (Schema::hasTable('customers')) {
+            $customerNames = Customer::query()
+                ->where('created_by', creatorId())
+                ->whereNotNull('company_name')
+                ->pluck('company_name');
+        }
+
+        $vendorNames = collect();
+        if (Schema::hasTable('vendors')) {
+            $vendorNames = Vendor::query()
+                ->where('created_by', creatorId())
+                ->whereNotNull('company_name')
+                ->pluck('company_name');
+        }
+
+        $workflowParties = TextileWorkflowDocument::query()
+            ->where('created_by', creatorId())
+            ->whereNotNull('party_name')
+            ->pluck('party_name');
+
+        return $customerNames
+            ->merge($vendorNames)
+            ->merge($workflowParties)
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function lotReferenceOptions(): array
+    {
+        $lots = TextileLot::query()
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->pluck('lot_reference');
+
+        $workflowLots = TextileWorkflowDocument::query()
+            ->where('created_by', creatorId())
+            ->whereNotNull('lot_reference')
+            ->pluck('lot_reference');
+
+        return $lots
+            ->merge($workflowLots)
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
             ->unique()
             ->values()
             ->all();

@@ -11,7 +11,7 @@ import { TextileField as Field } from '@/components/textile/textile-field';
 import { TextileFormCard } from '@/components/textile/textile-form-card';
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 
-type Master = 'quality-profiles' | 'route-recipes' | 'unit-conversions' | 'source-types' | 'machine-types';
+type Master = 'quality-profiles' | 'route-recipes' | 'unit-conversions' | 'source-types' | 'source-actions' | 'machine-types';
 type RecordItem = Record<string, string | number | string[] | null> & { id: number };
 
 const metadata = {
@@ -39,6 +39,12 @@ const metadata = {
         updateRoute: 'textile.source-types.update',
         archiveRoute: 'textile.source-types.archive',
     },
+    'source-actions': {
+        title: 'Source Actions',
+        createRoute: 'textile.source-actions.store',
+        updateRoute: 'textile.source-actions.update',
+        archiveRoute: 'textile.source-actions.archive',
+    },
     'machine-types': {
         title: 'Machine Types',
         createRoute: 'textile.machine-types.store',
@@ -47,21 +53,36 @@ const metadata = {
     },
 } as const;
 
-export default function Index({ master, records }: { master: Master; records: RecordItem[] }) {
+type IndexProps = {
+    master: Master;
+    records: RecordItem[];
+    masterDomain?: string | null;
+    masterDomainLabel?: string | null;
+};
+
+export default function Index({ master, records, masterDomain = null, masterDomainLabel = null }: IndexProps) {
     const { t } = useTranslation();
     const config = metadata[master];
+    const domainAwareMaster = master === 'source-types' || master === 'source-actions' || master === 'machine-types';
+    const title = masterDomainLabel ? `${masterDomainLabel} ${config.title}` : config.title;
     const [editingId, setEditingId] = useState<number | null>(null);
     const { data, setData, post, processing, reset } = useForm({ name: '', code: '', description: '', grade: '', parameters: '', steps: '', from_unit: '', to_unit: '', factor: '' });
     const { data: editData, setData: setEditData, post: postEdit, processing: editing, reset: resetEdit } = useForm({ record_id: '', name: '', code: '', description: '', grade: '', parameters: '', steps: '', from_unit: '', to_unit: '', factor: '' });
 
     const submit = (event: React.FormEvent) => {
         event.preventDefault();
-        post(route(config.createRoute), { onSuccess: () => reset() });
+        const destination = domainAwareMaster && masterDomain
+            ? route(`textile.master-domains.${master}.store`, { domain: masterDomain })
+            : route(config.createRoute);
+        post(destination, { onSuccess: () => reset() });
     };
 
     const submitEdit = (event: React.FormEvent) => {
         event.preventDefault();
-        postEdit(route(config.updateRoute));
+        const destination = domainAwareMaster && masterDomain
+            ? route(`textile.master-domains.${master}.update`, { domain: masterDomain })
+            : route(config.updateRoute);
+        postEdit(destination);
     };
 
     const startEdit = (row: RecordItem) => {
@@ -81,7 +102,10 @@ export default function Index({ master, records }: { master: Master; records: Re
     };
 
     const archive = (recordId: number) => {
-        router.post(route(config.archiveRoute), { record_id: recordId });
+        const destination = domainAwareMaster && masterDomain
+            ? route(`textile.master-domains.${master}.archive`, { domain: masterDomain })
+            : route(config.archiveRoute);
+        router.post(destination, { record_id: recordId });
         if (editingId === recordId) {
             setEditingId(null);
             resetEdit();
@@ -130,8 +154,8 @@ export default function Index({ master, records }: { master: Master; records: Re
     }];
 
     return (
-        <AuthenticatedLayout breadcrumbs={[{ label: t('Textile') }, { label: t(config.title) }]} pageTitle={t(config.title)}>
-            <Head title={t(config.title)} />
+        <AuthenticatedLayout breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t(title) }]} pageTitle={t(title)}>
+            <Head title={t(title)} />
             <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
                 <TextileFormCard title={t(`New ${config.title.slice(0, -1)}`)} icon={Factory} contentClassName="p-5 space-y-6">
                         <form onSubmit={submit} className="space-y-4">{fields}<Button type="submit" disabled={processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create')}</Button></form>
@@ -158,7 +182,7 @@ export default function Index({ master, records }: { master: Master; records: Re
                             </>
                         ) : null}
                 </TextileFormCard>
-                <TextileDataTableCard data={records} columns={columnsWithActions} emptyState={<NoRecordsFound icon={Factory} title={t(`No ${config.title.toLowerCase()} found`)} description={t('Create the first record to begin textile setup.')} />} />
+                <TextileDataTableCard data={records} columns={columnsWithActions} emptyState={<NoRecordsFound icon={Factory} title={t(`No ${title.toLowerCase()} found`)} description={t('Create the first record to begin textile setup.')} />} />
             </div>
         </AuthenticatedLayout>
     );

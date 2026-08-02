@@ -11,7 +11,7 @@ import { TextileSelectField as SelectField } from '@/components/textile/textile-
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { TextileDataTableSection } from '@/components/textile/textile-data-table-section';
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
-import { buildUnitOptions, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
+import { buildUnitOptions, formatTextileOptionLabel, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 
 interface WorkflowDocument {
@@ -40,7 +40,10 @@ export default function Index({
     pods,
     customers,
     sourceTypeOptions,
+    sourceActionOptions,
     unitOptions,
+    partyOptions,
+    lotReferenceOptions,
 }: {
     salesOrders: WorkflowDocument[];
     allocations: WorkflowDocument[];
@@ -49,7 +52,10 @@ export default function Index({
     pods: WorkflowDocument[];
     customers: CustomerOption[];
     sourceTypeOptions: string[];
+    sourceActionOptions: string[];
     unitOptions: string[];
+    partyOptions: string[];
+    lotReferenceOptions: string[];
 }) {
     const { t } = useTranslation();
     const sectionParam = new URLSearchParams(window.location.search).get('section');
@@ -79,8 +85,17 @@ export default function Index({
     const releasedAllocations = allocations.filter((row) => row.status === 'released');
     const releasedDispatches = dispatches.filter((row) => row.status === 'released');
     const resolvedSourceTypeOptions = sourceTypeOptions.length > 0
-        ? sourceTypeOptions.map((value) => ({ value, label: value }))
+        ? sourceTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }))
         : textileSourceTypeOptions;
+    const resolvedSourceActionOptions = sourceActionOptions.length > 0
+        ? sourceActionOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }))
+        : [
+            { value: 'convert', label: formatTextileOptionLabel('convert') },
+            { value: 'allocate_for_dispatch', label: formatTextileOptionLabel('allocate_for_dispatch') },
+            { value: 'dispatch_release', label: formatTextileOptionLabel('dispatch_release') },
+        ];
+    const resolvedPartyOptions = partyOptions.map((value) => ({ value, label: value }));
+    const resolvedLotReferenceOptions = lotReferenceOptions.map((value) => ({ value, label: value }));
     const resolvedUnitOptions = buildUnitOptions(unitOptions);
 
     const allDocuments = [...salesOrders, ...allocations, ...dispatches, ...challans, ...pods];
@@ -146,11 +161,20 @@ export default function Index({
                                         options={resolvedSourceTypeOptions}
                                         includeEmpty
                                         emptyLabel={t('Select source type')}
-                                        helperText={t('Source types are managed from Textile Master Setup.')}
+                                        helperText={t('Source types are managed from Master Setup > Sales Setup > Source Types.')}
                                         required
                                     />
                                     <Field label={t('Source ID')} type="number" value={salesOrderForm.data.source_reference_id} onChange={(value: string) => salesOrderForm.setData('source_reference_id', value)} required />
-                                    <Field label={t('Source Action')} value={salesOrderForm.data.source_action} onChange={(value: string) => salesOrderForm.setData('source_action', value)} required />
+                                    <SelectField
+                                        label={t('Source Action')}
+                                        value={salesOrderForm.data.source_action}
+                                        onChange={(value: string) => salesOrderForm.setData('source_action', value)}
+                                        options={resolvedSourceActionOptions}
+                                        includeEmpty
+                                        emptyLabel={t('Select source action')}
+                                        helperText={t('Source actions are managed from Master Setup > Sales Setup > Source Actions.')}
+                                        required
+                                    />
                                     <SelectField
                                         label={t('Customer Profile')}
                                         value={salesOrderForm.data.customer_id}
@@ -168,8 +192,29 @@ export default function Index({
                                         disabled={customerOptions.length === 0}
                                         disabledReason={t('No customer profile found. Create customer profile first.')}
                                     />
-                                    <Field label={t('Customer/Party')} value={salesOrderForm.data.party_name} onChange={(value: string) => salesOrderForm.setData('party_name', value)} />
-                                    <Field label={t('Lot Reference')} value={salesOrderForm.data.lot_reference} onChange={(value: string) => salesOrderForm.setData('lot_reference', value)} required />
+                                    <SelectField
+                                        label={t('Customer/Party')}
+                                        value={salesOrderForm.data.party_name}
+                                        onChange={(value: string) => salesOrderForm.setData('party_name', value)}
+                                        options={resolvedPartyOptions}
+                                        includeEmpty
+                                        emptyLabel={t('Select party')}
+                                        helperText={t('Party options are derived from customer profiles and existing workflow records.')}
+                                        disabled={resolvedPartyOptions.length === 0}
+                                        disabledReason={t('No party options available yet. Create customer profile first.')}
+                                    />
+                                    <SelectField
+                                        label={t('Lot Reference')}
+                                        value={salesOrderForm.data.lot_reference}
+                                        onChange={(value: string) => salesOrderForm.setData('lot_reference', value)}
+                                        options={resolvedLotReferenceOptions}
+                                        includeEmpty
+                                        emptyLabel={t('Select lot reference')}
+                                        helperText={t('Lot references are derived from active inventory lots and workflow records.')}
+                                        disabled={resolvedLotReferenceOptions.length === 0}
+                                        disabledReason={t('No lot options available yet. Create active inventory lots first.')}
+                                        required
+                                    />
                                     <div className="grid grid-cols-2 gap-3">
                                         <Field label={t('Quantity')} type="number" value={salesOrderForm.data.quantity} onChange={(value: string) => salesOrderForm.setData('quantity', value)} required />
                                         <SelectField

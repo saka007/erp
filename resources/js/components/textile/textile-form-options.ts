@@ -3,6 +3,14 @@ export interface TextileOption {
     label: string;
 }
 
+export function formatTextileOptionLabel(value: string): string {
+    return value
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
 const defaultUnitOptions = ['kg', 'mtr', 'pcs', 'cone', 'roll', 'set', 'rpm'];
 
 export const textileSourceTypeOptions: TextileOption[] = [

@@ -17,4 +17,9 @@ class TextileReferenceMaster extends Model
     {
         return $query->where('master_type', $type);
     }
+
+    public function scopeDomain(Builder $query, string $domain): Builder
+    {
+        return $query->where('master_domain', $domain);
+    }
 }

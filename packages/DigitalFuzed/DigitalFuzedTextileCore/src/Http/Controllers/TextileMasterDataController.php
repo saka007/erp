@@ -9,12 +9,24 @@ use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class TextileMasterDataController extends Controller
 {
     private const SOURCE_TYPE_MASTER = 'source_type';
+    private const SOURCE_ACTION_MASTER = 'source_action';
     private const MACHINE_TYPE_MASTER = 'machine_type';
+    private const DEFAULT_MASTER_DOMAIN = 'global';
+    private const REFERENCE_DOMAINS = [
+        'global',
+        'manufacturing',
+        'inventory',
+        'procurement',
+        'sales',
+        'processing',
+        'quality',
+    ];
 
     public function qualityProfiles()
     {
@@ -183,52 +195,122 @@ class TextileMasterDataController extends Controller
 
     public function sourceTypes()
     {
-        $this->authorizeTextileAccess();
+        return $this->renderReferenceMasterIndex('source-types', self::SOURCE_TYPE_MASTER, self::DEFAULT_MASTER_DOMAIN);
+    }
 
-        return Inertia::render('DigitalFuzedTextileCore/Masters/Index', [
-            'master' => 'source-types',
-            'records' => $this->referenceMasterRecords(self::SOURCE_TYPE_MASTER),
-        ]);
+    public function sourceTypesByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('source-types', self::SOURCE_TYPE_MASTER, $this->resolveDomain($domain));
     }
 
     public function storeSourceType(Request $request)
     {
-        return $this->storeReferenceMaster($request, self::SOURCE_TYPE_MASTER, 'Textile source type created successfully.');
+        return $this->storeReferenceMaster($request, self::SOURCE_TYPE_MASTER, 'Textile source type created successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function storeSourceTypeByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::SOURCE_TYPE_MASTER, 'Textile source type created successfully.', $this->resolveDomain($domain));
     }
 
     public function updateSourceType(Request $request)
     {
-        return $this->updateReferenceMaster($request, self::SOURCE_TYPE_MASTER, 'Textile source type updated successfully.');
+        return $this->updateReferenceMaster($request, self::SOURCE_TYPE_MASTER, 'Textile source type updated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function updateSourceTypeByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::SOURCE_TYPE_MASTER, 'Textile source type updated successfully.', $this->resolveDomain($domain));
     }
 
     public function archiveSourceType(Request $request)
     {
-        return $this->archiveReferenceMaster($request, self::SOURCE_TYPE_MASTER, 'Textile source type deactivated successfully.');
+        return $this->archiveReferenceMaster($request, self::SOURCE_TYPE_MASTER, 'Textile source type deactivated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function archiveSourceTypeByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::SOURCE_TYPE_MASTER, 'Textile source type deactivated successfully.', $this->resolveDomain($domain));
     }
 
     public function machineTypes()
     {
-        $this->authorizeTextileAccess();
+        return $this->renderReferenceMasterIndex('machine-types', self::MACHINE_TYPE_MASTER, self::DEFAULT_MASTER_DOMAIN);
+    }
 
-        return Inertia::render('DigitalFuzedTextileCore/Masters/Index', [
-            'master' => 'machine-types',
-            'records' => $this->referenceMasterRecords(self::MACHINE_TYPE_MASTER),
-        ]);
+    public function sourceActions()
+    {
+        return $this->renderReferenceMasterIndex('source-actions', self::SOURCE_ACTION_MASTER, self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function sourceActionsByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('source-actions', self::SOURCE_ACTION_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeSourceAction(Request $request)
+    {
+        return $this->storeReferenceMaster($request, self::SOURCE_ACTION_MASTER, 'Textile source action created successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function storeSourceActionByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::SOURCE_ACTION_MASTER, 'Textile source action created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateSourceAction(Request $request)
+    {
+        return $this->updateReferenceMaster($request, self::SOURCE_ACTION_MASTER, 'Textile source action updated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function updateSourceActionByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::SOURCE_ACTION_MASTER, 'Textile source action updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveSourceAction(Request $request)
+    {
+        return $this->archiveReferenceMaster($request, self::SOURCE_ACTION_MASTER, 'Textile source action deactivated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function archiveSourceActionByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::SOURCE_ACTION_MASTER, 'Textile source action deactivated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function machineTypesByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('machine-types', self::MACHINE_TYPE_MASTER, $this->resolveDomain($domain));
     }
 
     public function storeMachineType(Request $request)
     {
-        return $this->storeReferenceMaster($request, self::MACHINE_TYPE_MASTER, 'Textile machine type created successfully.');
+        return $this->storeReferenceMaster($request, self::MACHINE_TYPE_MASTER, 'Textile machine type created successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function storeMachineTypeByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::MACHINE_TYPE_MASTER, 'Textile machine type created successfully.', $this->resolveDomain($domain));
     }
 
     public function updateMachineType(Request $request)
     {
-        return $this->updateReferenceMaster($request, self::MACHINE_TYPE_MASTER, 'Textile machine type updated successfully.');
+        return $this->updateReferenceMaster($request, self::MACHINE_TYPE_MASTER, 'Textile machine type updated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function updateMachineTypeByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::MACHINE_TYPE_MASTER, 'Textile machine type updated successfully.', $this->resolveDomain($domain));
     }
 
     public function archiveMachineType(Request $request)
     {
-        return $this->archiveReferenceMaster($request, self::MACHINE_TYPE_MASTER, 'Textile machine type deactivated successfully.');
+        return $this->archiveReferenceMaster($request, self::MACHINE_TYPE_MASTER, 'Textile machine type deactivated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function archiveMachineTypeByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::MACHINE_TYPE_MASTER, 'Textile machine type deactivated successfully.', $this->resolveDomain($domain));
     }
 
     public function storeUnitConversion(Request $request)
@@ -299,19 +381,31 @@ class TextileMasterDataController extends Controller
         abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
     }
 
-    private function referenceMasterRecords(string $masterType)
+    private function referenceMasterRecords(string $masterType, string $domain = self::DEFAULT_MASTER_DOMAIN)
     {
-        return TextileReferenceMaster::query()
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return collect();
+        }
+
+        $query = TextileReferenceMaster::query()
             ->type($masterType)
             ->where('created_by', creatorId())
-            ->where('is_active', true)
-            ->latest()
-            ->get();
+            ->where('is_active', true);
+
+        if ($this->hasDomainColumn()) {
+            $query->domain($domain);
+        }
+
+        return $query->latest()->get();
     }
 
-    private function storeReferenceMaster(Request $request, string $masterType, string $successMessage)
+    private function storeReferenceMaster(Request $request, string $masterType, string $successMessage, string $domain = self::DEFAULT_MASTER_DOMAIN)
     {
         $this->authorizeTextileAccess();
+
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return back()->withErrors(['name' => __('Reference master table is missing. Please run migrations.')]);
+        }
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -319,7 +413,7 @@ class TextileMasterDataController extends Controller
             'description' => 'nullable|string|max:500',
         ]);
 
-        TextileReferenceMaster::create([
+        $payload = [
             'master_type' => $masterType,
             'name' => trim($validated['name']),
             'code' => isset($validated['code']) ? trim((string) $validated['code']) : null,
@@ -327,14 +421,24 @@ class TextileMasterDataController extends Controller
             'is_active' => true,
             'created_by' => creatorId(),
             'creator_id' => Auth::id(),
-        ]);
+        ];
+
+        if ($this->hasDomainColumn()) {
+            $payload['master_domain'] = $domain;
+        }
+
+        TextileReferenceMaster::create($payload);
 
         return back()->with('success', __($successMessage));
     }
 
-    private function updateReferenceMaster(Request $request, string $masterType, string $successMessage)
+    private function updateReferenceMaster(Request $request, string $masterType, string $successMessage, string $domain = self::DEFAULT_MASTER_DOMAIN)
     {
         $this->authorizeTextileAccess();
+
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return back()->withErrors(['record_id' => __('Reference master table is missing. Please run migrations.')]);
+        }
 
         $validated = $request->validate([
             'record_id' => 'required|integer|min:1',
@@ -343,12 +447,17 @@ class TextileMasterDataController extends Controller
             'description' => 'nullable|string|max:500',
         ]);
 
-        $record = TextileReferenceMaster::query()
+        $query = TextileReferenceMaster::query()
             ->type($masterType)
             ->where('created_by', creatorId())
             ->where('id', $validated['record_id'])
-            ->where('is_active', true)
-            ->firstOrFail();
+            ->where('is_active', true);
+
+        if ($this->hasDomainColumn()) {
+            $query->domain($domain);
+        }
+
+        $record = $query->firstOrFail();
 
         $record->update([
             'name' => trim($validated['name']),
@@ -359,24 +468,66 @@ class TextileMasterDataController extends Controller
         return back()->with('success', __($successMessage));
     }
 
-    private function archiveReferenceMaster(Request $request, string $masterType, string $successMessage)
+    private function archiveReferenceMaster(Request $request, string $masterType, string $successMessage, string $domain = self::DEFAULT_MASTER_DOMAIN)
     {
         $this->authorizeTextileAccess();
+
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return back()->withErrors(['record_id' => __('Reference master table is missing. Please run migrations.')]);
+        }
 
         $validated = $request->validate([
             'record_id' => 'required|integer|min:1',
         ]);
 
-        $record = TextileReferenceMaster::query()
+        $query = TextileReferenceMaster::query()
             ->type($masterType)
             ->where('created_by', creatorId())
             ->where('id', $validated['record_id'])
-            ->where('is_active', true)
-            ->firstOrFail();
+            ->where('is_active', true);
+
+        if ($this->hasDomainColumn()) {
+            $query->domain($domain);
+        }
+
+        $record = $query->firstOrFail();
 
         $record->is_active = false;
         $record->save();
 
         return back()->with('success', __($successMessage));
+    }
+
+    private function renderReferenceMasterIndex(string $master, string $masterType, string $domain)
+    {
+        $this->authorizeTextileAccess();
+
+        return Inertia::render('DigitalFuzedTextileCore/Masters/Index', [
+            'master' => $master,
+            'records' => $this->referenceMasterRecords($masterType, $domain),
+            'masterDomain' => $domain,
+            'masterDomainLabel' => $this->domainLabel($domain),
+        ]);
+    }
+
+    private function resolveDomain(string $domain): string
+    {
+        abort_unless(in_array($domain, self::REFERENCE_DOMAINS, true), 404);
+
+        return $domain;
+    }
+
+    private function domainLabel(string $domain): ?string
+    {
+        if ($domain === self::DEFAULT_MASTER_DOMAIN) {
+            return null;
+        }
+
+        return ucfirst($domain);
+    }
+
+    private function hasDomainColumn(): bool
+    {
+        return Schema::hasColumn('textile_reference_masters', 'master_domain');
     }
 }

@@ -36,10 +36,26 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/source-types', [TextileMasterDataController::class, 'storeSourceType'])->name('textile.source-types.store');
     Route::post('/textile/source-types/update', [TextileMasterDataController::class, 'updateSourceType'])->name('textile.source-types.update');
     Route::post('/textile/source-types/archive', [TextileMasterDataController::class, 'archiveSourceType'])->name('textile.source-types.archive');
+    Route::get('/textile/source-actions', [TextileMasterDataController::class, 'sourceActions'])->name('textile.source-actions.index');
+    Route::post('/textile/source-actions', [TextileMasterDataController::class, 'storeSourceAction'])->name('textile.source-actions.store');
+    Route::post('/textile/source-actions/update', [TextileMasterDataController::class, 'updateSourceAction'])->name('textile.source-actions.update');
+    Route::post('/textile/source-actions/archive', [TextileMasterDataController::class, 'archiveSourceAction'])->name('textile.source-actions.archive');
+    Route::get('/textile/master-setup/{domain}/source-types', [TextileMasterDataController::class, 'sourceTypesByDomain'])->name('textile.master-domains.source-types.index');
+    Route::post('/textile/master-setup/{domain}/source-types', [TextileMasterDataController::class, 'storeSourceTypeByDomain'])->name('textile.master-domains.source-types.store');
+    Route::post('/textile/master-setup/{domain}/source-types/update', [TextileMasterDataController::class, 'updateSourceTypeByDomain'])->name('textile.master-domains.source-types.update');
+    Route::post('/textile/master-setup/{domain}/source-types/archive', [TextileMasterDataController::class, 'archiveSourceTypeByDomain'])->name('textile.master-domains.source-types.archive');
+    Route::get('/textile/master-setup/{domain}/source-actions', [TextileMasterDataController::class, 'sourceActionsByDomain'])->name('textile.master-domains.source-actions.index');
+    Route::post('/textile/master-setup/{domain}/source-actions', [TextileMasterDataController::class, 'storeSourceActionByDomain'])->name('textile.master-domains.source-actions.store');
+    Route::post('/textile/master-setup/{domain}/source-actions/update', [TextileMasterDataController::class, 'updateSourceActionByDomain'])->name('textile.master-domains.source-actions.update');
+    Route::post('/textile/master-setup/{domain}/source-actions/archive', [TextileMasterDataController::class, 'archiveSourceActionByDomain'])->name('textile.master-domains.source-actions.archive');
     Route::get('/textile/machine-types', [TextileMasterDataController::class, 'machineTypes'])->name('textile.machine-types.index');
     Route::post('/textile/machine-types', [TextileMasterDataController::class, 'storeMachineType'])->name('textile.machine-types.store');
     Route::post('/textile/machine-types/update', [TextileMasterDataController::class, 'updateMachineType'])->name('textile.machine-types.update');
     Route::post('/textile/machine-types/archive', [TextileMasterDataController::class, 'archiveMachineType'])->name('textile.machine-types.archive');
+    Route::get('/textile/master-setup/{domain}/machine-types', [TextileMasterDataController::class, 'machineTypesByDomain'])->name('textile.master-domains.machine-types.index');
+    Route::post('/textile/master-setup/{domain}/machine-types', [TextileMasterDataController::class, 'storeMachineTypeByDomain'])->name('textile.master-domains.machine-types.store');
+    Route::post('/textile/master-setup/{domain}/machine-types/update', [TextileMasterDataController::class, 'updateMachineTypeByDomain'])->name('textile.master-domains.machine-types.update');
+    Route::post('/textile/master-setup/{domain}/machine-types/archive', [TextileMasterDataController::class, 'archiveMachineTypeByDomain'])->name('textile.master-domains.machine-types.archive');
 
     Route::get('/textile/procurement', [TextileProcurementController::class, 'index'])->name('textile.procurement.index');
     Route::post('/textile/procurement/requisitions', [TextileProcurementController::class, 'storeRequisition'])->name('textile.procurement.requisitions.store');

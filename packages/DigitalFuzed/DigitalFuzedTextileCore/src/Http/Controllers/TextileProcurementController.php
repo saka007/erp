@@ -4,13 +4,16 @@ namespace DigitalFuzed\TextileCore\Http\Controllers;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
+use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextileProcurementService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use RuntimeException;
+use Workdo\Account\Models\Vendor;
 
 class TextileProcurementController extends Controller
 {
@@ -29,6 +32,8 @@ class TextileProcurementController extends Controller
             'grns' => $this->documents('grn'),
             'incomingQcs' => $this->documents('incoming_qc'),
             'unitOptions' => $this->unitOptions(),
+            'partyOptions' => $this->partyOptions(),
+            'lotReferenceOptions' => $this->lotReferenceOptions(),
         ]);
     }
 
@@ -222,6 +227,54 @@ class TextileProcurementController extends Controller
             ->flatMap(fn ($row) => [$row->from_unit, $row->to_unit])
             ->filter(fn ($unit) => is_string($unit) && trim($unit) !== '')
             ->map(fn ($unit) => trim((string) $unit))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function partyOptions(): array
+    {
+        $vendors = collect();
+        if (Schema::hasTable('vendors')) {
+            $vendors = Vendor::query()
+                ->where('created_by', creatorId())
+                ->whereNotNull('company_name')
+                ->pluck('company_name');
+        }
+
+        $workflowParties = TextileWorkflowDocument::query()
+            ->where('created_by', creatorId())
+            ->whereNotNull('party_name')
+            ->pluck('party_name');
+
+        return $vendors
+            ->merge($workflowParties)
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function lotReferenceOptions(): array
+    {
+        $lots = collect();
+        if (Schema::hasTable('textile_lots')) {
+            $lots = TextileLot::query()
+                ->where('created_by', creatorId())
+                ->where('is_active', true)
+                ->pluck('lot_reference');
+        }
+
+        $workflowLots = TextileWorkflowDocument::query()
+            ->where('created_by', creatorId())
+            ->whereNotNull('lot_reference')
+            ->pluck('lot_reference');
+
+        return $lots
+            ->merge($workflowLots)
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
             ->unique()
             ->values()
             ->all();

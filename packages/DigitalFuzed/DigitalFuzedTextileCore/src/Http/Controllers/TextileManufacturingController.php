@@ -5,13 +5,16 @@ namespace DigitalFuzed\TextileCore\Http\Controllers;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
 use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
+use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileCore\Services\TextileManufacturingService;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use RuntimeException;
+use Workdo\Account\Models\Customer;
 
 class TextileManufacturingController extends Controller
 {
@@ -39,8 +42,11 @@ class TextileManufacturingController extends Controller
             'wastes' => $this->documents('waste'),
             'reworks' => $this->documents('rework'),
             'sourceTypeOptions' => $this->sourceTypeOptions(),
+            'sourceActionOptions' => $this->sourceActionOptions(),
             'machineTypeOptions' => $this->machineTypeOptions(),
             'unitOptions' => $this->unitOptions(),
+            'partyOptions' => $this->partyOptions(),
+            'lotReferenceOptions' => $this->lotReferenceOptions(),
         ]);
     }
 
@@ -399,24 +405,138 @@ class TextileManufacturingController extends Controller
 
     private function sourceTypeOptions(): array
     {
-        return TextileReferenceMaster::query()
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultSourceTypeOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
             ->type('source_type')
             ->where('created_by', creatorId())
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->pluck('name')
-            ->values()
-            ->all();
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('manufacturing');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultSourceTypeOptions();
     }
 
     private function machineTypeOptions(): array
     {
-        return TextileReferenceMaster::query()
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultMachineTypeOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
             ->type('machine_type')
             ->where('created_by', creatorId())
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->pluck('name')
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('manufacturing');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultMachineTypeOptions();
+    }
+
+    private function sourceActionOptions(): array
+    {
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultSourceActionOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
+            ->type('source_action')
+            ->where('created_by', creatorId())
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('manufacturing');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultSourceActionOptions();
+    }
+
+    private function defaultSourceTypeOptions(): array
+    {
+        return [
+            'warp_plan',
+            'beam_register',
+            'sizing_recipe',
+            'loom_allocation',
+            'factory',
+        ];
+    }
+
+    private function defaultMachineTypeOptions(): array
+    {
+        return [
+            'rapier',
+            'airjet',
+            'waterjet',
+            'shuttle',
+        ];
+    }
+
+    private function defaultSourceActionOptions(): array
+    {
+        return [
+            'warp_plan',
+            'beam_prepare',
+            'loom_register',
+        ];
+    }
+
+    private function partyOptions(): array
+    {
+        $customers = collect();
+        if (Schema::hasTable('customers')) {
+            $customers = Customer::query()
+                ->where('created_by', creatorId())
+                ->whereNotNull('company_name')
+                ->pluck('company_name');
+        }
+
+        $workflowParties = TextileWorkflowDocument::query()
+            ->where('created_by', creatorId())
+            ->whereNotNull('party_name')
+            ->pluck('party_name');
+
+        return $customers
+            ->merge($workflowParties)
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function lotReferenceOptions(): array
+    {
+        $lots = collect();
+        if (Schema::hasTable('textile_lots')) {
+            $lots = TextileLot::query()
+                ->where('created_by', creatorId())
+                ->where('is_active', true)
+                ->pluck('lot_reference');
+        }
+
+        $workflowLots = TextileWorkflowDocument::query()
+            ->where('created_by', creatorId())
+            ->whereNotNull('lot_reference')
+            ->pluck('lot_reference');
+
+        return $lots
+            ->merge($workflowLots)
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
+            ->unique()
             ->values()
             ->all();
     }

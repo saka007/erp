@@ -30,12 +30,16 @@ export default function Index({
     grns,
     incomingQcs,
     unitOptions,
+    partyOptions,
+    lotReferenceOptions,
 }: {
     requisitions: WorkflowDocument[];
     purchaseOrders: WorkflowDocument[];
     grns: WorkflowDocument[];
     incomingQcs: WorkflowDocument[];
     unitOptions: string[];
+    partyOptions: string[];
+    lotReferenceOptions: string[];
 }) {
     const { t } = useTranslation();
     const sectionParam = new URLSearchParams(window.location.search).get('section');
@@ -55,6 +59,8 @@ export default function Index({
     const approvedRequisitions = requisitions.filter((row) => row.status === 'approved');
     const approvedPurchaseOrders = purchaseOrders.filter((row) => row.status === 'approved');
     const releasedGrns = grns.filter((row) => row.status === 'released');
+    const resolvedPartyOptions = partyOptions.map((value) => ({ value, label: value }));
+    const resolvedLotReferenceOptions = lotReferenceOptions.map((value) => ({ value, label: value }));
     const resolvedUnitOptions = buildUnitOptions(unitOptions);
 
     const allDocuments = [...requisitions, ...purchaseOrders, ...grns, ...incomingQcs];
@@ -118,8 +124,29 @@ export default function Index({
                                         onSuccess: () => requisitionForm.reset('party_name', 'lot_reference', 'quantity'),
                                     });
                                 }}>
-                                    <Field label={t('Supplier/Party')} value={requisitionForm.data.party_name} onChange={(v) => requisitionForm.setData('party_name', v)} />
-                                    <Field label={t('Lot Reference')} value={requisitionForm.data.lot_reference} onChange={(v) => requisitionForm.setData('lot_reference', v)} required />
+                                    <SelectField
+                                        label={t('Supplier/Party')}
+                                        value={requisitionForm.data.party_name}
+                                        onChange={(v) => requisitionForm.setData('party_name', v)}
+                                        options={resolvedPartyOptions}
+                                        includeEmpty
+                                        emptyLabel={t('Select supplier/party')}
+                                        helperText={t('Party options are derived from vendor profiles and existing workflow records.')}
+                                        disabled={resolvedPartyOptions.length === 0}
+                                        disabledReason={t('No party options available yet. Create vendor profile first.')}
+                                    />
+                                    <SelectField
+                                        label={t('Lot Reference')}
+                                        value={requisitionForm.data.lot_reference}
+                                        onChange={(v) => requisitionForm.setData('lot_reference', v)}
+                                        options={resolvedLotReferenceOptions}
+                                        includeEmpty
+                                        emptyLabel={t('Select lot reference')}
+                                        helperText={t('Lot references are derived from active inventory lots and workflow records.')}
+                                        disabled={resolvedLotReferenceOptions.length === 0}
+                                        disabledReason={t('No lot options available yet. Create active inventory lots first.')}
+                                        required
+                                    />
                                     <div className="grid grid-cols-2 gap-3">
                                         <Field label={t('Quantity')} type="number" value={requisitionForm.data.quantity} onChange={(v) => requisitionForm.setData('quantity', v)} required />
                                         <SelectField

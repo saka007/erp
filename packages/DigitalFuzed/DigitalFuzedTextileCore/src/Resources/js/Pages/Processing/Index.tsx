@@ -10,7 +10,7 @@ import { TextileSelectField as SelectField } from '@/components/textile/textile-
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { TextileDataTableSection } from '@/components/textile/textile-data-table-section';
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
-import { buildUnitOptions, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
+import { buildUnitOptions, formatTextileOptionLabel, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 
 interface WorkflowDocument {
@@ -29,14 +29,20 @@ export default function Index({
     inwards,
     reconciliations,
     sourceTypeOptions,
+    sourceActionOptions,
     unitOptions,
+    partyOptions,
+    lotReferenceOptions,
 }: {
     outwards: WorkflowDocument[];
     batches: WorkflowDocument[];
     inwards: WorkflowDocument[];
     reconciliations: WorkflowDocument[];
     sourceTypeOptions: string[];
+    sourceActionOptions: string[];
     unitOptions: string[];
+    partyOptions: string[];
+    lotReferenceOptions: string[];
 }) {
     const { t } = useTranslation();
 
@@ -57,8 +63,17 @@ export default function Index({
     const releasedBatches = batches.filter((row) => row.status === 'released');
     const approvedInwards = inwards.filter((row) => row.status === 'approved');
     const resolvedSourceTypeOptions = sourceTypeOptions.length > 0
-        ? sourceTypeOptions.map((value) => ({ value, label: value }))
+        ? sourceTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }))
         : textileSourceTypeOptions;
+    const resolvedSourceActionOptions = sourceActionOptions.length > 0
+        ? sourceActionOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }))
+        : [
+            { value: 'job_work_issue', label: formatTextileOptionLabel('job_work_issue') },
+            { value: 'processing_start', label: formatTextileOptionLabel('processing_start') },
+            { value: 'job_work_receive', label: formatTextileOptionLabel('job_work_receive') },
+        ];
+    const resolvedPartyOptions = partyOptions.map((value) => ({ value, label: value }));
+    const resolvedLotReferenceOptions = lotReferenceOptions.map((value) => ({ value, label: value }));
     const resolvedUnitOptions = buildUnitOptions(unitOptions);
 
     const allDocuments = [...outwards, ...batches, ...inwards, ...reconciliations];
@@ -111,13 +126,43 @@ export default function Index({
                                 options={resolvedSourceTypeOptions}
                                 includeEmpty
                                 emptyLabel={t('Select source type')}
-                                helperText={t('Source types are managed from Textile Master Setup.')}
+                                helperText={t('Source types are managed from Master Setup > Processing Setup > Source Types.')}
                                 required
                             />
                             <Field label={t('Source ID')} type="number" value={outwardForm.data.source_reference_id} onChange={(value) => outwardForm.setData('source_reference_id', value)} required />
-                            <Field label={t('Source Action')} value={outwardForm.data.source_action} onChange={(value) => outwardForm.setData('source_action', value)} required />
-                            <Field label={t('Processor/Party')} value={outwardForm.data.party_name} onChange={(value) => outwardForm.setData('party_name', value)} />
-                            <Field label={t('Lot Reference')} value={outwardForm.data.lot_reference} onChange={(value) => outwardForm.setData('lot_reference', value)} required />
+                            <SelectField
+                                label={t('Source Action')}
+                                value={outwardForm.data.source_action}
+                                onChange={(value) => outwardForm.setData('source_action', value)}
+                                options={resolvedSourceActionOptions}
+                                includeEmpty
+                                emptyLabel={t('Select source action')}
+                                helperText={t('Source actions are managed from Master Setup > Processing Setup > Source Actions.')}
+                                required
+                            />
+                            <SelectField
+                                label={t('Processor/Party')}
+                                value={outwardForm.data.party_name}
+                                onChange={(value) => outwardForm.setData('party_name', value)}
+                                options={resolvedPartyOptions}
+                                includeEmpty
+                                emptyLabel={t('Select processor/party')}
+                                helperText={t('Party options are derived from vendor profiles and existing workflow records.')}
+                                disabled={resolvedPartyOptions.length === 0}
+                                disabledReason={t('No party options available yet. Create vendor profile first.')}
+                            />
+                            <SelectField
+                                label={t('Lot Reference')}
+                                value={outwardForm.data.lot_reference}
+                                onChange={(value) => outwardForm.setData('lot_reference', value)}
+                                options={resolvedLotReferenceOptions}
+                                includeEmpty
+                                emptyLabel={t('Select lot reference')}
+                                helperText={t('Lot references are derived from active inventory lots and workflow records.')}
+                                disabled={resolvedLotReferenceOptions.length === 0}
+                                disabledReason={t('No lot options available yet. Create active inventory lots first.')}
+                                required
+                            />
                             <div className="grid grid-cols-2 gap-3">
                                 <Field label={t('Quantity')} type="number" value={outwardForm.data.quantity} onChange={(value) => outwardForm.setData('quantity', value)} required />
                                 <SelectField

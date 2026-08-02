@@ -11,7 +11,7 @@ import { TextileSelectField as SelectField } from '@/components/textile/textile-
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { TextileDataTableSection } from '@/components/textile/textile-data-table-section';
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
-import { buildUnitOptions, textileMachineTypeOptions, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
+import { buildUnitOptions, formatTextileOptionLabel, textileMachineTypeOptions, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 
 interface WorkflowDocument {
@@ -42,8 +42,11 @@ export default function Index({
     wastes,
     reworks,
     sourceTypeOptions,
+    sourceActionOptions,
     machineTypeOptions,
     unitOptions,
+    partyOptions,
+    lotReferenceOptions,
 }: {
     warpPlans: WorkflowDocument[];
     yarnAllocations: WorkflowDocument[];
@@ -59,8 +62,11 @@ export default function Index({
     wastes: WorkflowDocument[];
     reworks: WorkflowDocument[];
     sourceTypeOptions: string[];
+    sourceActionOptions: string[];
     machineTypeOptions: string[];
     unitOptions: string[];
+    partyOptions: string[];
+    lotReferenceOptions: string[];
 }) {
     const { t } = useTranslation();
     const sectionParam = new URLSearchParams(window.location.search).get('section');
@@ -117,10 +123,21 @@ export default function Index({
     const actionableBeamIssues = beamIssues.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
     const releasedBatches = productionBatches.filter((row) => row.status === 'released');
     const resolvedSourceTypeOptions = sourceTypeOptions.length > 0
-        ? sourceTypeOptions.map((value) => ({ value, label: value }))
+        ? sourceTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }))
         : textileSourceTypeOptions;
+    const resolvedSourceActionOptions = sourceActionOptions.length > 0
+        ? sourceActionOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }))
+        : [
+            { value: 'warp_plan', label: formatTextileOptionLabel('warp_plan') },
+            { value: 'beam_prepare', label: formatTextileOptionLabel('beam_prepare') },
+            { value: 'loom_register', label: formatTextileOptionLabel('loom_register') },
+        ];
+    const resolvedPartyOptions = partyOptions
+        .map((value) => ({ value, label: value }));
+    const resolvedLotReferenceOptions = lotReferenceOptions
+        .map((value) => ({ value, label: value }));
     const resolvedMachineTypeOptions = machineTypeOptions.length > 0
-        ? machineTypeOptions.map((value) => ({ value, label: value }))
+        ? machineTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }))
         : textileMachineTypeOptions;
     const resolvedUnitOptions = buildUnitOptions(unitOptions);
 
@@ -272,13 +289,43 @@ export default function Index({
                                 options={resolvedSourceTypeOptions}
                                 includeEmpty
                                 emptyLabel={t('Select source type')}
-                                helperText={t('Source types are managed from Textile Master Setup.')}
+                                    helperText={t('Source types are managed from Master Setup > Manufacturing Setup > Source Types.')}
                                 required
                             />
                             <Field label={t('Source ID')} type="number" value={warpPlanForm.data.source_reference_id} onChange={(v) => warpPlanForm.setData('source_reference_id', v)} required />
-                            <Field label={t('Source Action')} value={warpPlanForm.data.source_action} onChange={(v) => warpPlanForm.setData('source_action', v)} required />
-                            <Field label={t('Party')} value={warpPlanForm.data.party_name} onChange={(v) => warpPlanForm.setData('party_name', v)} />
-                            <Field label={t('Lot Reference')} value={warpPlanForm.data.lot_reference} onChange={(v) => warpPlanForm.setData('lot_reference', v)} required />
+                            <SelectField
+                                label={t('Source Action')}
+                                value={warpPlanForm.data.source_action}
+                                onChange={(v) => warpPlanForm.setData('source_action', v)}
+                                options={resolvedSourceActionOptions}
+                                includeEmpty
+                                emptyLabel={t('Select source action')}
+                                helperText={t('Source actions are managed from Master Setup > Manufacturing Setup > Source Actions.')}
+                                required
+                            />
+                            <SelectField
+                                label={t('Party')}
+                                value={warpPlanForm.data.party_name}
+                                onChange={(v) => warpPlanForm.setData('party_name', v)}
+                                options={resolvedPartyOptions}
+                                includeEmpty
+                                emptyLabel={t('Select party')}
+                                helperText={t('Parties are derived from customer profiles and existing workflow records.')}
+                                disabled={resolvedPartyOptions.length === 0}
+                                disabledReason={t('No party options available yet. Create customer or prior workflow records.')}
+                            />
+                            <SelectField
+                                label={t('Lot Reference')}
+                                value={warpPlanForm.data.lot_reference}
+                                onChange={(v) => warpPlanForm.setData('lot_reference', v)}
+                                options={resolvedLotReferenceOptions}
+                                includeEmpty
+                                emptyLabel={t('Select lot reference')}
+                                helperText={t('Lot references are derived from active inventory lots and workflow records.')}
+                                disabled={resolvedLotReferenceOptions.length === 0}
+                                disabledReason={t('No lot options available yet. Create active inventory lots first.')}
+                                required
+                            />
                             <div className="grid grid-cols-2 gap-3">
                                 <Field label={t('Quantity')} type="number" value={warpPlanForm.data.quantity} onChange={(v) => warpPlanForm.setData('quantity', v)} required />
                                 <SelectField
@@ -443,13 +490,43 @@ export default function Index({
                                     options={resolvedSourceTypeOptions}
                                     includeEmpty
                                     emptyLabel={t('Select source type')}
-                                    helperText={t('Source types are managed from Textile Master Setup.')}
+                                        helperText={t('Source types are managed from Master Setup > Manufacturing Setup > Source Types.')}
                                     required
                                 />
                                 <Field label={t('Source ID')} type="number" value={beamForm.data.source_reference_id} onChange={(v) => beamForm.setData('source_reference_id', v)} required />
-                                <Field label={t('Source Action')} value={beamForm.data.source_action} onChange={(v) => beamForm.setData('source_action', v)} required />
-                                <Field label={t('Party')} value={beamForm.data.party_name} onChange={(v) => beamForm.setData('party_name', v)} />
-                                <Field label={t('Lot Reference')} value={beamForm.data.lot_reference} onChange={(v) => beamForm.setData('lot_reference', v)} required />
+                                <SelectField
+                                    label={t('Source Action')}
+                                    value={beamForm.data.source_action}
+                                    onChange={(v) => beamForm.setData('source_action', v)}
+                                    options={resolvedSourceActionOptions}
+                                    includeEmpty
+                                    emptyLabel={t('Select source action')}
+                                    helperText={t('Source actions are managed from Master Setup > Manufacturing Setup > Source Actions.')}
+                                    required
+                                />
+                                <SelectField
+                                    label={t('Party')}
+                                    value={beamForm.data.party_name}
+                                    onChange={(v) => beamForm.setData('party_name', v)}
+                                    options={resolvedPartyOptions}
+                                    includeEmpty
+                                    emptyLabel={t('Select party')}
+                                    helperText={t('Parties are derived from customer profiles and existing workflow records.')}
+                                    disabled={resolvedPartyOptions.length === 0}
+                                    disabledReason={t('No party options available yet. Create customer or prior workflow records.')}
+                                />
+                                <SelectField
+                                    label={t('Lot Reference')}
+                                    value={beamForm.data.lot_reference}
+                                    onChange={(v) => beamForm.setData('lot_reference', v)}
+                                    options={resolvedLotReferenceOptions}
+                                    includeEmpty
+                                    emptyLabel={t('Select lot reference')}
+                                    helperText={t('Lot references are derived from active inventory lots and workflow records.')}
+                                    disabled={resolvedLotReferenceOptions.length === 0}
+                                    disabledReason={t('No lot options available yet. Create active inventory lots first.')}
+                                    required
+                                />
                                 <div className="grid grid-cols-2 gap-3">
                                     <Field label={t('Quantity')} type="number" value={beamForm.data.quantity} onChange={(v) => beamForm.setData('quantity', v)} required />
                                     <SelectField
@@ -642,7 +719,7 @@ export default function Index({
                                 options={resolvedSourceTypeOptions}
                                 includeEmpty
                                 emptyLabel={t('Select source type')}
-                                helperText={t('Source types are managed from Textile Master Setup.')}
+                                helperText={t('Source types are managed from Master Setup > Manufacturing Setup > Source Types.')}
                                 required
                             />
                             <Field label={t('Source ID')} type="number" value={loomMasterForm.data.source_reference_id} onChange={(v) => loomMasterForm.setData('source_reference_id', v)} required />
@@ -654,7 +731,7 @@ export default function Index({
                                 options={resolvedMachineTypeOptions}
                                 includeEmpty
                                 emptyLabel={t('Select machine type')}
-                                helperText={t('Machine types are managed from Textile Master Setup.')}
+                                    helperText={t('Machine types are managed from Master Setup > Manufacturing Setup > Machine Types.')}
                                 required
                             />
                             <div className="grid grid-cols-2 gap-3">

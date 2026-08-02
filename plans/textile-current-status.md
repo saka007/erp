@@ -480,7 +480,7 @@ Progress note (2026-08-03):
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
 | Loom Master | 🆕 New Module Required | P1 | `[x]` |
-| Machine Type | 🟡 Extend Existing | P1 | `[~]` |
+| Machine Type | 🟡 Extend Existing | P1 | `[x]` |
 | RPM | 🔵 Modify Existing | P2 | `[~]` |
 | Width | 🔵 Modify Existing | P1 | `[~]` |
 | Shed | 🔵 Modify Existing | P2 | `[~]` |
@@ -492,6 +492,7 @@ Progress note (2026-08-03):
 | Operator Assignment | 🟡 Extend Existing | P2 | `[~]` |
 
 - Loom Management slice now includes loom master registration in Textile Manufacturing (web + API + shared UX), with tenant isolation verified in TextileManufacturingAdminTest.
+- Master Setup now includes separate CRUD for Source Types and Machine Types, and workflow forms consume select options sourced from Source Type and Unit Conversion masters (with Machine Type master in Loom Management), verified across textile admin tests.
 ### Domain 12: Production Planning (6 features)
 
 | Task | Classification | Priority | Status |

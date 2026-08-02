@@ -8,7 +8,7 @@ export const textileInventoryCompanyMenu = (t: (key: string) => string) => [
     {
         title: t('Inventory'),
         href: route('textile.inventory.index'),
-        parent: 'textile',
+        parent: 'textile-insights',
         order: 50,
         icon: Boxes,
         children: [
