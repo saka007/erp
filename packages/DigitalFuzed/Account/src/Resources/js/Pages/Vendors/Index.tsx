@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Edit as EditIcon, Trash2, Building2, User as UserIcon, Lock, FileText, Eye } from "lucide-react";
 import { getImagePath } from '@/utils/helpers';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -23,6 +24,7 @@ import Edit from './Edit';
 import View from './View';
 import { VendorsIndexProps, VendorFilters, VendorModalState, Vendor } from './types';
 import { usePageButtons } from '@/hooks/usePageButtons';
+import { resolveSupplierTypeLabel, SUPPLIER_TYPE_OPTIONS } from './supplier-types';
 
 export default function Index() {
     const { vendors, users, auth, is_demo } = usePage<any>().props;
@@ -32,6 +34,7 @@ export default function Index() {
     const [filters, setFilters] = useState<VendorFilters>({
         company_name: urlParams.get('company_name') || '',
         vendor_code: urlParams.get('vendor_code') || '',
+        supplier_type: urlParams.get('supplier_type') || '',
         tax_number: urlParams.get('tax_number') || ''
     });
 
@@ -86,7 +89,7 @@ export default function Index() {
     };
 
     const clearFilters = () => {
-        setFilters({ company_name: '', vendor_code: '', tax_number: '' });
+        setFilters({ company_name: '', vendor_code: '', supplier_type: '', tax_number: '' });
         router.get(route('account.vendors.index'), {per_page: perPage, view: viewMode});
     };
 
@@ -126,6 +129,11 @@ export default function Index() {
             key: 'vendor_code',
             header: t('Vendor Code'),
             sortable: true
+        },
+        {
+            key: 'supplier_type',
+            header: t('Supplier Type'),
+            render: (value: string | null) => resolveSupplierTypeLabel(value),
         },
         {
             key: 'company_name',
@@ -284,7 +292,7 @@ export default function Index() {
                                     onToggle={() => setShowFilters(!showFilters)}
                                 />
                                 {(() => {
-                                    const activeFilters = [filters.vendor_code, filters.tax_number].filter(Boolean).length;
+                                    const activeFilters = [filters.vendor_code, filters.supplier_type, filters.tax_number].filter(Boolean).length;
                                     return activeFilters > 0 && (
                                         <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
                                             {activeFilters}
@@ -296,6 +304,20 @@ export default function Index() {
                     </div>
                 </CardContent>
 
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">{t('Supplier Type')}</label>
+                                            <Select value={filters.supplier_type || '__all__'} onValueChange={(value) => setFilters({...filters, supplier_type: value === '__all__' ? '' : value})}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder={t('All supplier types')} />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                <SelectItem value="__all__">{t('All supplier types')}</SelectItem>
+                                                    {SUPPLIER_TYPE_OPTIONS.map((option) => (
+                                                        <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
                 {/* Advanced Filters */}
                 {showFilters && (
                     <CardContent className="p-6 bg-blue-50/30 border-b">
@@ -348,7 +370,7 @@ export default function Index() {
                                         icon={Building2}
                                         title="No vendors found"
                                         description="Get started by creating your first vendor."
-                                        hasFilters={!!(filters.company_name || filters.vendor_code || filters.tax_number)}
+                                        hasFilters={!!(filters.company_name || filters.vendor_code || filters.supplier_type || filters.tax_number)}
                                         onClearFilters={clearFilters}
                                         createPermission="create-vendors"
                                         onCreateClick={() => openModal('add')}
@@ -513,7 +535,7 @@ export default function Index() {
                                     icon={Building2}
                                     title="No vendors found"
                                     description="Get started by creating your first vendor."
-                                    hasFilters={!!(filters.company_name || filters.vendor_code || filters.tax_number)}
+                                    hasFilters={!!(filters.company_name || filters.vendor_code || filters.supplier_type || filters.tax_number)}
                                     onClearFilters={clearFilters}
                                     createPermission="create-vendors"
                                     onCreateClick={() => openModal('add')}

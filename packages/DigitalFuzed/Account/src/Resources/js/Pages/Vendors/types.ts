@@ -14,6 +14,7 @@ export interface Vendor {
     id: number;
     user_id?: number;
     vendor_code: string;
+    supplier_type?: string;
     company_name: string;
     contact_person_name: string;
     contact_person_email?: string;
@@ -34,6 +35,7 @@ export interface Vendor {
 
 export interface CreateVendorFormData {
     user_id?: string;
+    supplier_type: string;
     company_name: string;
     contact_person_name: string;
     contact_person_email: string;
@@ -56,6 +58,7 @@ export interface User {
 export interface VendorFilters {
     company_name: string;
     vendor_code: string;
+    supplier_type: string;
     contact_person_name: string;
 }
 

@@ -2,6 +2,7 @@ import { DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog
 import { useTranslation } from 'react-i18next';
 import { Building2 } from 'lucide-react';
 import { Vendor } from './types';
+import { resolveSupplierTypeLabel } from './supplier-types';
 
 interface ViewProps {
     vendor: Vendor;
@@ -26,6 +27,10 @@ export default function View({ vendor }: ViewProps) {
 
             <div className="overflow-y-auto flex-1 p-4 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">{t('Supplier Type')}</label>
+                        <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">{resolveSupplierTypeLabel(vendor.supplier_type)}</p>
+                    </div>
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">{t('Vendor Code')}</label>
                         <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">{vendor.vendor_code}</p>

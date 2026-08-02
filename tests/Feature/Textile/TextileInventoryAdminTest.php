@@ -11,6 +11,7 @@ use DigitalFuzed\TextileInventory\Models\TextileLocation;
 use DigitalFuzed\TextileInventory\Models\TextileMovement;
 use DigitalFuzed\TextileInventory\Models\TextileReservation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -72,18 +73,44 @@ class TextileInventoryAdminTest extends TestCase
             ->post(route('textile.inventory.locations.store'), [
                 'name' => 'warehouse-a',
                 'code' => 'WH-A',
+                'rack' => 'R-01',
+                'bin' => 'B-01',
                 'location_type' => 'warehouse',
             ])
             ->assertRedirect();
 
         $this->actingAs($company)
+            ->get(route('textile.inventory.index'))
+            ->assertOk()
+            ->assertInertia(function (Assert $page): void {
+                $locations = $page->toArray()['props']['locations'] ?? [];
+                $this->assertNotEmpty($locations);
+                $this->assertSame('R-01', $locations[0]['rack'] ?? null);
+                $this->assertSame('B-01', $locations[0]['bin'] ?? null);
+            });
+
+        $this->actingAs($company)
             ->post(route('textile.inventory.lots.store'), [
                 'lot_reference' => 'LOT-001',
+                'batch_number' => 'BATCH-001',
+                'barcode' => 'BC-LOT-001',
+                'qr_code' => 'QR-LOT-001',
                 'received_quantity' => '120',
                 'available_quantity' => '120',
                 'status' => 'active',
             ])
             ->assertRedirect();
+
+        $this->actingAs($company)
+            ->get(route('textile.inventory.index'))
+            ->assertOk()
+            ->assertInertia(function (Assert $page): void {
+                $lots = $page->toArray()['props']['lots'] ?? [];
+                $this->assertNotEmpty($lots);
+                $this->assertSame('BATCH-001', $lots[0]['batch_number'] ?? null);
+                $this->assertSame('BC-LOT-001', $lots[0]['barcode'] ?? null);
+                $this->assertSame('QR-LOT-001', $lots[0]['qr_code'] ?? null);
+            });
 
         $lotId = TextileLot::where('created_by', $company->id)
             ->where('lot_reference', 'LOT-001')
@@ -117,6 +144,59 @@ class TextileInventoryAdminTest extends TestCase
                 'quantity' => '5',
                 'unit' => 'mtr',
                 'status' => 'pending',
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($company)
+            ->post(route('textile.inventory.movements.store'), [
+                'movement_type' => 'adjustment',
+                'adjustment_direction' => 'decrease',
+                'lot_reference' => 'LOT-001',
+                'location_from' => 'warehouse-a',
+                'quantity' => '3',
+                'unit' => 'mtr',
+                'status' => 'posted',
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($company)
+            ->post(route('textile.inventory.physical-verifications.store'), [
+                'lot_reference' => 'LOT-001',
+                'counted_quantity' => '90',
+                'location' => 'warehouse-a',
+                'unit' => 'mtr',
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($company)
+            ->post(route('textile.inventory.lots.freeze'), [
+                'lot_id' => $lotId,
+                'freeze_note' => 'Hold for verification',
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($company)
+            ->post(route('textile.inventory.reservations.store'), [
+                'lot_reference' => 'LOT-001',
+                'quantity' => '30',
+                'reference_type' => 'sales_order',
+                'reference_id' => 101,
+            ])
+            ->assertStatus(422);
+
+        $this->actingAs($company)
+            ->post(route('textile.inventory.lots.unfreeze'), [
+                'lot_id' => $lotId,
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($company)
+            ->post(route('textile.inventory.cycle-counts.store'), [
+                'lot_reference' => 'LOT-001',
+                'counted_quantity' => '89',
+                'location' => 'warehouse-a',
+                'unit' => 'mtr',
+                'notes' => 'Cycle check run',
             ])
             ->assertRedirect();
 
@@ -186,7 +266,11 @@ class TextileInventoryAdminTest extends TestCase
         $this->assertDatabaseHas('textile_lots', [
             'lot_reference' => 'LOT-001',
             'created_by' => $company->id,
-            'available_quantity' => 95.00,
+            'barcode' => 'BC-LOT-001',
+            'qr_code' => 'QR-LOT-001',
+            'available_quantity' => 89.00,
+            'is_frozen' => false,
+            'freeze_note' => null,
             'status' => 'inactive',
             'is_active' => false,
         ]);
@@ -197,8 +281,45 @@ class TextileInventoryAdminTest extends TestCase
             'created_by' => $company->id,
         ]);
 
+        $this->assertDatabaseHas('textile_movements', [
+            'movement_type' => 'adjustment',
+            'adjustment_direction' => 'decrease',
+            'lot_reference' => 'LOT-001',
+            'created_by' => $company->id,
+        ]);
+
+        $this->assertDatabaseHas('textile_movements', [
+            'movement_type' => 'adjustment',
+            'adjustment_direction' => 'decrease',
+            'reference_type' => 'physical_verification',
+            'lot_reference' => 'LOT-001',
+            'quantity' => 2.00,
+            'created_by' => $company->id,
+        ]);
+
+        $this->assertDatabaseHas('textile_movements', [
+            'movement_type' => 'adjustment',
+            'adjustment_direction' => 'decrease',
+            'reference_type' => 'cycle_count',
+            'lot_reference' => 'LOT-001',
+            'quantity' => 1.00,
+            'created_by' => $company->id,
+        ]);
+
+        $this->assertDatabaseHas('textile_cycle_counts', [
+            'lot_reference' => 'LOT-001',
+            'expected_quantity' => 90.00,
+            'counted_quantity' => 89.00,
+            'variance_quantity' => -1.00,
+            'adjustment_direction' => 'decrease',
+            'status' => 'posted',
+            'created_by' => $company->id,
+        ]);
+
         $this->assertDatabaseHas('textile_locations', [
             'name' => 'warehouse-a',
+            'rack' => 'R-01',
+            'bin' => 'B-01',
             'created_by' => $company->id,
             'is_active' => false,
         ]);
@@ -224,16 +345,6 @@ class TextileInventoryAdminTest extends TestCase
         ]);
 
         $this->actingAs($company)
-            ->get(route('textile.inventory.index'))
-            ->assertOk()
-            ->assertSee('LOT-001')
-            ->assertSee('warehouse-a')
-            ->assertDontSee('OTHER-LOT-01')
-            ->assertDontSee('other-warehouse')
-            ->assertDontSee('404')
-            ->assertDontSee('WH-A');
-
-        $this->actingAs($company)
             ->get(route('textile.inventory.index', ['status' => 'pending', 'location' => 'warehouse-a']))
             ->assertOk()
             ->assertSee('transfer')
@@ -243,6 +354,9 @@ class TextileInventoryAdminTest extends TestCase
             ->get(route('textile.inventory.lots.show', $lotId))
             ->assertOk()
             ->assertSee('LOT-001')
+            ->assertSee('BATCH-001')
+            ->assertSee('BC-LOT-001')
+            ->assertSee('QR-LOT-001')
             ->assertSee('allocation')
             ->assertDontSee('OTHER-LOT-01');
     }

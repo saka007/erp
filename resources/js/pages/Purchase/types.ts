@@ -20,6 +20,7 @@ export interface PurchaseInvoice {
     created_at: string;
     updated_at: string;
     vendor?: User;
+    vendor_type?: string | null;
     vendor_details?: VendorDetails;
     warehouse?: Warehouse;
     items?: PurchaseInvoiceItem[];
@@ -90,6 +91,7 @@ export interface ProductServiceItem {
 
 export interface PurchaseFilters {
     vendor_id?: string;
+    vendor_type?: string;
     warehouse_id?: string;
     status?: string;
     search?: string;

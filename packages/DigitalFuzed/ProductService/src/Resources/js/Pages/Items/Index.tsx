@@ -20,14 +20,12 @@ import NoRecordsFound from '@/components/no-records-found';
 import { formatCurrency, getImagePath } from '@/utils/helpers';
 import { Item, ItemsIndexProps, ItemFilters } from './types';
 import { usePageButtons } from '@/hooks/usePageButtons';
+import { ITEM_TYPE_OPTIONS, resolveItemTypeLabel } from './item-types';
 
 export default function Index() {
     const { t } = useTranslation();
     const { items, categories, auth } = usePage<ItemsIndexProps>().props;
     const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
-
-    // Item types same as Create page
-    const itemTypes = ['product', 'service', 'part'];
 
     const [filters, setFilters] = useState<ItemFilters>({
         name: urlParams.get('name') || '',
@@ -164,7 +162,7 @@ export default function Index() {
             sortable: true,
             render: (value: string) => (
                 <span className="px-2 py-1 rounded-full text-sm bg-green-100 text-green-800 capitalize">
-                    {t(value)}
+                    {t(resolveItemTypeLabel(value))}
                 </span>
             )
         },
@@ -323,9 +321,9 @@ export default function Index() {
                                         <SelectValue placeholder={t('Filter by item type')} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {itemTypes.map((type) => (
-                                            <SelectItem key={type} value={type}>
-                                                {t(type)}
+                                        {ITEM_TYPE_OPTIONS.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {t(option.label)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>

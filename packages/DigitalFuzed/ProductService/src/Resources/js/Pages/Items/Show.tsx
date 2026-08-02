@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Package, Image } from "lucide-react";
 import { formatCurrency, getImagePath } from "@/utils/helpers";
 import { ImageSlider } from "@/components/ui/image-slider";
+import { resolveItemTypeLabel } from './item-types';
 
 interface ShowItemPageProps {
     item: {
@@ -96,7 +97,7 @@ export default function Show() {
                                     </div>
                                     <div className="bg-gray-50 p-4 rounded-lg">
                                         <label className="text-lg font-semibold text-gray-800 mb-3">{t('Type')}</label>
-                                        <p className="text-gray-700 leading-relaxed">{item.type || '-'}</p>
+                                        <p className="text-gray-700 leading-relaxed">{resolveItemTypeLabel(item.type)}</p>
                                     </div>
 
                                 </div>

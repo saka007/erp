@@ -10,11 +10,13 @@ import InputError from "@/components/ui/input-error";
 import { PhoneInputComponent } from "@/components/ui/phone-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CreateVendorProps, CreateVendorFormData } from './types';
+import { SUPPLIER_TYPE_OPTIONS } from './supplier-types';
 
 export default function Create({ onSuccess, users = [], auth }: CreateVendorProps) {
     const { t } = useTranslation();
     const { data, setData, post, processing, errors } = useForm<CreateVendorFormData>({
         user_id: '0',
+        supplier_type: 'yarn',
         company_name: '',
         contact_person_name: '',
         contact_person_email: '',
@@ -75,6 +77,22 @@ export default function Create({ onSuccess, users = [], auth }: CreateVendorProp
                 <DialogTitle>{t('Create Vendor')}</DialogTitle>
             </DialogHeader>
             <form onSubmit={submit} className="space-y-4">
+                <div>
+                    <Label htmlFor="supplier_type">{t('Supplier Type')}</Label>
+                    <Select value={data.supplier_type} onValueChange={(value) => setData('supplier_type', value)}>
+                        <SelectTrigger>
+                            <SelectValue placeholder={t('Select supplier type')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {SUPPLIER_TYPE_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                    {t(option.label)}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <InputError message={errors.supplier_type} />
+                </div>
                 <div>
                     <Label htmlFor="user_id">{t('User')}</Label>
                     <Select value={data.user_id} onValueChange={handleUserSelect}>

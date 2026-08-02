@@ -2,6 +2,7 @@
 
 namespace DigitalFuzed\TextileInventory\Http\Controllers;
 
+use DigitalFuzed\TextileInventory\Models\TextileCycleCount;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Models\TextileLocation;
 use DigitalFuzed\TextileInventory\Models\TextileMovement;
@@ -18,6 +19,7 @@ use RuntimeException;
 class TextileInventoryController extends Controller
 {
     private const MOVEMENT_TYPES = ['receipt', 'issue', 'transfer', 'adjustment'];
+    private const ADJUSTMENT_DIRECTIONS = ['increase', 'decrease'];
     private const MOVEMENT_STATUSES = ['pending', 'posted', 'cancelled'];
     private const LOT_STATUSES = ['active', 'hold', 'inactive'];
 
@@ -61,6 +63,7 @@ class TextileInventoryController extends Controller
                 ->get(),
             'movements' => $movementsQuery->latest()->limit(100)->get(),
             'reservations' => TextileReservation::where('created_by', creatorId())->where('is_active', true)->latest()->limit(100)->get(),
+            'cycleCounts' => TextileCycleCount::where('created_by', creatorId())->latest()->limit(100)->get(),
             'locations' => TextileLocation::where('created_by', creatorId())->where('is_active', true)->latest()->get(),
             'movementTypes' => self::MOVEMENT_TYPES,
             'movementStatuses' => self::MOVEMENT_STATUSES,
@@ -85,12 +88,16 @@ class TextileInventoryController extends Controller
                 Rule::unique('textile_locations', 'name')->where(fn ($query) => $query->where('created_by', creatorId())),
             ],
             'code' => ['nullable', 'string', 'max:50'],
+            'rack' => ['nullable', 'string', 'max:50'],
+            'bin' => ['nullable', 'string', 'max:50'],
             'location_type' => ['nullable', 'string', 'max:50'],
         ]);
 
         TextileLocation::create([
             'name' => $validated['name'],
             'code' => $validated['code'] ?? null,
+            'rack' => $validated['rack'] ?? null,
+            'bin' => $validated['bin'] ?? null,
             'location_type' => $validated['location_type'] ?? 'warehouse',
             'is_active' => true,
             'created_by' => creatorId(),
@@ -130,13 +137,28 @@ class TextileInventoryController extends Controller
                 'max:100',
                 Rule::unique('textile_lots', 'lot_reference')->where(fn ($query) => $query->where('created_by', creatorId())),
             ],
+            'batch_number' => ['nullable', 'string', 'max:100'],
+            'barcode' => ['nullable', 'string', 'max:100'],
+            'qr_code' => ['nullable', 'string', 'max:500'],
             'received_quantity' => ['required', 'numeric', 'gt:0'],
             'available_quantity' => ['nullable', 'numeric', 'min:0'],
             'status' => ['nullable', Rule::in(self::LOT_STATUSES)],
         ]);
 
+        $barcode = $validated['barcode'] ?? strtoupper('LOT-'.$validated['lot_reference']);
+        $qrCode = $validated['qr_code'] ?? sprintf(
+            'LOT:%s|BATCH:%s|BARCODE:%s|TENANT:%s',
+            $validated['lot_reference'],
+            $validated['batch_number'] ?? '-',
+            $barcode,
+            (string) creatorId()
+        );
+
         TextileLot::create([
             'lot_reference' => $validated['lot_reference'],
+            'batch_number' => $validated['batch_number'] ?? null,
+            'barcode' => $barcode,
+            'qr_code' => $qrCode,
             'received_quantity' => $validated['received_quantity'],
             'available_quantity' => $validated['available_quantity'] ?? $validated['received_quantity'],
             'status' => $validated['status'] ?? 'active',
@@ -180,6 +202,51 @@ class TextileInventoryController extends Controller
         return back()->with('success', __('Textile lot archived successfully.'));
     }
 
+    public function freezeLot(Request $request)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'lot_id' => ['required', 'integer', 'min:1'],
+            'freeze_note' => ['nullable', 'string'],
+        ]);
+
+        $lot = TextileLot::where('created_by', creatorId())
+            ->where('id', $validated['lot_id'])
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $lot->is_frozen = true;
+        $lot->freeze_note = $validated['freeze_note'] ?? null;
+        $lot->status = 'hold';
+        $lot->save();
+
+        return back()->with('success', __('Textile lot frozen successfully.'));
+    }
+
+    public function unfreezeLot(Request $request)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'lot_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $lot = TextileLot::where('created_by', creatorId())
+            ->where('id', $validated['lot_id'])
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $lot->is_frozen = false;
+        $lot->freeze_note = null;
+        if ($lot->status === 'hold') {
+            $lot->status = 'active';
+        }
+        $lot->save();
+
+        return back()->with('success', __('Textile lot unfrozen successfully.'));
+    }
+
     public function showLot(int $lotId, TextileAvailabilityService $availabilityService)
     {
         $this->authorizeTextileAccess();
@@ -200,6 +267,7 @@ class TextileInventoryController extends Controller
 
         $validated = $request->validate([
             'movement_type' => ['required', Rule::in(self::MOVEMENT_TYPES)],
+            'adjustment_direction' => ['nullable', Rule::in(self::ADJUSTMENT_DIRECTIONS), 'required_if:movement_type,adjustment'],
             'reference_type' => ['nullable', 'string', 'max:100'],
             'reference_id' => ['nullable', 'integer', 'min:1'],
             'lot_reference' => ['nullable', 'string', 'max:100'],
@@ -210,6 +278,10 @@ class TextileInventoryController extends Controller
             'status' => ['nullable', Rule::in(self::MOVEMENT_STATUSES)],
             'notes' => ['nullable', 'string'],
         ]);
+
+        if (($validated['movement_type'] ?? null) !== 'receipt' && ! empty($validated['lot_reference'])) {
+            $this->ensureLotIsNotFrozen((string) $validated['lot_reference']);
+        }
 
         $movementService->createMovement($validated);
         $this->syncLotAvailability($validated);
@@ -228,6 +300,8 @@ class TextileInventoryController extends Controller
             'reference_id' => ['nullable', 'integer', 'min:1'],
         ]);
 
+        $this->ensureLotIsNotFrozen((string) $validated['lot_reference']);
+
         try {
             $availabilityService->reserve(
                 $validated['lot_reference'],
@@ -240,6 +314,112 @@ class TextileInventoryController extends Controller
         }
 
         return back()->with('success', __('Textile lot reserved successfully.'));
+    }
+
+    public function storePhysicalVerification(Request $request, TextileMovementService $movementService)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'lot_reference' => ['required', 'string', 'max:100'],
+            'counted_quantity' => ['required', 'numeric', 'min:0'],
+            'location' => ['nullable', 'string', 'max:100'],
+            'unit' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $this->ensureLotIsNotFrozen((string) $validated['lot_reference']);
+
+        $lot = TextileLot::query()
+            ->where('created_by', creatorId())
+            ->where('lot_reference', $validated['lot_reference'])
+            ->firstOrFail();
+
+        [$difference, $currentAvailable, $countedQuantity, $adjustmentDirection] = $this->resolveVariance(
+            $lot,
+            (float) $validated['counted_quantity']
+        );
+
+        if ($difference <= 0.00001) {
+            return back()->with('success', __('Physical verification recorded with no stock variance.'));
+        }
+
+        $movementPayload = [
+            'movement_type' => 'adjustment',
+            'adjustment_direction' => $adjustmentDirection,
+            'reference_type' => 'physical_verification',
+            'lot_reference' => $lot->lot_reference,
+            'location_from' => $validated['location'] ?? null,
+            'location_to' => $validated['location'] ?? null,
+            'quantity' => $difference,
+            'unit' => $validated['unit'] ?? null,
+            'status' => 'posted',
+            'notes' => sprintf('Physical verification adjusted lot from %s to %s', $currentAvailable, $countedQuantity),
+        ];
+
+        $movementService->createMovement($movementPayload);
+        $this->syncLotAvailability($movementPayload);
+
+        return back()->with('success', __('Physical verification adjustment posted successfully.'));
+    }
+
+    public function storeCycleCount(Request $request, TextileMovementService $movementService)
+    {
+        $this->authorizeTextileAccess();
+
+        $validated = $request->validate([
+            'lot_reference' => ['required', 'string', 'max:100'],
+            'counted_quantity' => ['required', 'numeric', 'min:0'],
+            'location' => ['nullable', 'string', 'max:100'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        $this->ensureLotIsNotFrozen((string) $validated['lot_reference']);
+
+        $lot = TextileLot::query()
+            ->where('created_by', creatorId())
+            ->where('lot_reference', $validated['lot_reference'])
+            ->firstOrFail();
+
+        [$difference, $currentAvailable, $countedQuantity, $adjustmentDirection] = $this->resolveVariance(
+            $lot,
+            (float) $validated['counted_quantity']
+        );
+
+        if ($difference > 0.00001) {
+            $movementPayload = [
+                'movement_type' => 'adjustment',
+                'adjustment_direction' => $adjustmentDirection,
+                'reference_type' => 'cycle_count',
+                'lot_reference' => $lot->lot_reference,
+                'location_from' => $validated['location'] ?? null,
+                'location_to' => $validated['location'] ?? null,
+                'quantity' => $difference,
+                'unit' => $validated['unit'] ?? null,
+                'status' => 'posted',
+                'notes' => sprintf('Cycle count adjusted lot from %s to %s', $currentAvailable, $countedQuantity),
+            ];
+
+            $movementService->createMovement($movementPayload);
+            $this->syncLotAvailability($movementPayload);
+        }
+
+        TextileCycleCount::create([
+            'lot_reference' => $lot->lot_reference,
+            'expected_quantity' => $currentAvailable,
+            'counted_quantity' => $countedQuantity,
+            'variance_quantity' => $countedQuantity - $currentAvailable,
+            'adjustment_direction' => $adjustmentDirection,
+            'location' => $validated['location'] ?? null,
+            'unit' => $validated['unit'] ?? null,
+            'status' => $difference > 0.00001 ? 'posted' : 'verified',
+            'notes' => $validated['notes'] ?? null,
+            'is_active' => true,
+            'created_by' => creatorId(),
+            'creator_id' => Auth::id(),
+        ]);
+
+        return back()->with('success', __('Cycle count recorded successfully.'));
     }
 
     public function releaseReservation(Request $request, TextileAvailabilityService $availabilityService)
@@ -311,6 +491,18 @@ class TextileInventoryController extends Controller
             $lot->available_quantity = max(0, (float) $lot->available_quantity - $quantity);
         }
 
+        if ($type === 'adjustment') {
+            $direction = strtolower((string) ($movement['adjustment_direction'] ?? 'decrease'));
+
+            if ($direction === 'increase') {
+                $lot->available_quantity = (float) $lot->available_quantity + $quantity;
+            }
+
+            if ($direction === 'decrease') {
+                $lot->available_quantity = max(0, (float) $lot->available_quantity - $quantity);
+            }
+        }
+
         $lot->save();
     }
 
@@ -319,5 +511,31 @@ class TextileInventoryController extends Controller
         $user = Auth::user();
 
         abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+    }
+
+    private function ensureLotIsNotFrozen(string $lotReference): void
+    {
+        $lot = TextileLot::query()
+            ->where('created_by', creatorId())
+            ->where('lot_reference', $lotReference)
+            ->first();
+
+        if ($lot && (bool) $lot->is_frozen) {
+            abort(422, __('The selected lot is frozen and cannot be moved or reserved.'));
+        }
+    }
+
+    private function resolveVariance(TextileLot $lot, float $countedQuantity): array
+    {
+        $currentAvailable = (float) $lot->available_quantity;
+        $difference = abs($countedQuantity - $currentAvailable);
+
+        if ($difference <= 0.00001) {
+            return [0.0, $currentAvailable, $countedQuantity, null];
+        }
+
+        $adjustmentDirection = $countedQuantity > $currentAvailable ? 'increase' : 'decrease';
+
+        return [$difference, $currentAvailable, $countedQuantity, $adjustmentDirection];
     }
 }

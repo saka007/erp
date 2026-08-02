@@ -41,7 +41,7 @@ class PurchaseInvoiceController extends Controller
     public function index(Request $request)
     {
         if(Auth::user()->can('manage-purchase-invoices')){
-            $query = PurchaseInvoice::with(['vendor', 'items'])
+            $query = PurchaseInvoice::with(['vendor', 'vendorDetails', 'items'])
                 ->where(function($q) {
                     if(Auth::user()->can('manage-any-purchase-invoices')) {
                         $q->where('created_by', creatorId());
@@ -58,6 +58,11 @@ class PurchaseInvoiceController extends Controller
             // Apply filters
             if ($request->vendor_id) {
                 $query->where('vendor_id', $request->vendor_id);
+            }
+            if ($request->vendor_type) {
+                $query->whereHas('vendorDetails', function ($vendorQuery) use ($request) {
+                    $vendorQuery->where('supplier_type', $request->vendor_type);
+                });
             }
             if ($request->warehouse_id) {
                 $query->where('warehouse_id', $request->warehouse_id);
@@ -95,6 +100,10 @@ class PurchaseInvoiceController extends Controller
 
         $perPage = $request->get('per_page', 10);
         $invoices = $query->paginate($perPage);
+        $invoices->getCollection()->transform(function ($invoice) {
+            $invoice->vendor_type = $invoice->vendorDetails?->supplier_type;
+            return $invoice;
+        });
         $vendors = User::where('type', 'vendor')->select('id', 'name', 'email')->where('created_by', creatorId())->get();
         $warehouses = Warehouse::where('is_active', true)->select('id', 'name')->where('created_by', creatorId())->get();
 
@@ -102,7 +111,7 @@ class PurchaseInvoiceController extends Controller
                 'invoices' => $invoices,
                 'vendors' => $vendors,
                 'warehouses' => $warehouses,
-                'filters' => $request->only(['vendor_id', 'warehouse_id', 'status', 'search', 'date_range'])
+                'filters' => $request->only(['vendor_id', 'vendor_type', 'warehouse_id', 'status', 'search', 'date_range'])
             ]);
         }
         else{

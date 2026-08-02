@@ -38,7 +38,7 @@ class PurchaseReturnController extends Controller
     public function index(Request $request)
     {
         if(Auth::user()->can('manage-purchase-return-invoices')){
-            $query = PurchaseReturn::with(['vendor', 'originalInvoice', 'items.product', 'warehouse'])
+            $query = PurchaseReturn::with(['vendor', 'vendorDetails', 'originalInvoice', 'items.product', 'warehouse'])
                 ->where(function($q) {
                     if(Auth::user()->can('manage-any-purchase-return-invoices')) {
                         $q->where('created_by', creatorId());
@@ -55,6 +55,11 @@ class PurchaseReturnController extends Controller
         // Apply filters
         if ($request->vendor_id) {
             $query->where('vendor_id', $request->vendor_id);
+        }
+        if ($request->vendor_type) {
+            $query->whereHas('vendorDetails', function ($vendorQuery) use ($request) {
+                $vendorQuery->where('supplier_type', $request->vendor_type);
+            });
         }
         if ($request->warehouse_id) {
             $query->where('warehouse_id', $request->warehouse_id);
@@ -86,6 +91,10 @@ class PurchaseReturnController extends Controller
 
         $perPage = $request->get('per_page', 10);
         $returns = $query->paginate($perPage);
+        $returns->getCollection()->transform(function ($returnItem) {
+            $returnItem->vendor_type = $returnItem->vendorDetails?->supplier_type;
+            return $returnItem;
+        });
 
         $vendors = User::where('type', 'vendor')->select('id', 'name', 'email')->where('created_by', creatorId())->get();
         $warehouses = Warehouse::where('is_active', true)->select('id', 'name')->where('created_by', creatorId())->get();
@@ -94,7 +103,7 @@ class PurchaseReturnController extends Controller
                 'returns' => $returns,
                 'vendors' => $vendors,
                 'warehouses' => $warehouses,
-                'filters' => $request->only(['vendor_id', 'warehouse_id', 'status', 'search', 'date_range'])
+                'filters' => $request->only(['vendor_id', 'vendor_type', 'warehouse_id', 'status', 'search', 'date_range'])
             ]);
         }
         else{

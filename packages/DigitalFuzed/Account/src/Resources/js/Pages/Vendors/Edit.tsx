@@ -10,10 +10,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import InputError from "@/components/ui/input-error";
 import { PhoneInputComponent } from "@/components/ui/phone-input";
 import { EditVendorProps, CreateVendorFormData } from './types';
+import { SUPPLIER_TYPE_OPTIONS } from './supplier-types';
 
 export default function Edit({ vendor, onSuccess }: EditVendorProps) {
     const { t } = useTranslation();
-    const { data, setData, put, processing, errors } = useForm<CreateVendorFormData>(vendor);
+    const { data, setData, put, processing, errors } = useForm<CreateVendorFormData>({
+        ...vendor,
+        supplier_type: vendor.supplier_type || 'yarn',
+    });
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -30,6 +34,22 @@ export default function Edit({ vendor, onSuccess }: EditVendorProps) {
                 <DialogTitle>{t('Edit Vendor')}</DialogTitle>
             </DialogHeader>
             <form onSubmit={submit} className="space-y-4">
+                <div>
+                    <Label htmlFor="supplier_type">{t('Supplier Type')}</Label>
+                    <Select value={data.supplier_type} onValueChange={(value) => setData('supplier_type', value)}>
+                        <SelectTrigger>
+                            <SelectValue placeholder={t('Select supplier type')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {SUPPLIER_TYPE_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                    {t(option.label)}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <InputError message={errors.supplier_type} />
+                </div>
                 <div>
                     <Label htmlFor="company_name">{t('Company Name')}</Label>
                     <Input

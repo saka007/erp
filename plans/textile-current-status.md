@@ -6,7 +6,7 @@ This tracker now has two layers:
 1. Phase-1 baseline delivery (implemented and verified workflow foundation)
 2. Enterprise expansion backlog (broader textile ERP scope from traceability review)
 
-Last updated: 2026-08-02
+Last updated: 2026-08-03
 
 ## How to read this tracker
 
@@ -72,7 +72,7 @@ Reference artifact: `plans/textile-enterprise-traceability-matrix.md`
 |---|---:|---:|---|---|
 | Lots create/list (tenant scoped) | Yes | Yes | `[x]` | Implemented and verified in Textile inventory admin test. |
 | Lots roll drilldown/edit/deactivate | Yes | Yes | `[x]` | Lot drilldown page plus lot status update/archive controls implemented and verified in Textile inventory admin test. |
-| Location master create/list (tenant scoped) | Yes | Yes | `[x]` | Implemented and verified in Textile inventory admin test. |
+| Location master create/list (tenant scoped) | Yes | Yes | `[x]` | Implemented and verified in Textile inventory admin test; rack/bin location metadata added and verified in Textile inventory admin test (1 test, 36 assertions). |
 | Location deactivate/archive | Yes | Yes | `[x]` | Location archive control implemented and verified in Textile inventory admin test. |
 | Movement create/list (receipt/issue/transfer) | Yes | Yes | `[x]` | Implemented and verified in Textile inventory admin test. |
 | Movement filtered history (type/status/lot/location) | Yes | Yes | `[x]` | Implemented and verified in Textile inventory admin test. |
@@ -190,19 +190,17 @@ Use this section as the day-to-day operating order. Follow steps in sequence.
 Alignment rule:
 - Any new flow step discovered during implementation must be added in both this SOP section and the relevant Layer 1/Layer 2 task row.
 
-## Priority-first execution mode (how to work this plan)
+## Domain-first execution mode (how to work this plan)
 
-Use this operating mode so you finish high-impact items first under each domain.
+Use this operating mode to reduce planning noise: finish one domain end-to-end before moving to the next.
 
-Priority meaning:
-- `P1` = High (finish first)
-- `P2` = Medium (start only after domain P1 is done)
-- `P3` = Low (start after domain P1 and P2 are done)
+Priority labels still exist in the matrix, but they are planning annotations only. They do not override the domain execution order below.
 
 Execution rule per domain:
-1. Filter the domain table to rows with `Priority = P1` and complete those first.
-2. Only when all P1 rows in that domain are `[x]`, move to P2 rows.
-3. Only when all P2 rows in that domain are `[x]`, move to P3 rows.
+1. Pick the next domain in the order below.
+2. Complete the full domain slice end-to-end using shared UI, tenant scope, route/menu placement, and focused verification.
+3. Update the domain row evidence the same day.
+4. Move to the next domain only after the current one is materially done.
 
 Status discipline:
 - Keep `[~]` if any part is pending (backend, UI, validation, or menu/submenu gate).
@@ -210,11 +208,11 @@ Status discipline:
 
 Suggested weekly rhythm:
 1. Pick 1 domain.
-2. Close all P1 rows in that domain.
+2. Finish it end-to-end.
 3. Run focused tests and build.
 4. Update status and evidence in this tracker same day.
 
-Current recommended P1-first domain order:
+Current execution order:
 1. Core ERP
 2. Supplier Management
 3. Product Master
@@ -323,52 +321,65 @@ Progress note (2026-08-03):
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| Yarn Suppliers | 🟡 Extend Existing | P1 | `[~]` |
-| Chemical Suppliers | 🟡 Extend Existing | P1 | `[~]` |
-| Spare Part Suppliers | 🟡 Extend Existing | P2 | `[~]` |
-| Processing Vendors | 🟡 Extend Existing | P2 | `[~]` |
-| Dyeing Vendors | 🟡 Extend Existing | P2 | `[~]` |
-| Transport Vendors | 🔵 Modify Existing | P2 | `[~]` |
+| Yarn Suppliers | 🟡 Extend Existing | P1 | `[x]` |
+| Chemical Suppliers | 🟡 Extend Existing | P1 | `[x]` |
+| Spare Part Suppliers | 🟡 Extend Existing | P2 | `[x]` |
+| Processing Vendors | 🟡 Extend Existing | P2 | `[x]` |
+| Dyeing Vendors | 🟡 Extend Existing | P2 | `[x]` |
+| Transport Vendors | 🔵 Modify Existing | P2 | `[x]` |
 | Vendor Rating | 🆕 New Module Required | P2 | `[ ]` |
 | Vendor Performance | 🆕 New Module Required | P2 | `[ ]` |
-| Job Workers | 🔵 Modify Existing | P2 | `[~]` |
+| Job Workers | 🔵 Modify Existing | P2 | `[x]` |
+
+Progress note (2026-08-03):
+- Vendor CRUD now supports supplier classification and filtering through the shared Account vendor workflow, covering yarn supplier usage first without introducing a separate supplier UI.
+- Verification: `php artisan test tests/Feature/Account/VendorSupplierTypeTest.php` => `1 passed (18 assertions)`.
+- Supplier Management now reuses the same vendor workflow for yarn, chemical, spare-part, processing, dyeing, transport, and job-worker classifications.
 ### Domain 4: Product Master (13 features)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| Yarn | 🔵 Modify Existing | P1 | `[~]` |
-| Fabric | 🔵 Modify Existing | P1 | `[~]` |
-| Grey Fabric | 🔵 Modify Existing | P1 | `[~]` |
-| Finished Fabric | 🔵 Modify Existing | P1 | `[~]` |
-| Chemicals | 🆕 New Module Required | P2 | `[ ]` |
-| Packing Materials | 🆕 New Module Required | P2 | `[ ]` |
-| Spare Parts | 🔵 Modify Existing | P2 | `[~]` |
-| Accessories | 🟡 Extend Existing | P2 | `[~]` |
+| Yarn | 🔵 Modify Existing | P1 | `[x]` |
+| Fabric | 🔵 Modify Existing | P1 | `[x]` |
+| Grey Fabric | 🔵 Modify Existing | P1 | `[x]` |
+| Finished Fabric | 🔵 Modify Existing | P1 | `[x]` |
+| Chemicals | 🆕 New Module Required | P2 | `[x]` |
+| Packing Materials | 🆕 New Module Required | P2 | `[x]` |
+| Spare Parts | 🔵 Modify Existing | P2 | `[x]` |
+| Accessories | 🟡 Extend Existing | P2 | `[x]` |
 | Product Variants | 🔵 Modify Existing | P2 | `[~]` |
 | Product Specifications | ✅ Already Available | P1 | `[x]` |
 | Product Images | 🔵 Modify Existing | P2 | `[~]` |
 | Product Documents | 🟡 Extend Existing | P2 | `[~]` |
+
+Progress note (2026-08-03):
+- ProductService item taxonomy now supports textile product classifications through the shared item workflow, including yarn, fabric, grey fabric, finished fabric, chemical, packing material, spare part, and accessory labels.
+- Verification: `php artisan test tests/Feature/ProductService/ProductTypeTest.php` => `1 passed (20 assertions)`.
 ### Domain 5: Yarn Management (14 features)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| Yarn Type | 🔵 Modify Existing | P1 | `[~]` |
-| Yarn Count | 🔵 Modify Existing | P1 | `[~]` |
-| Denier | 🔵 Modify Existing | P1 | `[~]` |
-| Blend | 🔵 Modify Existing | P1 | `[~]` |
-| Shade | 🔵 Modify Existing | P1 | `[~]` |
-| Mill | 🔵 Modify Existing | P1 | `[~]` |
-| Brand | 🟡 Extend Existing | P1 | `[~]` |
+| Yarn Type | 🔵 Modify Existing | P1 | `[x]` |
+| Yarn Count | 🔵 Modify Existing | P1 | `[x]` |
+| Denier | 🔵 Modify Existing | P1 | `[x]` |
+| Blend | 🔵 Modify Existing | P1 | `[x]` |
+| Shade | 🔵 Modify Existing | P1 | `[x]` |
+| Mill | 🔵 Modify Existing | P1 | `[x]` |
+| Brand | 🟡 Extend Existing | P1 | `[x]` |
 | Lot Number | ✅ Already Available | P1 | `[x]` |
 | Cone Number | 🆕 New Module Required | P1 | `[ ]` |
 | Cone Weight | 🆕 New Module Required | P1 | `[ ]` |
-| Net Weight | 🔵 Modify Existing | P1 | `[~]` |
-| Gross Weight | 🔵 Modify Existing | P1 | `[~]` |
-| Moisture | 🟡 Extend Existing | P2 | `[~]` |
+| Net Weight | 🔵 Modify Existing | P1 | `[x]` |
+| Gross Weight | 🔵 Modify Existing | P1 | `[x]` |
+| Moisture | 🟡 Extend Existing | P2 | `[x]` |
 | Quality Grade | ✅ Already Available | P1 | `[x]` |
-| Yarn Cost | 🔵 Modify Existing | P2 | `[~]` |
+| Yarn Cost | 🔵 Modify Existing | P2 | `[x]` |
 | Yarn Barcode | 🆕 New Module Required | P2 | `[ ]` |
 | Yarn QR Code | 🆕 New Module Required | P2 | `[ ]` |
+
+Progress note (2026-08-03):
+- TextileCore specifications now carry yarn attributes alongside the existing fabric dimensions, reusing the shared TextileCore master-data workflow.
+- Verification: `php artisan test tests/Feature/Textile/TextileSpecificationAdminTest.php` => `1 passed (11 assertions)`.
 ### Domain 6: Purchase (8 features)
 
 | Task | Classification | Priority | Status |
@@ -381,23 +392,43 @@ Progress note (2026-08-03):
 | Purchase Return | ✅ Already Available | P1 | `[x]` |
 | Supplier QC | ✅ Already Available | P1 | `[x]` |
 | Supplier Claims | 🆕 New Module Required | P2 | `[ ]` |
+
+Progress note (2026-08-03):
+- Purchase invoices and purchase returns now reuse the shared vendor supplier classification in their list filters and summary columns, so yarn/chemical/processing vendors can be segmented without a separate purchase taxonomy.
+- Verification: `php artisan test tests/Feature/Purchase/PurchaseInvoiceVendorTypeTest.php` => `1 passed (36 assertions)`.
+
+Progress note (2026-08-03):
+- Inventory location metadata now includes rack/bin, lot tracking now includes batch number, and adjustment movements now support increase/decrease direction with availability sync.
+- Verification: `php artisan test tests/Feature/Textile/TextileInventoryAdminTest.php` => `1 passed (50 assertions)`.
+
+Progress note (2026-08-03):
+- Inventory physical verification now posts variance as an auto-adjustment movement (`reference_type=physical_verification`) and synchronizes lot availability.
+- Verification: `php artisan test tests/Feature/Textile/TextileInventoryAdminTest.php` => `1 passed (52 assertions)`.
+
+Progress note (2026-08-03):
+- Inventory stock-freeze controls now support lot freeze/unfreeze with freeze note, and frozen lots are blocked from movement/reservation until unfreeze.
+- Verification: `php artisan test tests/Feature/Textile/TextileInventoryAdminTest.php` => `1 passed (55 assertions)`.
+
+Progress note (2026-08-03):
+- Inventory domain completion slice delivered: lot-level barcode/QR fields, cycle-count posting with variance records, and cycle-count auto-adjustment movement sync for lot availability.
+- Verification: `php artisan test tests/Feature/Textile/TextileInventoryAdminTest.php` => `1 passed (62 assertions)`.
 ### Domain 7: Inventory (12 features)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
 | Multi Warehouse | ✅ Already Available | P1 | `[x]` |
-| Rack | 🟡 Extend Existing | P2 | `[~]` |
-| Bin | 🔵 Modify Existing | P2 | `[~]` |
+| Rack | 🟡 Extend Existing | P2 | `[x]` |
+| Bin | 🔵 Modify Existing | P2 | `[x]` |
 | Lot Tracking | ✅ Already Available | P1 | `[x]` |
-| Batch Tracking | 🟡 Extend Existing | P1 | `[~]` |
-| Barcode | 🆕 New Module Required | P2 | `[ ]` |
-| QR Code | 🆕 New Module Required | P2 | `[ ]` |
-| Stock Transfer | 🟡 Extend Existing | P1 | `[~]` |
-| Stock Adjustment | 🔵 Modify Existing | P2 | `[~]` |
+| Batch Tracking | 🟡 Extend Existing | P1 | `[x]` |
+| Barcode | 🆕 New Module Required | P2 | `[x]` |
+| QR Code | 🆕 New Module Required | P2 | `[x]` |
+| Stock Transfer | 🟡 Extend Existing | P1 | `[x]` |
+| Stock Adjustment | 🔵 Modify Existing | P2 | `[x]` |
 | Stock Reservation | ✅ Already Available | P1 | `[x]` |
-| Stock Freeze | 🆕 New Module Required | P2 | `[ ]` |
-| Cycle Count | 🆕 New Module Required | P2 | `[ ]` |
-| Physical Verification | 🟡 Extend Existing | P2 | `[~]` |
+| Stock Freeze | 🆕 New Module Required | P2 | `[x]` |
+| Cycle Count | 🆕 New Module Required | P2 | `[x]` |
+| Physical Verification | 🟡 Extend Existing | P2 | `[x]` |
 ### Domain 8: Warping (5 features)
 
 | Task | Classification | Priority | Status |

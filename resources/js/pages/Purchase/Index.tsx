@@ -20,6 +20,7 @@ import { ListGridToggle } from '@/components/ui/list-grid-toggle';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { getStatusBadgeClasses } from './utils';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { VENDOR_TYPE_OPTIONS, resolveVendorTypeLabel } from './vendor-types';
 
 import NoRecordsFound from '@/components/no-records-found';
 import { PurchaseInvoice, PurchaseFilters } from './types';
@@ -46,6 +47,7 @@ export default function Index() {
     const [filters, setFilters] = useState<PurchaseFilters>({
         search: urlParams.get('search') || '',
         vendor_id: urlParams.get('vendor_id') || '',
+        vendor_type: urlParams.get('vendor_type') || '',
         warehouse_id: urlParams.get('warehouse_id') || '',
         status: urlParams.get('status') || '',
         date_range: urlParams.get('date_range') || ''
@@ -100,7 +102,7 @@ export default function Index() {
     };
 
     const clearFilters = () => {
-        setFilters({ search: '', vendor_id: '', warehouse_id: '', status: '', date_range: '' });
+        setFilters({ search: '', vendor_id: '', vendor_type: '', warehouse_id: '', status: '', date_range: '' });
         router.get(route('purchase-invoices.index'), {per_page: perPage, view: viewMode});
     };
 
@@ -124,6 +126,11 @@ export default function Index() {
             key: 'vendor',
             header: t('Vendor'),
             render: (value: any) => value?.name || '-'
+        },
+        {
+            key: 'vendor_type',
+            header: t('Vendor Type'),
+            render: (value: string | null) => resolveVendorTypeLabel(value)
         },
         {
             key: 'invoice_date',
@@ -355,7 +362,7 @@ export default function Index() {
                                     onToggle={() => setShowFilters(!showFilters)}
                                 />
                                 {(() => {
-                                    const activeFilters = [filters.vendor_id, filters.warehouse_id, filters.status, filters.date_range].filter(Boolean).length;
+                                    const activeFilters = [filters.vendor_id, filters.vendor_type, filters.warehouse_id, filters.status, filters.date_range].filter(Boolean).length;
                                     return activeFilters > 0 && (
                                         <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
                                             {activeFilters}
@@ -370,7 +377,7 @@ export default function Index() {
                 {/* Advanced Filters */}
                 {showFilters && (
                     <CardContent className="p-6 bg-blue-50/30 border-b">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                             {auth.user?.permissions?.includes('manage-users') && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">{t('Vendor')}</label>
@@ -388,6 +395,21 @@ export default function Index() {
                                     </Select>
                                 </div>
                             )}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">{t('Vendor Type')}</label>
+                                <Select value={filters.vendor_type || ''} onValueChange={(value) => setFilters({...filters, vendor_type: value})}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={t('Filter by vendor type')} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {VENDOR_TYPE_OPTIONS.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {t(option.label)}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                             {auth.user?.permissions?.includes('manage-warehouses') && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">{t('Warehouse')}</label>
@@ -453,7 +475,7 @@ export default function Index() {
                                             icon={Receipt}
                                             title={t('No purchase invoices found')}
                                             description={t('Get started by creating your first purchase invoice.')}
-                                            hasFilters={!!(filters.search || filters.vendor_id || filters.status)}
+                                            hasFilters={!!(filters.search || filters.vendor_id || filters.vendor_type || filters.status)}
                                             onClearFilters={clearFilters}
                                             createPermission="create-purchase-invoices"
                                             onCreateClick={() => router.visit(route('purchase-invoices.create'))}
@@ -602,7 +624,7 @@ export default function Index() {
                                     icon={Receipt}
                                     title={t('No purchase invoices found')}
                                     description={t('Get started by creating your first purchase invoice.')}
-                                    hasFilters={!!(filters.search || filters.vendor_id || filters.status)}
+                                    hasFilters={!!(filters.search || filters.vendor_id || filters.vendor_type || filters.status)}
                                     onClearFilters={clearFilters}
                                     createPermission="create-purchase-invoices"
                                     onCreateClick={() => router.visit(route('purchase-invoices.create'))}

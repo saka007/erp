@@ -4,14 +4,14 @@ namespace DigitalFuzed\TextileInventory\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class TextileLot extends Model
+class TextileCycleCount extends Model
 {
     protected $guarded = [];
 
     protected $casts = [
-        'received_quantity' => 'decimal:2',
-        'available_quantity' => 'decimal:2',
-        'is_frozen' => 'boolean',
+        'expected_quantity' => 'decimal:2',
+        'counted_quantity' => 'decimal:2',
+        'variance_quantity' => 'decimal:2',
         'is_active' => 'boolean',
     ];
 }

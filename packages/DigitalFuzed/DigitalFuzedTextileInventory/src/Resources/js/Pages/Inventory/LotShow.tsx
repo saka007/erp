@@ -9,6 +9,9 @@ import NoRecordsFound from '@/components/no-records-found';
 interface TextileLot {
     id: number;
     lot_reference: string;
+    batch_number?: string | null;
+    barcode?: string | null;
+    qr_code?: string | null;
     received_quantity: string;
     available_quantity: string;
     status: string;
@@ -54,6 +57,9 @@ export default function LotShow({ lot, movements, reservations, availability }: 
                         </div>
                         <div className="space-y-2 text-sm">
                             <p><strong>{t('Lot Reference')}:</strong> {lot.lot_reference}</p>
+                            <p><strong>{t('Batch Number')}:</strong> {lot.batch_number || '-'}</p>
+                            <p><strong>{t('Barcode')}:</strong> {lot.barcode || '-'}</p>
+                            <p><strong>{t('QR Code')}:</strong> {lot.qr_code || '-'}</p>
                             <p><strong>{t('Status')}:</strong> {lot.status}</p>
                             <p><strong>{t('Received')}:</strong> {availability.received_quantity}</p>
                             <p><strong>{t('Available')}:</strong> {availability.available_quantity}</p>

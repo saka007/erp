@@ -16,6 +16,7 @@ import MediaPicker from "@/components/MediaPicker";
 import InputError from "@/components/ui/input-error";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { CreateItemPageProps, ItemFormData } from './types';
+import { ITEM_TYPE_OPTIONS } from './item-types';
 
 export default function Create() {
     const { t } = useTranslation();
@@ -145,9 +146,11 @@ export default function Create() {
                                                     <SelectValue placeholder={t('Select Type')} />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="product">{t('Product')}</SelectItem>
-                                                    <SelectItem value="service">{t('Service')}</SelectItem>
-                                                    <SelectItem value="part">{t('Part')}</SelectItem>
+                                                    {ITEM_TYPE_OPTIONS.map((option) => (
+                                                        <SelectItem key={option.value} value={option.value}>
+                                                            {t(option.label)}
+                                                        </SelectItem>
+                                                    ))}
                                                 </SelectContent>
                                             </Select>
                                             <InputError message={errors.type} />

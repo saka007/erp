@@ -10,6 +10,7 @@ class TextileMovementService
     {
         $safeAttributes = [
             'movement_type' => $attributes['movement_type'] ?? null,
+            'adjustment_direction' => $attributes['adjustment_direction'] ?? null,
             'reference_type' => $attributes['reference_type'] ?? null,
             'reference_id' => $attributes['reference_id'] ?? null,
             'lot_reference' => $attributes['lot_reference'] ?? null,

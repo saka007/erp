@@ -31,6 +31,7 @@ class VendorController extends Controller
                 })
                 ->when(request('company_name'), fn($q) => $q->where('company_name', 'like', '%' . request('company_name') . '%'))
                 ->when(request('vendor_code'), fn($q) => $q->where('vendor_code', 'like', '%' . request('vendor_code') . '%'))
+                ->when(request('supplier_type'), fn($q) => $q->where('supplier_type', request('supplier_type')))
                 ->when(request('tax_number'), fn($q) => $q->where('tax_number', 'like', '%' . request('tax_number') . '%'))
                 ->when(request('sort'), fn($q) => $q->orderBy(request('sort'), request('direction', 'asc')), fn($q) => $q->latest())
                 ->paginate(request('per_page', 10))
@@ -60,6 +61,7 @@ class VendorController extends Controller
             $vendor = new Vendor();
             $vendor->user_id = $validated['user_id'] ?? null;
             $vendor->company_name = $validated['company_name'];
+            $vendor->supplier_type = $validated['supplier_type'];
             $vendor->contact_person_name = $validated['contact_person_name'];
             $vendor->contact_person_email = $validated['contact_person_email'] ?? null;
             $vendor->contact_person_mobile = $validated['contact_person_mobile'] ?? null;
@@ -86,6 +88,7 @@ class VendorController extends Controller
             $validated = $request->validated();
 
             $vendor->company_name = $validated['company_name'];
+            $vendor->supplier_type = $validated['supplier_type'];
             $vendor->contact_person_name = $validated['contact_person_name'];
             $vendor->contact_person_email = $validated['contact_person_email'] ?? null;
             $vendor->contact_person_mobile = $validated['contact_person_mobile'] ?? null;

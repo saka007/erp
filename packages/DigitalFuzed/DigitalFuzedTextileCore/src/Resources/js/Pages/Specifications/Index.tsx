@@ -15,6 +15,17 @@ interface Specification {
     name: string;
     code?: string | null;
     family?: string | null;
+    yarn_type?: string | null;
+    yarn_count?: string | null;
+    denier?: string | null;
+    blend?: string | null;
+    mill?: string | null;
+    brand?: string | null;
+    net_weight?: string | null;
+    gross_weight?: string | null;
+    moisture?: string | null;
+    quality_grade?: string | null;
+    yarn_cost?: number | null;
     composition?: string | null;
     construction?: string | null;
     width?: string | null;
@@ -26,7 +37,7 @@ export default function Index({ specifications }: { specifications: Specificatio
     const { t } = useTranslation();
     const [editingId, setEditingId] = useState<number | null>(null);
     const { data, setData, post, processing, reset } = useForm({
-        name: '', code: '', family: '', composition: '', construction: '', width: '', gsm: '', shade: '',
+        name: '', code: '', family: '', yarn_type: '', yarn_count: '', denier: '', blend: '', mill: '', brand: '', net_weight: '', gross_weight: '', moisture: '', quality_grade: '', yarn_cost: '', composition: '', construction: '', width: '', gsm: '', shade: '',
     });
     const {
         data: editData,
@@ -35,7 +46,7 @@ export default function Index({ specifications }: { specifications: Specificatio
         processing: editing,
         reset: resetEdit,
     } = useForm({
-        specification_id: '', name: '', code: '', family: '', composition: '', construction: '', width: '', gsm: '', shade: '',
+        specification_id: '', name: '', code: '', family: '', yarn_type: '', yarn_count: '', denier: '', blend: '', mill: '', brand: '', net_weight: '', gross_weight: '', moisture: '', quality_grade: '', yarn_cost: '', composition: '', construction: '', width: '', gsm: '', shade: '',
     });
 
     const submit = (event: React.FormEvent) => {
@@ -55,6 +66,17 @@ export default function Index({ specifications }: { specifications: Specificatio
             name: specification.name ?? '',
             code: specification.code ?? '',
             family: specification.family ?? '',
+            yarn_type: specification.yarn_type ?? '',
+            yarn_count: specification.yarn_count ?? '',
+            denier: specification.denier ?? '',
+            blend: specification.blend ?? '',
+            mill: specification.mill ?? '',
+            brand: specification.brand ?? '',
+            net_weight: specification.net_weight ?? '',
+            gross_weight: specification.gross_weight ?? '',
+            moisture: specification.moisture ?? '',
+            quality_grade: specification.quality_grade ?? '',
+            yarn_cost: specification.yarn_cost?.toString() ?? '',
             composition: specification.composition ?? '',
             construction: specification.construction ?? '',
             width: specification.width ?? '',
@@ -80,6 +102,28 @@ export default function Index({ specifications }: { specifications: Specificatio
                             <Field label={t('Name')} value={data.name} onChange={(value) => setData('name', value)} required />
                             <Field label={t('Code')} value={data.code} onChange={(value) => setData('code', value)} />
                             <Field label={t('Family')} value={data.family} onChange={(value) => setData('family', value)} />
+                            <div className="border-t pt-4 space-y-4">
+                                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('Yarn Attributes')}</h3>
+                                <Field label={t('Yarn Type')} value={data.yarn_type} onChange={(value) => setData('yarn_type', value)} />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Field label={t('Yarn Count')} value={data.yarn_count} onChange={(value) => setData('yarn_count', value)} />
+                                    <Field label={t('Denier')} value={data.denier} onChange={(value) => setData('denier', value)} />
+                                </div>
+                                <Field label={t('Blend')} value={data.blend} onChange={(value) => setData('blend', value)} />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Field label={t('Mill')} value={data.mill} onChange={(value) => setData('mill', value)} />
+                                    <Field label={t('Brand')} value={data.brand} onChange={(value) => setData('brand', value)} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Field label={t('Net Weight')} value={data.net_weight} onChange={(value) => setData('net_weight', value)} />
+                                    <Field label={t('Gross Weight')} value={data.gross_weight} onChange={(value) => setData('gross_weight', value)} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Field label={t('Moisture')} value={data.moisture} onChange={(value) => setData('moisture', value)} />
+                                    <Field label={t('Quality Grade')} value={data.quality_grade} onChange={(value) => setData('quality_grade', value)} />
+                                </div>
+                                <Field label={t('Yarn Cost')} value={data.yarn_cost} onChange={(value) => setData('yarn_cost', value)} />
+                            </div>
                             <Field label={t('Composition')} value={data.composition} onChange={(value) => setData('composition', value)} />
                             <Field label={t('Construction')} value={data.construction} onChange={(value) => setData('construction', value)} />
                             <div className="grid grid-cols-2 gap-3">
@@ -98,6 +142,28 @@ export default function Index({ specifications }: { specifications: Specificatio
                                     <Field label={t('Name')} value={editData.name} onChange={(value) => setEditData('name', value)} required />
                                     <Field label={t('Code')} value={editData.code} onChange={(value) => setEditData('code', value)} />
                                     <Field label={t('Family')} value={editData.family} onChange={(value) => setEditData('family', value)} />
+                                    <div className="border-t pt-4 space-y-4">
+                                        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('Yarn Attributes')}</h3>
+                                        <Field label={t('Yarn Type')} value={editData.yarn_type} onChange={(value) => setEditData('yarn_type', value)} />
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <Field label={t('Yarn Count')} value={editData.yarn_count} onChange={(value) => setEditData('yarn_count', value)} />
+                                            <Field label={t('Denier')} value={editData.denier} onChange={(value) => setEditData('denier', value)} />
+                                        </div>
+                                        <Field label={t('Blend')} value={editData.blend} onChange={(value) => setEditData('blend', value)} />
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <Field label={t('Mill')} value={editData.mill} onChange={(value) => setEditData('mill', value)} />
+                                            <Field label={t('Brand')} value={editData.brand} onChange={(value) => setEditData('brand', value)} />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <Field label={t('Net Weight')} value={editData.net_weight} onChange={(value) => setEditData('net_weight', value)} />
+                                            <Field label={t('Gross Weight')} value={editData.gross_weight} onChange={(value) => setEditData('gross_weight', value)} />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <Field label={t('Moisture')} value={editData.moisture} onChange={(value) => setEditData('moisture', value)} />
+                                            <Field label={t('Quality Grade')} value={editData.quality_grade} onChange={(value) => setEditData('quality_grade', value)} />
+                                        </div>
+                                        <Field label={t('Yarn Cost')} value={editData.yarn_cost} onChange={(value) => setEditData('yarn_cost', value)} />
+                                    </div>
                                     <Field label={t('Composition')} value={editData.composition} onChange={(value) => setEditData('composition', value)} />
                                     <Field label={t('Construction')} value={editData.construction} onChange={(value) => setEditData('construction', value)} />
                                     <div className="grid grid-cols-2 gap-3">

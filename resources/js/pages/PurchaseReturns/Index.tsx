@@ -19,6 +19,7 @@ import { ListGridToggle } from '@/components/ui/list-grid-toggle';
 import { formatCurrency, formatDate } from '@/utils/helpers';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import NoRecordsFound from '@/components/no-records-found';
+import { VENDOR_TYPE_OPTIONS, resolveVendorTypeLabel } from '../Purchase/vendor-types';
 
 interface PurchaseReturn {
     id: number;
@@ -27,6 +28,7 @@ interface PurchaseReturn {
     vendor: {
         name: string;
     };
+    vendor_type?: string | null;
     total_amount: number;
     status: string;
     reason: string;
@@ -39,6 +41,7 @@ interface PurchaseReturn {
 interface PurchaseReturnFilters {
     search: string;
     vendor_id: string;
+    vendor_type: string;
     status: string;
     date_range: string;
     warehouse_id: string;
@@ -65,6 +68,7 @@ export default function Index() {
     const [filters, setFilters] = useState<PurchaseReturnFilters>({
         search: initialFilters?.search || urlParams.get('search') || '',
         vendor_id: initialFilters?.vendor_id || urlParams.get('vendor_id') || '',
+        vendor_type: initialFilters?.vendor_type || urlParams.get('vendor_type') || '',
         status: initialFilters?.status || urlParams.get('status') || '',
         date_range: initialFilters?.date_range || urlParams.get('date_range') || '',
         warehouse_id: initialFilters?.warehouse_id || urlParams.get('warehouse_id') || ''
@@ -112,7 +116,7 @@ export default function Index() {
     };
 
     const clearFilters = () => {
-        setFilters({ search: '', vendor_id: '', status: '', date_range: '', warehouse_id: '' });
+        setFilters({ search: '', vendor_id: '', vendor_type: '', status: '', date_range: '', warehouse_id: '' });
         router.get(route('purchase-returns.index'), {per_page: perPage, view: viewMode});
     };
 
@@ -132,6 +136,11 @@ export default function Index() {
             key: 'vendor',
             header: t('Vendor'),
             render: (value: any) => value?.name || '-'
+        },
+        {
+            key: 'vendor_type',
+            header: t('Vendor Type'),
+            render: (value: string | null) => resolveVendorTypeLabel(value)
         },
         {
             key: 'warehouse',
@@ -324,7 +333,7 @@ export default function Index() {
                                     onToggle={() => setShowFilters(!showFilters)}
                                 />
                                 {(() => {
-                                    const activeFilters = [filters.vendor_id, filters.status, filters.date_range, filters.warehouse_id].filter(Boolean).length;
+                                    const activeFilters = [filters.vendor_id, filters.vendor_type, filters.status, filters.date_range, filters.warehouse_id].filter(Boolean).length;
                                     return activeFilters > 0 && (
                                         <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
                                             {activeFilters}
@@ -338,7 +347,7 @@ export default function Index() {
 
                 {showFilters && (
                     <CardContent className="p-6 bg-blue-50/30 border-b">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                             {auth.user?.permissions?.includes('manage-users') && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">{t('Vendor')}</label>
@@ -356,6 +365,21 @@ export default function Index() {
                                     </Select>
                                 </div>
                             )}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">{t('Vendor Type')}</label>
+                                <Select value={filters.vendor_type || ''} onValueChange={(value) => setFilters({...filters, vendor_type: value})}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={t('Filter by vendor type')} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {VENDOR_TYPE_OPTIONS.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {t(option.label)}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                             {auth.user?.permissions?.includes('manage-warehouses') && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">{t('Warehouse')}</label>
@@ -418,7 +442,7 @@ export default function Index() {
                                             icon={XCircle}
                                             title={t('No purchase returns found')}
                                             description={t('Get started by creating your first purchase return.')}
-                                            hasFilters={!!(filters.search || filters.vendor_id || filters.status || filters.warehouse_id || filters.date_range)}
+                                            hasFilters={!!(filters.search || filters.vendor_id || filters.vendor_type || filters.status || filters.warehouse_id || filters.date_range)}
                                             onClearFilters={clearFilters}
                                             createPermission="create-purchase-return-invoices"
                                             onCreateClick={() => router.visit(route('purchase-returns.create'))}
@@ -550,7 +574,7 @@ export default function Index() {
                                     icon={XCircle}
                                     title={t('No purchase returns found')}
                                     description={t('Get started by creating your first purchase return.')}
-                                    hasFilters={!!(filters.search || filters.vendor_id || filters.status || filters.warehouse_id || filters.date_range)}
+                                    hasFilters={!!(filters.search || filters.vendor_id || filters.vendor_type || filters.status || filters.warehouse_id || filters.date_range)}
                                     onClearFilters={clearFilters}
                                     createPermission="create-purchase-return-invoices"
                                     onCreateClick={() => router.visit(route('purchase-returns.create'))}
