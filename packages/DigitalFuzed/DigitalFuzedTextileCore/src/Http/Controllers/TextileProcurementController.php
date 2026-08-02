@@ -3,6 +3,7 @@
 namespace DigitalFuzed\TextileCore\Http\Controllers;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextileProcurementService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -12,9 +13,14 @@ use RuntimeException;
 
 class TextileProcurementController extends Controller
 {
+    public function __construct(protected TextileOperatingPolicyService $policyService)
+    {
+    }
+
     public function index()
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapabilityOrAbort('procurement');
 
         return Inertia::render('DigitalFuzedTextileCore/Procurement/Index', [
             'requisitions' => $this->documents('purchase_requisition'),
@@ -27,6 +33,7 @@ class TextileProcurementController extends Controller
     public function storeRequisition(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement', 'party_name');
 
         $validated = $request->validate([
             'party_name' => ['nullable', 'string', 'max:100'],
@@ -43,6 +50,7 @@ class TextileProcurementController extends Controller
     public function approveRequisition(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement', 'requisition_id');
 
         $validated = $request->validate([
             'requisition_id' => ['required', 'integer', 'min:1'],
@@ -60,6 +68,7 @@ class TextileProcurementController extends Controller
     public function storePurchaseOrder(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement', 'requisition_id');
 
         $validated = $request->validate([
             'requisition_id' => ['required', 'integer', 'min:1'],
@@ -77,6 +86,7 @@ class TextileProcurementController extends Controller
     public function approvePurchaseOrder(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement', 'purchase_order_id');
 
         $validated = $request->validate([
             'purchase_order_id' => ['required', 'integer', 'min:1'],
@@ -94,6 +104,7 @@ class TextileProcurementController extends Controller
     public function storeGrn(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement', 'purchase_order_id');
 
         $validated = $request->validate([
             'purchase_order_id' => ['required', 'integer', 'min:1'],
@@ -111,6 +122,7 @@ class TextileProcurementController extends Controller
     public function releaseGrn(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement', 'grn_id');
 
         $validated = $request->validate([
             'grn_id' => ['required', 'integer', 'min:1'],
@@ -125,9 +137,32 @@ class TextileProcurementController extends Controller
         return back()->with('success', __('GRN released successfully.'));
     }
 
+    public function createPurchaseInvoiceFromGrn(Request $request, TextileProcurementService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('grn_invoice_sync', 'grn_id');
+
+        $validated = $request->validate([
+            'grn_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $grn = $service->createPurchaseInvoiceFromGrn((int) $validated['grn_id']);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['grn_id' => __($exception->getMessage())]);
+        }
+
+        if (!((bool) $grn->getAttribute('purchase_invoice_created_now'))) {
+            return back()->with('success', __('Purchase invoice was already synced for this GRN.'));
+        }
+
+        return back()->with('success', __('Draft purchase invoice synced from GRN successfully.'));
+    }
+
     public function storeIncomingQc(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement', 'grn_id');
 
         $validated = $request->validate([
             'grn_id' => ['required', 'integer', 'min:1'],
@@ -145,6 +180,7 @@ class TextileProcurementController extends Controller
     public function finalizeIncomingQc(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement', 'incoming_qc_id');
 
         $validated = $request->validate([
             'incoming_qc_id' => ['required', 'integer', 'min:1'],
@@ -166,7 +202,13 @@ class TextileProcurementController extends Controller
             ->where('created_by', creatorId())
             ->where('document_type', $type)
             ->latest()
-            ->get();
+            ->get()
+            ->map(function (TextileWorkflowDocument $document) {
+                $metadata = is_array($document->metadata) ? $document->metadata : [];
+                $document->purchase_invoice_id = $metadata['purchase_invoice_id'] ?? null;
+
+                return $document;
+            });
     }
 
     private function authorizeTextileAccess(): void
@@ -174,5 +216,25 @@ class TextileProcurementController extends Controller
         $user = Auth::user();
 
         abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+    }
+
+    private function authorizeCapability(string $capability, string $errorKey): void
+    {
+        try {
+            $this->policyService->assertCapability($capability);
+        } catch (RuntimeException $exception) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                $errorKey => __($exception->getMessage()),
+            ]);
+        }
+    }
+
+    private function authorizeCapabilityOrAbort(string $capability): void
+    {
+        try {
+            $this->policyService->assertCapability($capability);
+        } catch (RuntimeException $exception) {
+            abort(403, __($exception->getMessage()));
+        }
     }
 }

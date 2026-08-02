@@ -3,6 +3,7 @@
 namespace DigitalFuzed\TextileCore\Http\Controllers;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextileProcessingService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -12,9 +13,14 @@ use RuntimeException;
 
 class TextileProcessingController extends Controller
 {
+    public function __construct(protected TextileOperatingPolicyService $policyService)
+    {
+    }
+
     public function index()
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapabilityOrAbort('processing');
 
         return Inertia::render('DigitalFuzedTextileCore/Processing/Index', [
             'outwards' => $this->documents('job_work_outward'),
@@ -27,6 +33,7 @@ class TextileProcessingController extends Controller
     public function storeOutward(Request $request, TextileProcessingService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('processing', 'lot_reference');
 
         $validated = $request->validate([
             'source_reference_type' => ['nullable', 'string', 'max:100'],
@@ -46,6 +53,7 @@ class TextileProcessingController extends Controller
     public function releaseOutward(Request $request, TextileProcessingService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('processing', 'outward_id');
 
         $validated = $request->validate([
             'outward_id' => ['required', 'integer', 'min:1'],
@@ -63,6 +71,7 @@ class TextileProcessingController extends Controller
     public function storeBatch(Request $request, TextileProcessingService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('processing', 'outward_id');
 
         $validated = $request->validate([
             'outward_id' => ['required', 'integer', 'min:1'],
@@ -80,6 +89,7 @@ class TextileProcessingController extends Controller
     public function releaseBatch(Request $request, TextileProcessingService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('processing', 'batch_id');
 
         $validated = $request->validate([
             'batch_id' => ['required', 'integer', 'min:1'],
@@ -97,6 +107,7 @@ class TextileProcessingController extends Controller
     public function storeInward(Request $request, TextileProcessingService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('processing', 'batch_id');
 
         $validated = $request->validate([
             'batch_id' => ['required', 'integer', 'min:1'],
@@ -116,6 +127,7 @@ class TextileProcessingController extends Controller
     public function finalizeInward(Request $request, TextileProcessingService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('processing', 'inward_id');
 
         $validated = $request->validate([
             'inward_id' => ['required', 'integer', 'min:1'],
@@ -134,6 +146,7 @@ class TextileProcessingController extends Controller
     public function reconcile(Request $request, TextileProcessingService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('processing', 'inward_id');
 
         $validated = $request->validate([
             'outward_id' => ['required', 'integer', 'min:1'],
@@ -164,5 +177,25 @@ class TextileProcessingController extends Controller
         $user = Auth::user();
 
         abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+    }
+
+    private function authorizeCapability(string $capability, string $errorKey): void
+    {
+        try {
+            $this->policyService->assertCapability($capability);
+        } catch (RuntimeException $exception) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                $errorKey => __($exception->getMessage()),
+            ]);
+        }
+    }
+
+    private function authorizeCapabilityOrAbort(string $capability): void
+    {
+        try {
+            $this->policyService->assertCapability($capability);
+        } catch (RuntimeException $exception) {
+            abort(403, __($exception->getMessage()));
+        }
     }
 }

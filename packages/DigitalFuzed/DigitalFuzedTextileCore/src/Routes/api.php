@@ -6,6 +6,7 @@ use DigitalFuzed\TextileCore\Http\Controllers\Api\TextileSalesApiController;
 use DigitalFuzed\TextileCore\Http\Controllers\Api\TextileManufacturingApiController;
 use DigitalFuzed\TextileCore\Http\Controllers\Api\TextileProcessingApiController;
 use DigitalFuzed\TextileCore\Http\Controllers\Api\TextileCostingApiController;
+use DigitalFuzed\TextileCore\Http\Controllers\Api\TextileApprovalApiController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('api')->middleware(['api.json'])->group(function () {
@@ -14,6 +15,11 @@ Route::prefix('api')->middleware(['api.json'])->group(function () {
         Route::get('workflow/{type}', [TextileWorkflowApiController::class, 'index']);
         Route::post('workflow/{documentId}/transition', [TextileWorkflowApiController::class, 'transition']);
         Route::get('dashboard/summary', [TextileWorkflowApiController::class, 'summary']);
+
+        Route::get('approvals/rules', [TextileApprovalApiController::class, 'indexRules']);
+        Route::post('approvals/rules', [TextileApprovalApiController::class, 'storeRule']);
+        Route::get('approvals/pending', [TextileApprovalApiController::class, 'pending']);
+        Route::post('approvals/documents/{documentId}/decision', [TextileApprovalApiController::class, 'recordDecision']);
 
         Route::post('procurement/requisitions/store', [TextileProcurementApiController::class, 'storeRequisition']);
         Route::post('procurement/requisitions/{id}/approve', [TextileProcurementApiController::class, 'approveRequisition']);

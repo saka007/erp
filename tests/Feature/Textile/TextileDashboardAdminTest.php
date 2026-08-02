@@ -3,11 +3,14 @@
 namespace Tests\Feature\Textile;
 
 use App\Models\AddOn;
+use App\Models\LoginHistory;
 use App\Models\Plan;
 use App\Models\User;
 use App\Models\UserActiveModule;
+use DigitalFuzed\TextileCore\Models\TextileAuditLog;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -77,6 +80,22 @@ class TextileDashboardAdminTest extends TestCase
             ],
         ]);
 
+        LoginHistory::create([
+            'user_id' => $companyA->id,
+            'ip' => '10.0.0.1',
+            'date' => now()->toDateString(),
+            'details' => ['source' => 'dashboard-test'],
+            'type' => 'login',
+            'created_by' => $companyA->id,
+        ]);
+
+        TextileAuditLog::create([
+            'event_type' => 'textile.workflow.created',
+            'payload' => ['document_number' => 'AUD-A-0001', 'action' => 'created'],
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+
         $this->actingAs($companyA)
             ->get(route('textile.dashboard.index'))
             ->assertOk()
@@ -85,7 +104,16 @@ class TextileDashboardAdminTest extends TestCase
             ->assertSee('MS-A-0001')
             ->assertDontSee('LOT-R-B')
             ->assertDontSee('Beta Customer')
-            ->assertDontSee('MS-B-0001');
+            ->assertDontSee('MS-B-0001')
+            ->assertInertia(function (Assert $page): void {
+                $page->where('loginHistoryCount', 1)
+                    ->where('auditLogCount', 1)
+                    ->has('recentLoginHistory', 1)
+                    ->has('recentAuditLogs', 1);
+
+                $this->assertSame('10.0.0.1', $page->toArray()['props']['recentLoginHistory'][0]['ip'] ?? null);
+                $this->assertSame('AUD-A-0001', $page->toArray()['props']['recentAuditLogs'][0]['payload']['document_number'] ?? null);
+            });
     }
 
     private function company(): User

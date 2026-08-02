@@ -1,13 +1,16 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, Plus, CheckCircle2 } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { DataTable } from '@/components/ui/data-table';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import NoRecordsFound from '@/components/no-records-found';
+import { TextileField as Field } from '@/components/textile/textile-field';
+import { TextileFormCard } from '@/components/textile/textile-form-card';
+import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
+import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
+import { TextileDataTableSection } from '@/components/textile/textile-data-table-section';
+import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
+import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 
 interface WorkflowDocument {
     id: number;
@@ -42,25 +45,47 @@ export default function Index({
         unit: 'mtr',
     });
 
-    const outwardReleaseForm = useForm({ outward_id: '' });
     const batchForm = useForm({ outward_id: '' });
-    const batchReleaseForm = useForm({ batch_id: '' });
     const inwardForm = useForm({ batch_id: '', quantity: '', unit: 'mtr' });
-    const inwardFinalizeForm = useForm({ inward_id: '', decision: 'pass' });
     const reconcileForm = useForm({ outward_id: '', inward_id: '', notes: '' });
+    const releasedOutwards = outwards.filter((row) => row.status === 'released');
+    const releasedBatches = batches.filter((row) => row.status === 'released');
+    const approvedInwards = inwards.filter((row) => row.status === 'approved');
+
+    const allDocuments = [...outwards, ...batches, ...inwards, ...reconciliations];
+    const draftCount = allDocuments.filter((row) => row.status === 'draft').length;
+    const approvedCount = allDocuments.filter((row) => row.status === 'approved').length;
+    const releasedCount = allDocuments.filter((row) => row.status === 'released').length;
+
+    const releaseOutward = (id: number) => {
+        router.post(route('textile.processing.outward.release'), { outward_id: id }, { preserveScroll: true });
+    };
+
+    const releaseBatch = (id: number) => {
+        router.post(route('textile.processing.batches.release'), { batch_id: id }, { preserveScroll: true });
+    };
+
+    const finalizeInward = (id: number, decision: 'pass' | 'fail') => {
+        router.post(route('textile.processing.inward.finalize'), { inward_id: id, decision }, { preserveScroll: true });
+    };
 
     return (
         <AuthenticatedLayout breadcrumbs={[{ label: t('Textile') }, { label: t('Processing') }]} pageTitle={t('Textile Processing')}>
             <Head title={t('Textile Processing')} />
 
-            <div className="grid gap-6 xl:grid-cols-2">
-                <Card>
-                    <CardContent className="p-5 space-y-4">
-                        <div className="flex items-center gap-2">
-                            <RefreshCw className="h-5 w-5 text-violet-600" />
-                            <h2 className="font-semibold">{t('Job Work Outward')}</h2>
-                        </div>
+            <TextileKpiOverview
+                title={t('Processing Overview')}
+                className="mb-6"
+                items={[
+                    { label: t('Total Documents'), value: allDocuments.length, hint: t('Outward + Batch + Inward + Reconciliation') },
+                    { label: t('Draft'), value: draftCount, hint: t('In preparation stage') },
+                    { label: t('Approved'), value: approvedCount, hint: t('Validated processing records') },
+                    { label: t('Released'), value: releasedCount, hint: t('Custody movement active') },
+                ]}
+            />
 
+            <div className="grid gap-6 xl:grid-cols-2">
+                <TextileFormCard title={t('Job Work Outward')} icon={RefreshCw}>
                         <form
                             className="space-y-3"
                             onSubmit={(event) => {
@@ -83,31 +108,9 @@ export default function Index({
                                 <Plus className="mr-2 h-4 w-4" />{t('Create Outward')}
                             </Button>
                         </form>
+                </TextileFormCard>
 
-                        <form
-                            className="grid grid-cols-[1fr_auto] gap-3"
-                            onSubmit={(event) => {
-                                event.preventDefault();
-                                outwardReleaseForm.post(route('textile.processing.outward.release'), {
-                                    onSuccess: () => outwardReleaseForm.reset('outward_id'),
-                                });
-                            }}
-                        >
-                            <SelectField label={t('Release Outward ID')} value={outwardReleaseForm.data.outward_id} onChange={(value) => outwardReleaseForm.setData('outward_id', value)} options={outwards.filter((row) => ['draft', 'approved'].includes(row.status)).map((row) => String(row.id))} includeEmpty emptyLabel={t('Select releasable outward')} required />
-                            <Button type="submit" variant="outline" disabled={outwardReleaseForm.processing} className="self-end">
-                                <CheckCircle2 className="mr-2 h-4 w-4" />{t('Release')}
-                            </Button>
-                        </form>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardContent className="p-5 space-y-4">
-                        <div className="flex items-center gap-2">
-                            <RefreshCw className="h-5 w-5 text-violet-600" />
-                            <h2 className="font-semibold">{t('Processing Batch')}</h2>
-                        </div>
-
+                <TextileFormCard title={t('Processing Batch')} icon={RefreshCw}>
                         <form
                             className="grid grid-cols-[1fr_auto] gap-3"
                             onSubmit={(event) => {
@@ -117,36 +120,25 @@ export default function Index({
                                 });
                             }}
                         >
-                            <SelectField label={t('Create Batch from Released Outward ID')} value={batchForm.data.outward_id} onChange={(value) => batchForm.setData('outward_id', value)} options={outwards.filter((row) => row.status === 'released').map((row) => String(row.id))} includeEmpty emptyLabel={t('Select released outward')} required />
+                            <SelectField
+                                label={t('Create Batch from Released Outward')}
+                                value={batchForm.data.outward_id}
+                                onChange={(value) => batchForm.setData('outward_id', value)}
+                                options={createTextileWorkflowSelectOptions(releasedOutwards)}
+                                includeEmpty
+                                emptyLabel={t('Select released outward')}
+                                helperText={t('Only released outwards are listed.')}
+                                disabled={releasedOutwards.length === 0}
+                                disabledReason={t('No released outward found. Release an outward first.')}
+                                required
+                            />
                             <Button type="submit" disabled={batchForm.processing} className="self-end">
                                 <Plus className="mr-2 h-4 w-4" />{t('Create Batch')}
                             </Button>
                         </form>
+                </TextileFormCard>
 
-                        <form
-                            className="grid grid-cols-[1fr_auto] gap-3"
-                            onSubmit={(event) => {
-                                event.preventDefault();
-                                batchReleaseForm.post(route('textile.processing.batches.release'), {
-                                    onSuccess: () => batchReleaseForm.reset('batch_id'),
-                                });
-                            }}
-                        >
-                            <SelectField label={t('Release Batch ID')} value={batchReleaseForm.data.batch_id} onChange={(value) => batchReleaseForm.setData('batch_id', value)} options={batches.filter((row) => ['draft', 'approved'].includes(row.status)).map((row) => String(row.id))} includeEmpty emptyLabel={t('Select releasable batch')} required />
-                            <Button type="submit" variant="outline" disabled={batchReleaseForm.processing} className="self-end">
-                                <CheckCircle2 className="mr-2 h-4 w-4" />{t('Release')}
-                            </Button>
-                        </form>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardContent className="p-5 space-y-4">
-                        <div className="flex items-center gap-2">
-                            <RefreshCw className="h-5 w-5 text-violet-600" />
-                            <h2 className="font-semibold">{t('Job Work Inward')}</h2>
-                        </div>
-
+                <TextileFormCard title={t('Job Work Inward')} icon={RefreshCw}>
                         <form
                             className="grid grid-cols-4 gap-3"
                             onSubmit={(event) => {
@@ -156,39 +148,27 @@ export default function Index({
                                 });
                             }}
                         >
-                            <SelectField label={t('Batch ID')} value={inwardForm.data.batch_id} onChange={(value) => inwardForm.setData('batch_id', value)} options={batches.filter((row) => row.status === 'released').map((row) => String(row.id))} includeEmpty emptyLabel={t('Select released batch')} required />
+                            <SelectField
+                                label={t('Batch')}
+                                value={inwardForm.data.batch_id}
+                                onChange={(value) => inwardForm.setData('batch_id', value)}
+                                options={createTextileWorkflowSelectOptions(releasedBatches)}
+                                includeEmpty
+                                emptyLabel={t('Select released batch')}
+                                helperText={t('Only released processing batches are listed.')}
+                                disabled={releasedBatches.length === 0}
+                                disabledReason={t('No released batch found. Release a batch first.')}
+                                required
+                            />
                             <Field label={t('Quantity')} type="number" value={inwardForm.data.quantity} onChange={(value) => inwardForm.setData('quantity', value)} />
                             <Field label={t('Unit')} value={inwardForm.data.unit} onChange={(value) => inwardForm.setData('unit', value)} />
                             <Button type="submit" disabled={inwardForm.processing} className="self-end">
                                 <Plus className="mr-2 h-4 w-4" />{t('Create Inward')}
                             </Button>
                         </form>
+                </TextileFormCard>
 
-                        <form
-                            className="grid grid-cols-3 gap-3"
-                            onSubmit={(event) => {
-                                event.preventDefault();
-                                inwardFinalizeForm.post(route('textile.processing.inward.finalize'), {
-                                    onSuccess: () => inwardFinalizeForm.reset('inward_id'),
-                                });
-                            }}
-                        >
-                            <SelectField label={t('Finalize Inward ID')} value={inwardFinalizeForm.data.inward_id} onChange={(value) => inwardFinalizeForm.setData('inward_id', value)} options={inwards.filter((row) => row.status === 'draft').map((row) => String(row.id))} includeEmpty emptyLabel={t('Select draft inward')} required />
-                            <SelectField label={t('Decision')} value={inwardFinalizeForm.data.decision} onChange={(value) => inwardFinalizeForm.setData('decision', value as 'pass' | 'fail')} options={['pass', 'fail']} required />
-                            <Button type="submit" variant="outline" disabled={inwardFinalizeForm.processing} className="self-end">
-                                <CheckCircle2 className="mr-2 h-4 w-4" />{t('Finalize')}
-                            </Button>
-                        </form>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardContent className="p-5 space-y-4">
-                        <div className="flex items-center gap-2">
-                            <CheckCircle2 className="h-5 w-5 text-violet-600" />
-                            <h2 className="font-semibold">{t('Reconciliation')}</h2>
-                        </div>
-
+                <TextileFormCard title={t('Reconciliation')} icon={CheckCircle2}>
                         <form
                             className="grid grid-cols-3 gap-3"
                             onSubmit={(event) => {
@@ -198,62 +178,88 @@ export default function Index({
                                 });
                             }}
                         >
-                            <SelectField label={t('Outward ID')} value={reconcileForm.data.outward_id} onChange={(value) => reconcileForm.setData('outward_id', value)} options={outwards.filter((row) => row.status === 'released').map((row) => String(row.id))} includeEmpty emptyLabel={t('Select released outward')} required />
-                            <SelectField label={t('Inward ID')} value={reconcileForm.data.inward_id} onChange={(value) => reconcileForm.setData('inward_id', value)} options={inwards.filter((row) => row.status === 'approved').map((row) => String(row.id))} includeEmpty emptyLabel={t('Select approved inward')} required />
+                            <SelectField
+                                label={t('Outward')}
+                                value={reconcileForm.data.outward_id}
+                                onChange={(value) => reconcileForm.setData('outward_id', value)}
+                                options={createTextileWorkflowSelectOptions(releasedOutwards)}
+                                includeEmpty
+                                emptyLabel={t('Select released outward')}
+                                helperText={t('Only released outwards are listed.')}
+                                disabled={releasedOutwards.length === 0}
+                                disabledReason={t('No released outward found. Release an outward first.')}
+                                required
+                            />
+                            <SelectField
+                                label={t('Inward')}
+                                value={reconcileForm.data.inward_id}
+                                onChange={(value) => reconcileForm.setData('inward_id', value)}
+                                options={createTextileWorkflowSelectOptions(approvedInwards)}
+                                includeEmpty
+                                emptyLabel={t('Select approved inward')}
+                                helperText={t('Only approved inwards are listed.')}
+                                disabled={approvedInwards.length === 0}
+                                disabledReason={t('No approved inward found. Finalize an inward first.')}
+                                required
+                            />
                             <Field label={t('Notes')} value={reconcileForm.data.notes} onChange={(value) => reconcileForm.setData('notes', value)} />
                             <Button type="submit" disabled={reconcileForm.processing} className="col-span-3">
                                 <CheckCircle2 className="mr-2 h-4 w-4" />{t('Reconcile')}
                             </Button>
                         </form>
-                    </CardContent>
-                </Card>
+                </TextileFormCard>
             </div>
 
             <div className="mt-6 grid gap-6 xl:grid-cols-2">
-                <Card><CardContent className="p-0"><DataTable data={outwards} columns={columns(t)} emptyState={<NoRecordsFound icon={RefreshCw} title={t('No outward records found')} description={t('Create job-work outward documents to start processing custody flow.')} />} /></CardContent></Card>
-                <Card><CardContent className="p-0"><DataTable data={batches} columns={columns(t)} emptyState={<NoRecordsFound icon={RefreshCw} title={t('No processing batches found')} description={t('Create processing batches from released outwards.')} />} /></CardContent></Card>
-                <Card><CardContent className="p-0"><DataTable data={inwards} columns={columns(t)} emptyState={<NoRecordsFound icon={RefreshCw} title={t('No inward records found')} description={t('Create and finalize inward records for returned processed stock.')} />} /></CardContent></Card>
-                <Card><CardContent className="p-0"><DataTable data={reconciliations} columns={columns(t)} emptyState={<NoRecordsFound icon={CheckCircle2} title={t('No reconciliations found')} description={t('Reconciliation entries appear after outward-inward matching.')} />} /></CardContent></Card>
+                <TextileDataTableSection
+                    title={t('Outward Records')}
+                    data={outwards}
+                    columns={createTextileWorkflowColumns(t, {
+                        actions: createTextileWorkflowActions([
+                            {
+                                statuses: textileActionableStatuses.draftOrApproved,
+                                actions: [{ label: t('Release'), icon: CheckCircle2, onClick: (row) => releaseOutward(row.id) }],
+                            },
+                        ]),
+                    })}
+                    emptyState={<NoRecordsFound icon={RefreshCw} title={t('No outward records found')} description={t('Create job-work outward documents to start processing custody flow.')} />}
+                />
+                <TextileDataTableSection
+                    title={t('Batch Records')}
+                    data={batches}
+                    columns={createTextileWorkflowColumns(t, {
+                        actions: createTextileWorkflowActions([
+                            {
+                                statuses: textileActionableStatuses.draftOrApproved,
+                                actions: [{ label: t('Release'), icon: CheckCircle2, onClick: (row) => releaseBatch(row.id) }],
+                            },
+                        ]),
+                    })}
+                    emptyState={<NoRecordsFound icon={RefreshCw} title={t('No processing batches found')} description={t('Create processing batches from released outwards.')} />}
+                />
+                <TextileDataTableSection
+                    title={t('Inward Records')}
+                    data={inwards}
+                    columns={createTextileWorkflowColumns(t, {
+                        actions: createTextileWorkflowActions([
+                            {
+                                statuses: textileActionableStatuses.draft,
+                                actions: [
+                                    { label: t('Pass'), icon: CheckCircle2, onClick: (row) => finalizeInward(row.id, 'pass') },
+                                    { label: t('Fail'), icon: CheckCircle2, onClick: (row) => finalizeInward(row.id, 'fail') },
+                                ],
+                            },
+                        ]),
+                    })}
+                    emptyState={<NoRecordsFound icon={RefreshCw} title={t('No inward records found')} description={t('Create and finalize inward records for returned processed stock.')} />}
+                />
+                <TextileDataTableSection
+                    title={t('Reconciliation Records')}
+                    data={reconciliations}
+                    columns={createTextileWorkflowColumns(t)}
+                    emptyState={<NoRecordsFound icon={CheckCircle2} title={t('No reconciliations found')} description={t('Reconciliation entries appear after outward-inward matching.')} />}
+                />
             </div>
         </AuthenticatedLayout>
     );
-}
-
-function columns(t: (key: string) => string) {
-    return [
-        { key: 'id', header: t('ID') },
-        { key: 'document_number', header: t('Number') },
-        { key: 'party_name', header: t('Party'), render: optional },
-        { key: 'lot_reference', header: t('Lot'), render: optional },
-        { key: 'quantity', header: t('Qty') },
-        { key: 'unit', header: t('Unit'), render: optional },
-        { key: 'status', header: t('Status') },
-    ];
-}
-
-function Field({ label, value, onChange, type = 'text', required = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean }) {
-    return (
-        <div>
-            <Label>{label}</Label>
-            <Input type={type} value={value} required={required} onChange={(event) => onChange(event.target.value)} />
-        </div>
-    );
-}
-
-function SelectField({ label, value, onChange, options, required = false, includeEmpty = false, emptyLabel = 'Select' }: { label: string; value: string; onChange: (value: string) => void; options: string[]; required?: boolean; includeEmpty?: boolean; emptyLabel?: string }) {
-    return (
-        <div>
-            <Label>{label}</Label>
-            <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={value} required={required} onChange={(event) => onChange(event.target.value)}>
-                {includeEmpty && <option value="">{emptyLabel}</option>}
-                {options.map((option) => (
-                    <option key={option} value={option}>{option}</option>
-                ))}
-            </select>
-        </div>
-    );
-}
-
-function optional(value: string | null) {
-    return value || '-';
 }

@@ -9,7 +9,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import InputError from "@/components/ui/input-error";
 import { PhoneInputComponent } from "@/components/ui/phone-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
 import { CustomerFormData, User } from './types';
+import { BILLING_MODE_OPTIONS, MATERIAL_OWNERSHIP_OPTIONS, OPERATING_MODEL_OPTIONS } from './operating-profile-options';
 import { useFormFields } from '@/hooks/useFormFields';
 interface CreateCustomerProps {
     onSuccess: () => void;
@@ -31,6 +33,9 @@ export default function Create({ onSuccess, users = [], auth }: CreateCustomerPr
         contact_person_mobile: '',
         tax_number: '',
         payment_terms: '',
+        operating_model: 'full_package_buyer',
+        material_ownership: 'company_owned',
+        billing_mode: 'sale_value',
         billing_address: {
             name: '',
             address_line_1: '',
@@ -178,6 +183,38 @@ export default function Create({ onSuccess, users = [], auth }: CreateCustomerPr
                         />
                         <InputError message={errors.payment_terms} />
                     </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <SelectField
+                        label={t('Operating Model')}
+                        value={data.operating_model || ''}
+                        onChange={(value) => setData('operating_model', value)}
+                        options={OPERATING_MODEL_OPTIONS}
+                        helperText={t('Defines customer workflow path in textile operations.')}
+                        includeEmpty
+                        required
+                    />
+                    <SelectField
+                        label={t('Material Ownership')}
+                        value={data.material_ownership || ''}
+                        onChange={(value) => setData('material_ownership', value)}
+                        options={MATERIAL_OWNERSHIP_OPTIONS}
+                        includeEmpty
+                        required
+                    />
+                    <SelectField
+                        label={t('Billing Mode')}
+                        value={data.billing_mode || ''}
+                        onChange={(value) => setData('billing_mode', value)}
+                        options={BILLING_MODE_OPTIONS}
+                        includeEmpty
+                        required
+                    />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <InputError message={errors.operating_model} />
+                    <InputError message={errors.material_ownership} />
+                    <InputError message={errors.billing_mode} />
                 </div>
                 <div>
                     <Label htmlFor="billing_name">{t('Billing Name')}</Label>

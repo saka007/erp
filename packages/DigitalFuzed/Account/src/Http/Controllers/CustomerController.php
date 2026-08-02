@@ -63,6 +63,9 @@ class CustomerController extends Controller
             $customer->contact_person_mobile = $validated['contact_person_mobile'] ?? null;
             $customer->tax_number = $validated['tax_number'] ?? null;
             $customer->payment_terms = $validated['payment_terms'] ?? null;
+            $customer->operating_model = $validated['operating_model'] ?? 'full_package_buyer';
+            $customer->material_ownership = $validated['material_ownership'] ?? 'company_owned';
+            $customer->billing_mode = $validated['billing_mode'] ?? 'sale_value';
             $customer->billing_address = $validated['billing_address'];
             $customer->shipping_address = $validated['same_as_billing'] ? $validated['billing_address'] : $validated['shipping_address'];
             $customer->same_as_billing = $validated['same_as_billing'] ?? false;
@@ -89,6 +92,9 @@ class CustomerController extends Controller
             $customer->contact_person_mobile = $validated['contact_person_mobile'] ?? null;
             $customer->tax_number = $validated['tax_number'] ?? null;
             $customer->payment_terms = $validated['payment_terms'] ?? null;
+            $customer->operating_model = $validated['operating_model'] ?? $customer->operating_model ?? 'full_package_buyer';
+            $customer->material_ownership = $validated['material_ownership'] ?? $customer->material_ownership ?? 'company_owned';
+            $customer->billing_mode = $validated['billing_mode'] ?? $customer->billing_mode ?? 'sale_value';
             $customer->billing_address = $validated['billing_address'];
             $customer->shipping_address = $validated['same_as_billing'] ? $validated['billing_address'] : $validated['shipping_address'];
             $customer->same_as_billing = $validated['same_as_billing'] ?? false;

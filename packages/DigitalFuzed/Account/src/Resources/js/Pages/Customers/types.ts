@@ -18,6 +18,9 @@ export interface Customer {
   contact_person_mobile?: string;
   tax_number?: string;
   payment_terms?: string;
+  operating_model?: string;
+  material_ownership?: string;
+  billing_mode?: string;
   billing_address: Address;
   shipping_address: Address;
   same_as_billing: boolean;
@@ -49,6 +52,9 @@ export interface CustomerFormData {
   contact_person_mobile?: string;
   tax_number?: string;
   payment_terms?: string;
+  operating_model?: string;
+  material_ownership?: string;
+  billing_mode?: string;
   billing_address: Address;
   shipping_address: Address;
   same_as_billing: boolean;

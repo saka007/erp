@@ -12,7 +12,8 @@ class TextileWorkflowService
         protected TextileNumberingService $numberingService,
         protected TextileAuditService $auditService,
         protected TextileIdempotencyService $idempotencyService,
-        protected TextileCommercialBoundaryService $commercialBoundaryService
+        protected TextileCommercialBoundaryService $commercialBoundaryService,
+        protected TextileApprovalService $approvalService
     ) {
     }
 
@@ -76,6 +77,9 @@ class TextileWorkflowService
             }
 
             $this->auditService->record('textile.workflow.created', [
+                'action' => 'created',
+                'entity_type' => 'textile_workflow_document',
+                'entity_id' => $document->id,
                 'document_type' => $document->document_type,
                 'document_number' => $document->document_number,
                 'id' => $document->id,
@@ -107,13 +111,22 @@ class TextileWorkflowService
             throw new RuntimeException("Invalid workflow transition from {$currentStatus} to {$nextStatus}.");
         }
 
+        $this->approvalService->assertTransitionIsApproved($document, $nextStatus);
+
         $document->status = $nextStatus;
         $document->save();
 
         $this->auditService->record('textile.workflow.status_changed', [
+            'action' => 'status_changed',
+            'entity_type' => 'textile_workflow_document',
+            'entity_id' => $document->id,
+            'document_type' => $document->document_type,
+            'document_number' => $document->document_number,
             'id' => $document->id,
             'from' => $currentStatus,
             'to' => $nextStatus,
+            'from_status' => $currentStatus,
+            'to_status' => $nextStatus,
         ]);
 
         return $document;

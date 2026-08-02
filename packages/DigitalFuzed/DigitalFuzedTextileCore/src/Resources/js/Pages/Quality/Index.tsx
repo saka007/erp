@@ -1,13 +1,15 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { ShieldCheck, Plus, Check } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { DataTable } from '@/components/ui/data-table';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import NoRecordsFound from '@/components/no-records-found';
+import { TextileField as Field } from '@/components/textile/textile-field';
+import { TextileFormCard } from '@/components/textile/textile-form-card';
+import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
+import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
+import { createTextileWorkflowActions, createTextileWorkflowColumns, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 
 interface WorkflowDocument {
     id: number;
@@ -37,22 +39,19 @@ export default function Index({ inspections, holds, lots }: { inspections: Workf
         unit: 'mtr',
     });
 
-    const inspectionFinalizeForm = useForm({ inspection_id: '', decision: 'pass' });
     const holdForm = useForm({ lot_reference: '', reason: '' });
     const releaseForm = useForm({ lot_reference: '', reason: '' });
+
+    const finalizeInspection = (id: number, decision: 'pass' | 'fail') => {
+        router.post(route('textile.quality.inspections.finalize'), { inspection_id: id, decision }, { preserveScroll: true });
+    };
 
     return (
         <AuthenticatedLayout breadcrumbs={[{ label: t('Textile') }, { label: t('Quality') }]} pageTitle={t('Textile Quality')}>
             <Head title={t('Textile Quality')} />
 
             <div className="grid gap-6 xl:grid-cols-2">
-                <Card>
-                    <CardContent className="p-5 space-y-4">
-                        <div className="flex items-center gap-2">
-                            <ShieldCheck className="h-5 w-5 text-violet-600" />
-                            <h2 className="font-semibold">{t('Inspection')}</h2>
-                        </div>
-
+                <TextileFormCard title={t('Inspection')} icon={ShieldCheck}>
                         <form
                             className="space-y-3"
                             onSubmit={(e) => {
@@ -76,31 +75,9 @@ export default function Index({ inspections, holds, lots }: { inspections: Workf
                             </Button>
                         </form>
 
-                        <form
-                            className="grid grid-cols-3 gap-3"
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                inspectionFinalizeForm.post(route('textile.quality.inspections.finalize'), {
-                                    onSuccess: () => inspectionFinalizeForm.reset('inspection_id'),
-                                });
-                            }}
-                        >
-                            <SelectField label={t('Inspection ID')} value={inspectionFinalizeForm.data.inspection_id} onChange={(v) => inspectionFinalizeForm.setData('inspection_id', v)} options={inspections.filter((row) => row.status === 'draft').map((row) => String(row.id))} includeEmpty emptyLabel={t('Select draft inspection')} required />
-                            <SelectField label={t('Decision')} value={inspectionFinalizeForm.data.decision} onChange={(v) => inspectionFinalizeForm.setData('decision', v as 'pass' | 'fail')} options={['pass', 'fail']} required />
-                            <Button type="submit" variant="outline" disabled={inspectionFinalizeForm.processing} className="self-end">
-                                <Check className="mr-2 h-4 w-4" />{t('Finalize')}
-                            </Button>
-                        </form>
-                    </CardContent>
-                </Card>
+                </TextileFormCard>
 
-                <Card>
-                    <CardContent className="p-5 space-y-4">
-                        <div className="flex items-center gap-2">
-                            <ShieldCheck className="h-5 w-5 text-violet-600" />
-                            <h2 className="font-semibold">{t('Hold and Release')}</h2>
-                        </div>
-
+                <TextileFormCard title={t('Hold and Release')} icon={ShieldCheck}>
                         <form
                             className="grid grid-cols-[1fr_1fr_auto] gap-3"
                             onSubmit={(e) => {
@@ -132,52 +109,31 @@ export default function Index({ inspections, holds, lots }: { inspections: Workf
                                 <Check className="mr-2 h-4 w-4" />{t('Release Lot')}
                             </Button>
                         </form>
-                    </CardContent>
-                </Card>
+                </TextileFormCard>
             </div>
 
             <div className="mt-6 grid gap-6 xl:grid-cols-2">
-                <Card><CardContent className="p-0"><DataTable data={inspections} columns={columns(t)} emptyState={<NoRecordsFound icon={ShieldCheck} title={t('No inspections found')} description={t('Create inspection records for lot-level quality checks.')} />} /></CardContent></Card>
-                <Card><CardContent className="p-0"><DataTable data={holds} columns={columns(t)} emptyState={<NoRecordsFound icon={ShieldCheck} title={t('No hold/release records found')} description={t('Hold and release events will appear here.')} />} /></CardContent></Card>
+                <TextileDataTableCard
+                    data={inspections}
+                    columns={createTextileWorkflowColumns(t, {
+                        actions: createTextileWorkflowActions([
+                            {
+                                statuses: textileActionableStatuses.draft,
+                                actions: [
+                                    { label: t('Pass'), icon: Check, onClick: (row) => finalizeInspection(row.id, 'pass') },
+                                    { label: t('Fail'), icon: Check, onClick: (row) => finalizeInspection(row.id, 'fail') },
+                                ],
+                            },
+                        ]),
+                    })}
+                    emptyState={<NoRecordsFound icon={ShieldCheck} title={t('No inspections found')} description={t('Create inspection records for lot-level quality checks.')} />}
+                />
+                <TextileDataTableCard
+                    data={holds}
+                    columns={createTextileWorkflowColumns(t)}
+                    emptyState={<NoRecordsFound icon={ShieldCheck} title={t('No hold/release records found')} description={t('Hold and release events will appear here.')} />}
+                />
             </div>
         </AuthenticatedLayout>
     );
-}
-
-function columns(t: (key: string) => string) {
-    return [
-        { key: 'id', header: t('ID') },
-        { key: 'document_number', header: t('Number') },
-        { key: 'lot_reference', header: t('Lot'), render: optional },
-        { key: 'quantity', header: t('Qty') },
-        { key: 'unit', header: t('Unit'), render: optional },
-        { key: 'status', header: t('Status') },
-    ];
-}
-
-function Field({ label, value, onChange, type = 'text', required = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean }) {
-    return (
-        <div>
-            <Label>{label}</Label>
-            <Input type={type} value={value} required={required} onChange={(event) => onChange(event.target.value)} />
-        </div>
-    );
-}
-
-function SelectField({ label, value, onChange, options, required = false, includeEmpty = false, emptyLabel = 'Select' }: { label: string; value: string; onChange: (value: string) => void; options: string[]; required?: boolean; includeEmpty?: boolean; emptyLabel?: string }) {
-    return (
-        <div>
-            <Label>{label}</Label>
-            <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={value} required={required} onChange={(event) => onChange(event.target.value)}>
-                {includeEmpty && <option value="">{emptyLabel}</option>}
-                {options.map((option) => (
-                    <option key={option} value={option}>{option}</option>
-                ))}
-            </select>
-        </div>
-    );
-}
-
-function optional(value: string | null) {
-    return value || '-';
 }

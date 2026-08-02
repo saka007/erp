@@ -3,8 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { BarChart3 } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Card, CardContent } from '@/components/ui/card';
-import { DataTable } from '@/components/ui/data-table';
 import NoRecordsFound from '@/components/no-records-found';
+import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
+import { TextileSectionGrid } from '@/components/textile/textile-section-grid';
 
 interface AggregateRow {
     document_type?: string;
@@ -39,18 +40,40 @@ interface CostingSummary {
     margin_percent: number;
 }
 
+interface LoginHistoryRow {
+    id: number;
+    user_id: number;
+    ip: string | null;
+    date: string | null;
+    type: string | null;
+}
+
+interface AuditLogRow {
+    id: number;
+    event_type: string;
+    creator_id: number | null;
+}
+
 export default function Index({
     costingSummary,
     byType,
     byStatus,
     recentDocuments,
     recentMargins,
+    loginHistoryCount,
+    auditLogCount,
+    recentLoginHistory,
+    recentAuditLogs,
 }: {
     costingSummary: CostingSummary;
     byType: AggregateRow[];
     byStatus: AggregateRow[];
     recentDocuments: WorkflowDocument[];
     recentMargins: WorkflowDocument[];
+    loginHistoryCount: number;
+    auditLogCount: number;
+    recentLoginHistory: LoginHistoryRow[];
+    recentAuditLogs: AuditLogRow[];
 }) {
     const { t } = useTranslation();
 
@@ -66,67 +89,79 @@ export default function Index({
             </div>
 
             <div className="mt-6 grid gap-6 xl:grid-cols-2">
-                <Card>
-                    <CardContent className="p-0">
-                        <DataTable
-                            data={byType}
-                            columns={[
-                                { key: 'document_type', header: t('Workflow Type') },
-                                { key: 'total', header: t('Count') },
-                            ]}
-                            emptyState={<NoRecordsFound icon={BarChart3} title={t('No workflow data by type')} description={t('Workflow type counts will appear as operations are posted.')} />}
-                        />
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardContent className="p-0">
-                        <DataTable
-                            data={byStatus}
-                            columns={[
-                                { key: 'status', header: t('Status') },
-                                { key: 'total', header: t('Count') },
-                            ]}
-                            emptyState={<NoRecordsFound icon={BarChart3} title={t('No workflow data by status')} description={t('Status aggregates will appear as operations are posted.')} />}
-                        />
-                    </CardContent>
-                </Card>
+                <Metric title={t('Login Events')} value={String(loginHistoryCount)} />
+                <Metric title={t('Audit Events')} value={String(auditLogCount)} />
             </div>
 
-            <div className="mt-6 grid gap-6 xl:grid-cols-2">
-                <Card>
-                    <CardContent className="p-0">
-                        <DataTable
-                            data={recentDocuments}
-                            columns={[
-                                { key: 'id', header: t('ID') },
-                                { key: 'document_type', header: t('Type') },
-                                { key: 'document_number', header: t('Number') },
-                                { key: 'lot_reference', header: t('Lot'), render: optional },
-                                { key: 'status', header: t('Status') },
-                            ]}
-                            emptyState={<NoRecordsFound icon={BarChart3} title={t('No recent documents')} description={t('Recently posted workflow documents will appear here.')} />}
-                        />
-                    </CardContent>
-                </Card>
+            <TextileSectionGrid className="xl:grid-cols-2">
+                <TextileDataTableCard
+                    data={byType}
+                    columns={[
+                        { key: 'document_type', header: t('Workflow Type') },
+                        { key: 'total', header: t('Count') },
+                    ]}
+                    emptyState={<NoRecordsFound icon={BarChart3} title={t('No workflow data by type')} description={t('Workflow type counts will appear as operations are posted.')} />}
+                />
 
-                <Card>
-                    <CardContent className="p-0">
-                        <DataTable
-                            data={recentMargins}
-                            columns={[
-                                { key: 'id', header: t('ID') },
-                                { key: 'document_number', header: t('Snapshot Number') },
-                                { key: 'lot_reference', header: t('Lot'), render: optional },
-                                { key: 'metadata_revenue', header: t('Revenue'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.revenue_value ?? '-') },
-                                { key: 'metadata_cost', header: t('Cost'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.total_cost ?? '-') },
-                                { key: 'metadata_margin', header: t('Margin %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.margin_percent ?? '-') },
-                            ]}
-                            emptyState={<NoRecordsFound icon={BarChart3} title={t('No margin snapshots')} description={t('Costing margin snapshots will appear here after finalization.')} />}
-                        />
-                    </CardContent>
-                </Card>
-            </div>
+                <TextileDataTableCard
+                    data={byStatus}
+                    columns={[
+                        { key: 'status', header: t('Status') },
+                        { key: 'total', header: t('Count') },
+                    ]}
+                    emptyState={<NoRecordsFound icon={BarChart3} title={t('No workflow data by status')} description={t('Status aggregates will appear as operations are posted.')} />}
+                />
+            </TextileSectionGrid>
+
+            <TextileSectionGrid className="xl:grid-cols-2">
+                <TextileDataTableCard
+                    data={recentDocuments}
+                    columns={[
+                        { key: 'id', header: t('ID') },
+                        { key: 'document_type', header: t('Type') },
+                        { key: 'document_number', header: t('Number') },
+                        { key: 'lot_reference', header: t('Lot'), render: optional },
+                        { key: 'status', header: t('Status') },
+                    ]}
+                    emptyState={<NoRecordsFound icon={BarChart3} title={t('No recent documents')} description={t('Recently posted workflow documents will appear here.')} />}
+                />
+
+                <TextileDataTableCard
+                    data={recentMargins}
+                    columns={[
+                        { key: 'id', header: t('ID') },
+                        { key: 'document_number', header: t('Snapshot Number') },
+                        { key: 'lot_reference', header: t('Lot'), render: optional },
+                        { key: 'metadata_revenue', header: t('Revenue'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.revenue_value ?? '-') },
+                        { key: 'metadata_cost', header: t('Cost'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.total_cost ?? '-') },
+                        { key: 'metadata_margin', header: t('Margin %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.margin_percent ?? '-') },
+                    ]}
+                    emptyState={<NoRecordsFound icon={BarChart3} title={t('No margin snapshots')} description={t('Costing margin snapshots will appear here after finalization.')} />}
+                />
+            </TextileSectionGrid>
+
+            <TextileSectionGrid className="xl:grid-cols-2">
+                <TextileDataTableCard
+                    data={recentLoginHistory}
+                    columns={[
+                        { key: 'id', header: t('ID') },
+                        { key: 'user_id', header: t('User ID') },
+                        { key: 'ip', header: t('IP'), render: optional },
+                        { key: 'type', header: t('Type'), render: optional },
+                    ]}
+                    emptyState={<NoRecordsFound icon={BarChart3} title={t('No login history')} description={t('Recent login history will appear here.')} />}
+                />
+
+                <TextileDataTableCard
+                    data={recentAuditLogs}
+                    columns={[
+                        { key: 'id', header: t('ID') },
+                        { key: 'event_type', header: t('Event') },
+                        { key: 'creator_id', header: t('Actor'), render: optionalNumber },
+                    ]}
+                    emptyState={<NoRecordsFound icon={BarChart3} title={t('No audit logs')} description={t('Recent textile audit logs will appear here.')} />}
+                />
+            </TextileSectionGrid>
         </AuthenticatedLayout>
     );
 }
@@ -144,4 +179,8 @@ function Metric({ title, value }: { title: string; value: string }) {
 
 function optional(value: string | null) {
     return value || '-';
+}
+
+function optionalNumber(value: number | null) {
+    return value === null || value === undefined ? '-' : String(value);
 }

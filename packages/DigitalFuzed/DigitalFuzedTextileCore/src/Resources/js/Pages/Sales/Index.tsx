@@ -1,13 +1,17 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { Truck, Plus, Check, ClipboardCheck } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { DataTable } from '@/components/ui/data-table';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import NoRecordsFound from '@/components/no-records-found';
+import { TextileField as Field } from '@/components/textile/textile-field';
+import { TextileFormCard } from '@/components/textile/textile-form-card';
+import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
+import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
+import { TextileDataTableSection } from '@/components/textile/textile-data-table-section';
+import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
+import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 
 interface WorkflowDocument {
     id: number;
@@ -19,247 +23,280 @@ interface WorkflowDocument {
     status: string;
 }
 
+interface CustomerOption {
+    id: number;
+    company_name: string;
+    operating_model?: string | null;
+    material_ownership?: string | null;
+    billing_mode?: string | null;
+}
+
 export default function Index({
     salesOrders,
     allocations,
     dispatches,
     challans,
     pods,
+    customers,
 }: {
     salesOrders: WorkflowDocument[];
     allocations: WorkflowDocument[];
     dispatches: WorkflowDocument[];
     challans: WorkflowDocument[];
     pods: WorkflowDocument[];
+    customers: CustomerOption[];
 }) {
     const { t } = useTranslation();
+    const sectionParam = new URLSearchParams(window.location.search).get('section');
+    const validSections = new Set(['sales-order', 'allocation-dispatch', 'challan-pod']);
+    const activeSection = sectionParam && validSections.has(sectionParam) ? sectionParam : 'sales-order';
 
     const salesOrderForm = useForm({
         source_reference_type: 'sales_quotation',
         source_reference_id: '',
         source_action: 'convert',
+        customer_id: '',
         party_name: '',
         lot_reference: '',
         quantity: '',
         unit: 'mtr',
     });
 
-    const salesOrderApproveForm = useForm({ sales_order_id: '' });
+    const customerOptions = customers.map((customer) => ({
+        value: String(customer.id),
+        label: `${customer.company_name} | ${customer.operating_model || '-'} | ${customer.material_ownership || '-'} | ${customer.billing_mode || '-'}`,
+    }));
+
     const allocationForm = useForm({ sales_order_id: '' });
-    const allocationReleaseForm = useForm({ allocation_id: '' });
     const dispatchForm = useForm({ allocation_id: '' });
-    const dispatchReleaseForm = useForm({ dispatch_id: '' });
     const challanForm = useForm({ dispatch_id: '' });
-    const podForm = useForm({ challan_id: '' });
+    const approvedSalesOrders = salesOrders.filter((row) => row.status === 'approved');
+    const releasedAllocations = allocations.filter((row) => row.status === 'released');
+    const releasedDispatches = dispatches.filter((row) => row.status === 'released');
+
+    const allDocuments = [...salesOrders, ...allocations, ...dispatches, ...challans, ...pods];
+    const draftedCount = allDocuments.filter((row) => row.status === 'draft').length;
+    const approvedCount = allDocuments.filter((row) => row.status === 'approved').length;
+    const releasedCount = allDocuments.filter((row) => row.status === 'released').length;
+
+    const approveSalesOrder = (id: number) => {
+        router.post(route('textile.sales.orders.approve'), { sales_order_id: id }, { preserveScroll: true });
+    };
+
+    const releaseAllocation = (id: number) => {
+        router.post(route('textile.sales.allocations.release'), { allocation_id: id }, { preserveScroll: true });
+    };
+
+    const releaseDispatch = (id: number) => {
+        router.post(route('textile.sales.dispatches.release'), { dispatch_id: id }, { preserveScroll: true });
+    };
+
+    const markPod = (id: number) => {
+        router.post(route('textile.sales.challans.pod'), { challan_id: id }, { preserveScroll: true });
+    };
 
     return (
         <AuthenticatedLayout breadcrumbs={[{ label: t('Textile') }, { label: t('Sales') }]} pageTitle={t('Textile Sales')}>
             <Head title={t('Textile Sales')} />
 
-            <div className="grid gap-6 xl:grid-cols-2">
-                <Card>
-                    <CardContent className="p-5 space-y-4">
-                        <div className="flex items-center gap-2">
-                            <Truck className="h-5 w-5 text-violet-600" />
-                            <h2 className="font-semibold">{t('Sales Order')}</h2>
-                        </div>
+            <TextileKpiOverview
+                title={t('Sales Overview')}
+                className="mb-6"
+                items={[
+                    { label: t('Total Documents'), value: allDocuments.length, hint: t('SO + Allocation + Dispatch + Challan + POD') },
+                    { label: t('Draft'), value: draftedCount, hint: t('Pending first approval') },
+                    { label: t('Approved'), value: approvedCount, hint: t('Approved but not released') },
+                    { label: t('Released'), value: releasedCount, hint: t('Ready for downstream flow') },
+                ]}
+            />
 
-                        <form
-                            className="space-y-3"
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                salesOrderForm.post(route('textile.sales.orders.store'), {
-                                    onSuccess: () => salesOrderForm.reset('source_reference_id', 'party_name', 'lot_reference', 'quantity'),
-                                });
-                            }}
-                        >
-                            <Field label={t('Source Type')} value={salesOrderForm.data.source_reference_type} onChange={(v) => salesOrderForm.setData('source_reference_type', v)} required />
-                            <Field label={t('Source ID')} type="number" value={salesOrderForm.data.source_reference_id} onChange={(v) => salesOrderForm.setData('source_reference_id', v)} required />
-                            <Field label={t('Source Action')} value={salesOrderForm.data.source_action} onChange={(v) => salesOrderForm.setData('source_action', v)} required />
-                            <Field label={t('Customer/Party')} value={salesOrderForm.data.party_name} onChange={(v) => salesOrderForm.setData('party_name', v)} />
-                            <Field label={t('Lot Reference')} value={salesOrderForm.data.lot_reference} onChange={(v) => salesOrderForm.setData('lot_reference', v)} required />
-                            <div className="grid grid-cols-2 gap-3">
-                                <Field label={t('Quantity')} type="number" value={salesOrderForm.data.quantity} onChange={(v) => salesOrderForm.setData('quantity', v)} required />
-                                <Field label={t('Unit')} value={salesOrderForm.data.unit} onChange={(v) => salesOrderForm.setData('unit', v)} />
-                            </div>
-                            <Button type="submit" disabled={salesOrderForm.processing} className="w-full">
-                                <Plus className="mr-2 h-4 w-4" />{t('Create Sales Order')}
-                            </Button>
-                        </form>
+            <Tabs
+                value={activeSection}
+                onValueChange={(value: string) => router.get(route('textile.sales.index', { section: value }), {}, { preserveState: true, replace: true })}
+                className="space-y-6"
+            >
+                <TabsList className="grid w-full grid-cols-2 gap-2 h-auto p-1 md:grid-cols-3">
+                    <TabsTrigger value="sales-order">{t('Sales Order')}</TabsTrigger>
+                    <TabsTrigger value="allocation-dispatch">{t('Allocation & Dispatch')}</TabsTrigger>
+                    <TabsTrigger value="challan-pod">{t('Challan & POD')}</TabsTrigger>
+                </TabsList>
 
-                        <form
-                            className="grid grid-cols-[1fr_auto] gap-3"
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                salesOrderApproveForm.post(route('textile.sales.orders.approve'), {
-                                    onSuccess: () => salesOrderApproveForm.reset('sales_order_id'),
-                                });
-                            }}
-                        >
-                            <SelectField label={t('Approve Sales Order ID')} value={salesOrderApproveForm.data.sales_order_id} onChange={(v) => salesOrderApproveForm.setData('sales_order_id', v)} options={salesOrders.filter((row) => row.status === 'draft').map((row) => String(row.id))} includeEmpty emptyLabel={t('Select draft sales order')} required />
-                            <Button type="submit" variant="outline" disabled={salesOrderApproveForm.processing} className="self-end">
-                                <Check className="mr-2 h-4 w-4" />{t('Approve')}
-                            </Button>
-                        </form>
-                    </CardContent>
-                </Card>
+                <TabsContent value="sales-order">
+                    <div className="grid gap-6 xl:grid-cols-2">
+                        <TextileFormCard title={t('Create Sales Order')} icon={Plus}>
+                                <form className="space-y-3" onSubmit={(e) => {
+                                    e.preventDefault();
+                                    salesOrderForm.post(route('textile.sales.orders.store'), {
+                                        onSuccess: () => salesOrderForm.reset('source_reference_id', 'customer_id', 'party_name', 'lot_reference', 'quantity'),
+                                    });
+                                }}>
+                                    <Field label={t('Source Type')} value={salesOrderForm.data.source_reference_type} onChange={(value: string) => salesOrderForm.setData('source_reference_type', value)} required />
+                                    <Field label={t('Source ID')} type="number" value={salesOrderForm.data.source_reference_id} onChange={(value: string) => salesOrderForm.setData('source_reference_id', value)} required />
+                                    <Field label={t('Source Action')} value={salesOrderForm.data.source_action} onChange={(value: string) => salesOrderForm.setData('source_action', value)} required />
+                                    <SelectField
+                                        label={t('Customer Profile')}
+                                        value={salesOrderForm.data.customer_id}
+                                        onChange={(value: string) => {
+                                            salesOrderForm.setData('customer_id', value);
+                                            const selectedCustomer = customers.find((row) => String(row.id) === value);
+                                            if (selectedCustomer) {
+                                                salesOrderForm.setData('party_name', selectedCustomer.company_name);
+                                            }
+                                        }}
+                                        options={customerOptions}
+                                        includeEmpty
+                                        emptyLabel={t('Select customer profile')}
+                                        helperText={t('Job-work-only customer profiles are blocked from sales-order flow.')}
+                                        disabled={customerOptions.length === 0}
+                                        disabledReason={t('No customer profile found. Create customer profile first.')}
+                                    />
+                                    <Field label={t('Customer/Party')} value={salesOrderForm.data.party_name} onChange={(value: string) => salesOrderForm.setData('party_name', value)} />
+                                    <Field label={t('Lot Reference')} value={salesOrderForm.data.lot_reference} onChange={(value: string) => salesOrderForm.setData('lot_reference', value)} required />
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <Field label={t('Quantity')} type="number" value={salesOrderForm.data.quantity} onChange={(value: string) => salesOrderForm.setData('quantity', value)} required />
+                                        <Field label={t('Unit')} value={salesOrderForm.data.unit} onChange={(value: string) => salesOrderForm.setData('unit', value)} />
+                                    </div>
+                                    <Button type="submit" disabled={salesOrderForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Sales Order')}</Button>
+                                </form>
+                        </TextileFormCard>
+                        <TextileDataTableCard
+                            className="xl:col-span-2"
+                            data={salesOrders}
+                            columns={createTextileWorkflowColumns(t, {
+                                actions: createTextileWorkflowActions([
+                                    {
+                                        statuses: textileActionableStatuses.draft,
+                                        actions: [{ label: t('Approve'), icon: Check, onClick: (row) => approveSalesOrder(row.id) }],
+                                    },
+                                ]),
+                            })}
+                            emptyState={<NoRecordsFound icon={Truck} title={t('No sales orders found')} description={t('Create sales orders from approved commercial references.')} />}
+                        />
+                    </div>
+                </TabsContent>
 
-                <Card>
-                    <CardContent className="p-5 space-y-4">
-                        <div className="flex items-center gap-2">
-                            <ClipboardCheck className="h-5 w-5 text-violet-600" />
-                            <h2 className="font-semibold">{t('Allocation and Dispatch')}</h2>
-                        </div>
+                <TabsContent value="allocation-dispatch">
+                    <div className="grid gap-6 xl:grid-cols-2">
+                        <TextileFormCard title={t('Allocation')} icon={ClipboardCheck}>
+                                <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
+                                    e.preventDefault();
+                                    allocationForm.post(route('textile.sales.allocations.store'), {
+                                        onSuccess: () => allocationForm.reset('sales_order_id'),
+                                    });
+                                }}>
+                                    <SelectField
+                                        label={t('From Approved SO')}
+                                        value={allocationForm.data.sales_order_id}
+                                        onChange={(value: string) => allocationForm.setData('sales_order_id', value)}
+                                        options={createTextileWorkflowSelectOptions(approvedSalesOrders)}
+                                        includeEmpty
+                                        emptyLabel={t('Select approved sales order')}
+                                        helperText={t('Only approved sales orders are listed.')}
+                                        disabled={approvedSalesOrders.length === 0}
+                                        disabledReason={t('No approved sales order found. Approve a sales order first.')}
+                                        required
+                                    />
+                                    <Button type="submit" disabled={allocationForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Allocation')}</Button>
+                                </form>
+                        </TextileFormCard>
+                        <TextileFormCard title={t('Dispatch')} icon={Truck}>
+                                <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
+                                    e.preventDefault();
+                                    dispatchForm.post(route('textile.sales.dispatches.store'), {
+                                        onSuccess: () => dispatchForm.reset('allocation_id'),
+                                    });
+                                }}>
+                                    <SelectField
+                                        label={t('From Released Allocation')}
+                                        value={dispatchForm.data.allocation_id}
+                                        onChange={(value: string) => dispatchForm.setData('allocation_id', value)}
+                                        options={createTextileWorkflowSelectOptions(releasedAllocations)}
+                                        includeEmpty
+                                        emptyLabel={t('Select released allocation')}
+                                        helperText={t('Only released allocations are listed.')}
+                                        disabled={releasedAllocations.length === 0}
+                                        disabledReason={t('No released allocation found. Release an allocation first.')}
+                                        required
+                                    />
+                                    <Button type="submit" disabled={dispatchForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Dispatch')}</Button>
+                                </form>
+                        </TextileFormCard>
+                        <TextileDataTableSection
+                            title={t('Allocation Records')}
+                            data={allocations}
+                            columns={createTextileWorkflowColumns(t, {
+                                actions: createTextileWorkflowActions([
+                                    {
+                                        statuses: textileActionableStatuses.draftOrApproved,
+                                        actions: [{ label: t('Release'), icon: Check, onClick: (row) => releaseAllocation(row.id) }],
+                                    },
+                                ]),
+                            })}
+                            emptyState={<NoRecordsFound icon={ClipboardCheck} title={t('No allocations found')} description={t('Create allocations from approved sales orders.')} />}
+                        />
+                        <TextileDataTableSection
+                            title={t('Dispatch Records')}
+                            data={dispatches}
+                            columns={createTextileWorkflowColumns(t, {
+                                actions: createTextileWorkflowActions([
+                                    {
+                                        statuses: textileActionableStatuses.draftOrApproved,
+                                        actions: [{ label: t('Release'), icon: Check, onClick: (row) => releaseDispatch(row.id) }],
+                                    },
+                                ]),
+                            })}
+                            emptyState={<NoRecordsFound icon={Truck} title={t('No dispatches found')} description={t('Create dispatches from released allocations.')} />}
+                        />
+                    </div>
+                </TabsContent>
 
-                        <form
-                            className="grid grid-cols-[1fr_auto] gap-3"
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                allocationForm.post(route('textile.sales.allocations.store'), {
-                                    onSuccess: () => allocationForm.reset('sales_order_id'),
-                                });
-                            }}
-                        >
-                            <SelectField label={t('Create Allocation from Approved SO ID')} value={allocationForm.data.sales_order_id} onChange={(v) => allocationForm.setData('sales_order_id', v)} options={salesOrders.filter((row) => row.status === 'approved').map((row) => String(row.id))} includeEmpty emptyLabel={t('Select approved sales order')} required />
-                            <Button type="submit" disabled={allocationForm.processing} className="self-end">
-                                <Plus className="mr-2 h-4 w-4" />{t('Create Allocation')}
-                            </Button>
-                        </form>
-
-                        <form
-                            className="grid grid-cols-[1fr_auto] gap-3"
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                allocationReleaseForm.post(route('textile.sales.allocations.release'), {
-                                    onSuccess: () => allocationReleaseForm.reset('allocation_id'),
-                                });
-                            }}
-                        >
-                            <SelectField label={t('Release Allocation ID')} value={allocationReleaseForm.data.allocation_id} onChange={(v) => allocationReleaseForm.setData('allocation_id', v)} options={allocations.filter((row) => ['draft', 'approved'].includes(row.status)).map((row) => String(row.id))} includeEmpty emptyLabel={t('Select releasable allocation')} required />
-                            <Button type="submit" variant="outline" disabled={allocationReleaseForm.processing} className="self-end">
-                                <Check className="mr-2 h-4 w-4" />{t('Release')}
-                            </Button>
-                        </form>
-
-                        <form
-                            className="grid grid-cols-[1fr_auto] gap-3"
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                dispatchForm.post(route('textile.sales.dispatches.store'), {
-                                    onSuccess: () => dispatchForm.reset('allocation_id'),
-                                });
-                            }}
-                        >
-                            <SelectField label={t('Create Dispatch from Released Allocation ID')} value={dispatchForm.data.allocation_id} onChange={(v) => dispatchForm.setData('allocation_id', v)} options={allocations.filter((row) => row.status === 'released').map((row) => String(row.id))} includeEmpty emptyLabel={t('Select released allocation')} required />
-                            <Button type="submit" disabled={dispatchForm.processing} className="self-end">
-                                <Plus className="mr-2 h-4 w-4" />{t('Create Dispatch')}
-                            </Button>
-                        </form>
-
-                        <form
-                            className="grid grid-cols-[1fr_auto] gap-3"
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                dispatchReleaseForm.post(route('textile.sales.dispatches.release'), {
-                                    onSuccess: () => dispatchReleaseForm.reset('dispatch_id'),
-                                });
-                            }}
-                        >
-                            <SelectField label={t('Release Dispatch ID')} value={dispatchReleaseForm.data.dispatch_id} onChange={(v) => dispatchReleaseForm.setData('dispatch_id', v)} options={dispatches.filter((row) => ['draft', 'approved'].includes(row.status)).map((row) => String(row.id))} includeEmpty emptyLabel={t('Select releasable dispatch')} required />
-                            <Button type="submit" variant="outline" disabled={dispatchReleaseForm.processing} className="self-end">
-                                <Check className="mr-2 h-4 w-4" />{t('Release')}</Button>
-                        </form>
-                    </CardContent>
-                </Card>
-
-                <Card className="xl:col-span-2">
-                    <CardContent className="p-5 space-y-4">
-                        <div className="flex items-center gap-2">
-                            <ClipboardCheck className="h-5 w-5 text-violet-600" />
-                            <h2 className="font-semibold">{t('Challan and POD')}</h2>
-                        </div>
-
-                        <div className="grid gap-4 xl:grid-cols-2">
-                            <form
-                                className="grid grid-cols-[1fr_auto] gap-3"
-                                onSubmit={(e) => {
+                <TabsContent value="challan-pod">
+                    <div className="grid gap-6 xl:grid-cols-2">
+                        <TextileFormCard title={t('Create Challan')} icon={Plus} contentClassName="p-5 space-y-4">
+                                <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
                                     e.preventDefault();
                                     challanForm.post(route('textile.sales.challans.store'), {
                                         onSuccess: () => challanForm.reset('dispatch_id'),
                                     });
-                                }}
-                            >
-                                <SelectField label={t('Create Challan from Released Dispatch ID')} value={challanForm.data.dispatch_id} onChange={(v) => challanForm.setData('dispatch_id', v)} options={dispatches.filter((row) => row.status === 'released').map((row) => String(row.id))} includeEmpty emptyLabel={t('Select released dispatch')} required />
-                                <Button type="submit" disabled={challanForm.processing} className="self-end">
-                                    <Plus className="mr-2 h-4 w-4" />{t('Create Challan')}
-                                </Button>
-                            </form>
-
-                            <form
-                                className="grid grid-cols-[1fr_auto] gap-3"
-                                onSubmit={(e) => {
-                                    e.preventDefault();
-                                    podForm.post(route('textile.sales.challans.pod'), {
-                                        onSuccess: () => podForm.reset('challan_id'),
-                                    });
-                                }}
-                            >
-                                <SelectField label={t('Mark POD for Challan ID')} value={podForm.data.challan_id} onChange={(v) => podForm.setData('challan_id', v)} options={challans.filter((row) => ['draft', 'approved', 'released'].includes(row.status)).map((row) => String(row.id))} includeEmpty emptyLabel={t('Select challan')} required />
-                                <Button type="submit" variant="outline" disabled={podForm.processing} className="self-end">
-                                    <Check className="mr-2 h-4 w-4" />{t('Mark POD')}
-                                </Button>
-                            </form>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <div className="mt-6 grid gap-6 xl:grid-cols-2">
-                <Card><CardContent className="p-0"><DataTable data={salesOrders} columns={columns(t)} emptyState={<NoRecordsFound icon={Truck} title={t('No sales orders found')} description={t('Create sales orders from approved commercial references.')} />} /></CardContent></Card>
-                <Card><CardContent className="p-0"><DataTable data={allocations} columns={columns(t)} emptyState={<NoRecordsFound icon={ClipboardCheck} title={t('No allocations found')} description={t('Create allocations from approved sales orders.')} />} /></CardContent></Card>
-                <Card><CardContent className="p-0"><DataTable data={dispatches} columns={columns(t)} emptyState={<NoRecordsFound icon={Truck} title={t('No dispatches found')} description={t('Create dispatches from released allocations.')} />} /></CardContent></Card>
-                <Card><CardContent className="p-0"><DataTable data={challans} columns={columns(t)} emptyState={<NoRecordsFound icon={ClipboardCheck} title={t('No challans found')} description={t('Create challans for released dispatches.')} />} /></CardContent></Card>
-                <Card className="xl:col-span-2"><CardContent className="p-0"><DataTable data={pods} columns={columns(t)} emptyState={<NoRecordsFound icon={Check} title={t('No POD records found')} description={t('Mark POD to complete challan lifecycle.')} />} /></CardContent></Card>
-            </div>
+                                }}>
+                                    <SelectField
+                                        label={t('From Released Dispatch')}
+                                        value={challanForm.data.dispatch_id}
+                                        onChange={(value: string) => challanForm.setData('dispatch_id', value)}
+                                        options={createTextileWorkflowSelectOptions(releasedDispatches)}
+                                        includeEmpty
+                                        emptyLabel={t('Select released dispatch')}
+                                        helperText={t('Only released dispatches are listed.')}
+                                        disabled={releasedDispatches.length === 0}
+                                        disabledReason={t('No released dispatch found. Release a dispatch first.')}
+                                        required
+                                    />
+                                    <Button type="submit" disabled={challanForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Challan')}</Button>
+                                </form>
+                        </TextileFormCard>
+                        <TextileDataTableSection
+                            title={t('Challan Records')}
+                            data={challans}
+                            columns={createTextileWorkflowColumns(t, {
+                                actions: createTextileWorkflowActions([
+                                    {
+                                        statuses: textileActionableStatuses.draftApprovedOrReleased,
+                                        actions: [{ label: t('Mark POD'), icon: Check, onClick: (row) => markPod(row.id) }],
+                                    },
+                                ]),
+                            })}
+                            emptyState={<NoRecordsFound icon={ClipboardCheck} title={t('No challans found')} description={t('Create challans for released dispatches.')} />}
+                        />
+                        <TextileDataTableSection
+                            title={t('POD Records')}
+                            data={pods}
+                            columns={createTextileWorkflowColumns(t)}
+                            emptyState={<NoRecordsFound icon={Check} title={t('No POD records found')} description={t('Mark POD to complete challan lifecycle.')} />}
+                        />
+                    </div>
+                </TabsContent>
+            </Tabs>
         </AuthenticatedLayout>
     );
 }
 
-function columns(t: (key: string) => string) {
-    return [
-        { key: 'id', header: t('ID') },
-        { key: 'document_number', header: t('Number') },
-        { key: 'party_name', header: t('Party'), render: optional },
-        { key: 'lot_reference', header: t('Lot'), render: optional },
-        { key: 'quantity', header: t('Qty') },
-        { key: 'unit', header: t('Unit'), render: optional },
-        { key: 'status', header: t('Status') },
-    ];
-}
-
-function Field({ label, value, onChange, type = 'text', required = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean }) {
-    return (
-        <div>
-            <Label>{label}</Label>
-            <Input type={type} value={value} required={required} onChange={(event) => onChange(event.target.value)} />
-        </div>
-    );
-}
-
-function SelectField({ label, value, onChange, options, required = false, includeEmpty = false, emptyLabel = 'Select' }: { label: string; value: string; onChange: (value: string) => void; options: string[]; required?: boolean; includeEmpty?: boolean; emptyLabel?: string }) {
-    return (
-        <div>
-            <Label>{label}</Label>
-            <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={value} required={required} onChange={(event) => onChange(event.target.value)}>
-                {includeEmpty && <option value="">{emptyLabel}</option>}
-                {options.map((option) => (
-                    <option key={option} value={option}>{option}</option>
-                ))}
-            </select>
-        </div>
-    );
-}
-
-function optional(value: string | null) {
-    return value || '-';
-}

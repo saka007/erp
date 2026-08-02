@@ -36,27 +36,17 @@ const filterCoreMenusForIndustry = (coreMenus: NavItem[], userType: string | und
         return coreMenus;
     }
 
-    const allowedPermissions = new Set(['manage-dashboard', 'manage-users', 'manage-settings']);
+    const allowedPermissions = new Set(['manage-users', 'manage-settings']);
 
     return coreMenus
         .filter((item) => {
             if (!item.permission) {
-                return item.name === 'dashboard';
+                return false;
             }
 
             return allowedPermissions.has(item.permission);
         })
-        .map((item) => {
-            if (item.name === 'dashboard') {
-                return {
-                    ...item,
-                    title: t('Textile Dashboard'),
-                    href: route('textile.dashboard.index'),
-                };
-            }
-
-            return item;
-        });
+        .map((item) => item);
 };
 
 // Get role-based core menu items
@@ -184,6 +174,28 @@ const filterByPermission = (items: NavItem[], userPermissions: string[]): NavIte
     });
 };
 
+const filterByCapabilities = (items: NavItem[], capabilities: Record<string, boolean>): NavItem[] => {
+    return items
+        .map((item) => {
+            const nextItem: NavItem = {
+                ...item,
+                children: item.children ? filterByCapabilities(item.children, capabilities) : undefined,
+            };
+
+            const capabilityAllowed = !nextItem.capability || capabilities[nextItem.capability] !== false;
+            if (!capabilityAllowed) {
+                return null;
+            }
+
+            if (nextItem.children && nextItem.children.length === 0 && !nextItem.href) {
+                return null;
+            }
+
+            return nextItem;
+        })
+        .filter((item): item is NavItem => item !== null);
+};
+
 // Main function to get filtered menu items
 export const allMenuItems = (): NavItem[] => {
     const { auth } = usePage().props as any;
@@ -192,6 +204,7 @@ export const allMenuItems = (): NavItem[] => {
     const userRoles = auth?.user?.roles || [];
     const userType = auth?.user?.type;
     const industryType = auth?.user?.industry_type;
+    const textileCapabilities = auth?.user?.textile_capabilities || {};
     const activatedPackages = auth?.user?.activatedPackages || [];
 
     const coreMenuItems = filterCoreMenusForIndustry(getCoreMenuItems(userRoles, t), userType, userRoles, industryType, activatedPackages, t);
@@ -213,8 +226,9 @@ export const allMenuItems = (): NavItem[] => {
     const finalGroupedMenuItems = groupMenusByParent(coreWithCustomParents, allChildMenus);
 
     const sortedMenuItems = finalGroupedMenuItems.sort((a, b) => (a.order || 999) - (b.order || 999));
+    const capabilityFilteredMenuItems = filterByCapabilities(sortedMenuItems, textileCapabilities);
 
-    const finalMenuItems = filterByPermission(sortedMenuItems, userPermissions);
+    const finalMenuItems = filterByPermission(capabilityFilteredMenuItems, userPermissions);
 
     return finalMenuItems;
 };

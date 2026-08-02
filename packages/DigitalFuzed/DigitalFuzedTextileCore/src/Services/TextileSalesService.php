@@ -3,7 +3,9 @@
 namespace DigitalFuzed\TextileCore\Services;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Workdo\Account\Models\Customer;
 
 class TextileSalesService
 {
@@ -17,17 +19,24 @@ class TextileSalesService
             throw new RuntimeException('Sales order requires a commercial source reference.');
         }
 
+        $profile = $this->resolveCustomerProfile($payload);
+        if ($this->isJobWorkOnlyProfile($profile['operating_model'] ?? null)) {
+            throw new RuntimeException('Selected customer profile is job-work only. Use Manufacturing or Processing workflows instead of Sales Order.');
+        }
+
+        $metadata = array_merge($payload['metadata'] ?? [], $profile);
+
         return $this->workflowService->createDocument([
             'document_type' => 'sales_order',
             'source_reference_type' => $payload['source_reference_type'],
             'source_reference_id' => (int) $payload['source_reference_id'],
             'source_action' => $payload['source_action'] ?? 'convert',
-            'party_name' => $payload['party_name'] ?? null,
+            'party_name' => $payload['party_name'] ?? ($profile['party_name'] ?? null),
             'lot_reference' => $payload['lot_reference'] ?? null,
             'quantity' => $payload['quantity'] ?? 0,
             'unit' => $payload['unit'] ?? null,
             'status' => 'draft',
-            'metadata' => $payload['metadata'] ?? null,
+            'metadata' => $metadata,
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
     }
@@ -46,6 +55,11 @@ class TextileSalesService
             throw new RuntimeException('Sales order must be approved before creating allocation.');
         }
 
+        $metadata = is_array($salesOrder->metadata) ? $salesOrder->metadata : [];
+        if ($this->isJobWorkOnlyProfile($metadata['operating_model'] ?? null)) {
+            throw new RuntimeException('Allocation is not allowed for job-work customer profiles. Continue through manufacturing/processing flow.');
+        }
+
         return $this->workflowService->createDocument([
             'document_type' => 'allocation',
             'source_reference_type' => 'textile_workflow_document',
@@ -56,7 +70,7 @@ class TextileSalesService
             'quantity' => $payload['quantity'] ?? $salesOrder->quantity,
             'unit' => $payload['unit'] ?? $salesOrder->unit,
             'status' => 'draft',
-            'metadata' => $payload['metadata'] ?? null,
+            'metadata' => array_merge($metadata, $payload['metadata'] ?? []),
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
     }
@@ -83,6 +97,8 @@ class TextileSalesService
             throw new RuntimeException('Allocation must be released before creating dispatch.');
         }
 
+        $allocationMetadata = is_array($allocation->metadata) ? $allocation->metadata : [];
+
         return $this->workflowService->createDocument([
             'document_type' => 'dispatch',
             'source_reference_type' => 'textile_workflow_document',
@@ -93,7 +109,7 @@ class TextileSalesService
             'quantity' => $payload['quantity'] ?? $allocation->quantity,
             'unit' => $payload['unit'] ?? $allocation->unit,
             'status' => 'draft',
-            'metadata' => $payload['metadata'] ?? null,
+            'metadata' => array_merge($allocationMetadata, $payload['metadata'] ?? []),
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
     }
@@ -120,6 +136,8 @@ class TextileSalesService
             throw new RuntimeException('Dispatch must be released before creating challan.');
         }
 
+        $dispatchMetadata = is_array($dispatch->metadata) ? $dispatch->metadata : [];
+
         return $this->workflowService->createDocument([
             'document_type' => 'challan',
             'source_reference_type' => 'textile_workflow_document',
@@ -130,7 +148,7 @@ class TextileSalesService
             'quantity' => $payload['quantity'] ?? $dispatch->quantity,
             'unit' => $payload['unit'] ?? $dispatch->unit,
             'status' => 'draft',
-            'metadata' => $payload['metadata'] ?? null,
+            'metadata' => array_merge($dispatchMetadata, $payload['metadata'] ?? []),
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
     }
@@ -161,13 +179,52 @@ class TextileSalesService
             'quantity' => $payload['quantity'] ?? $challan->quantity,
             'unit' => $payload['unit'] ?? $challan->unit,
             'status' => 'approved',
-            'metadata' => array_merge($payload['metadata'] ?? [], ['invoice_ready' => true]),
+            'metadata' => array_merge(is_array($challan->metadata) ? $challan->metadata : [], $payload['metadata'] ?? [], ['invoice_ready' => true]),
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
 
         $this->workflowService->transitionStatus($challan->id, 'closed');
 
         return $pod;
+    }
+
+    protected function resolveCustomerProfile(array $payload): array
+    {
+        if (!Schema::hasTable('customers')) {
+            return [];
+        }
+
+        $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
+        $query = Customer::query()->where('created_by', $tenantId);
+
+        if (!empty($payload['customer_id'])) {
+            $query->where('id', (int) $payload['customer_id']);
+        } elseif (!empty($payload['party_name'])) {
+            $query->where('company_name', trim((string) $payload['party_name']));
+        } else {
+            return [];
+        }
+
+        $customer = $query->first();
+        if (!$customer) {
+            return [];
+        }
+
+        return [
+            'customer_id' => (int) $customer->id,
+            'party_name' => $customer->company_name,
+            'operating_model' => $customer->operating_model,
+            'material_ownership' => $customer->material_ownership,
+            'billing_mode' => $customer->billing_mode,
+        ];
+    }
+
+    protected function isJobWorkOnlyProfile(?string $operatingModel): bool
+    {
+        return in_array($operatingModel, [
+            TextileOperatingPolicyService::MODEL_JOBWORK_WEAVING,
+            TextileOperatingPolicyService::MODEL_JOBWORK_PROCESSING,
+        ], true);
     }
 
     protected function findTenantDocument(int $documentId, string $documentType): TextileWorkflowDocument

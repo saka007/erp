@@ -4,6 +4,7 @@ namespace Tests\Feature\Textile;
 
 use App\Models\AddOn;
 use App\Models\Plan;
+use App\Models\PurchaseInvoice;
 use App\Models\User;
 use App\Models\UserActiveModule;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
@@ -111,6 +112,24 @@ class TextileProcurementAdminTest extends TestCase
 
         $grnA->refresh();
         $this->assertSame('released', $grnA->status);
+
+        $invoiceA = PurchaseInvoice::query()
+            ->where('created_by', $companyA->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($invoiceA);
+        $this->assertSame('draft', $invoiceA->status);
+        $this->assertSame($companyA->id, $invoiceA->vendor_id);
+        $this->assertSame($invoiceA->id, (int) ($grnA->metadata['purchase_invoice_id'] ?? 0));
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.invoices.from-grn'), [
+                'grn_id' => $grnA->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(1, PurchaseInvoice::query()->where('created_by', $companyA->id)->count());
 
         $this->actingAs($companyA)
             ->post(route('textile.procurement.incoming-qc.store'), [

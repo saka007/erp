@@ -22,6 +22,7 @@ import Create from './Create';
 import Edit from './Edit';
 import View from './View';
 import { Customer, User } from './types';
+import { resolveBillingModeLabel, resolveMaterialOwnershipLabel, resolveOperatingModelLabel } from './operating-profile-options';
 import { usePageButtons } from '@/hooks/usePageButtons';
 interface CustomerFilters {
     company_name: string;
@@ -172,6 +173,12 @@ export default function Index() {
             key: 'tax_number',
             header: t('Tax Number'),
             sortable: false
+        },
+        {
+            key: 'operating_model',
+            header: t('Operating Model'),
+            render: (value: string) => resolveOperatingModelLabel(value),
+            sortable: false,
         },
         ...(auth.user?.permissions?.some((p: string) => ['view-customers', 'edit-customers', 'delete-customers', 'view-customer-detail-report'].includes(p)) ? [{
             key: 'actions',
@@ -426,6 +433,18 @@ export default function Index() {
                                                             <span className="text-xs text-green-600 font-medium">{customer.payment_terms}</span>
                                                         </div>
                                                     )}
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-xs text-gray-500">{t('Operating Model')}</span>
+                                                        <span className="text-xs text-gray-900 text-right ml-2">{resolveOperatingModelLabel(customer.operating_model)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-xs text-gray-500">{t('Material')}</span>
+                                                        <span className="text-xs text-gray-900 text-right ml-2">{resolveMaterialOwnershipLabel(customer.material_ownership)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-xs text-gray-500">{t('Billing')}</span>
+                                                        <span className="text-xs text-gray-900 text-right ml-2">{resolveBillingModeLabel(customer.billing_mode)}</span>
+                                                    </div>
                                                 </div>
 
                                                 <div className="flex items-center justify-between pt-3 border-t border-gray-100">

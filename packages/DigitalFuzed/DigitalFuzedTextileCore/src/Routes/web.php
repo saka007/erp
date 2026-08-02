@@ -10,6 +10,10 @@ use DigitalFuzed\TextileCore\Http\Controllers\TextileQualityController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileProcessingController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileCostingController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileDashboardController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextileApprovalController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextileCostCenterController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextileOperatingPolicyController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextileLogController;
 
 Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->group(function () {
     Route::get('/textile/specifications', [TextileSpecificationController::class, 'index'])->name('textile.specifications.index');
@@ -36,6 +40,7 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/procurement/purchase-orders/approve', [TextileProcurementController::class, 'approvePurchaseOrder'])->name('textile.procurement.purchase-orders.approve');
     Route::post('/textile/procurement/grns', [TextileProcurementController::class, 'storeGrn'])->name('textile.procurement.grns.store');
     Route::post('/textile/procurement/grns/release', [TextileProcurementController::class, 'releaseGrn'])->name('textile.procurement.grns.release');
+    Route::post('/textile/procurement/invoices/from-grn', [TextileProcurementController::class, 'createPurchaseInvoiceFromGrn'])->name('textile.procurement.invoices.from-grn');
     Route::post('/textile/procurement/incoming-qc', [TextileProcurementController::class, 'storeIncomingQc'])->name('textile.procurement.incoming-qc.store');
     Route::post('/textile/procurement/incoming-qc/finalize', [TextileProcurementController::class, 'finalizeIncomingQc'])->name('textile.procurement.incoming-qc.finalize');
 
@@ -76,6 +81,17 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::get('/textile/costing', [TextileCostingController::class, 'index'])->name('textile.costing.index');
     Route::post('/textile/costing/entries', [TextileCostingController::class, 'storeCostingEntry'])->name('textile.costing.entries.store');
     Route::post('/textile/costing/entries/finalize', [TextileCostingController::class, 'finalizeCostingEntry'])->name('textile.costing.entries.finalize');
+    Route::get('/textile/cost-centers', [TextileCostCenterController::class, 'index'])->name('textile.cost-centers.index');
+    Route::post('/textile/cost-centers', [TextileCostCenterController::class, 'store'])->name('textile.cost-centers.store');
+    Route::post('/textile/cost-centers/update', [TextileCostCenterController::class, 'update'])->name('textile.cost-centers.update');
+    Route::post('/textile/cost-centers/archive', [TextileCostCenterController::class, 'archive'])->name('textile.cost-centers.archive');
+    Route::get('/textile/operating-policy', [TextileOperatingPolicyController::class, 'index'])->name('textile.operating-policy.index');
+    Route::post('/textile/operating-policy', [TextileOperatingPolicyController::class, 'update'])->name('textile.operating-policy.update');
 
     Route::get('/textile/dashboard', [TextileDashboardController::class, 'index'])->name('textile.dashboard.index');
+    Route::get('/textile/logs', [TextileLogController::class, 'index'])->name('textile.logs.index');
+
+    Route::get('/textile/approvals', [TextileApprovalController::class, 'index'])->name('textile.approvals.index');
+    Route::post('/textile/approvals/rules', [TextileApprovalController::class, 'storeRule'])->name('textile.approvals.rules.store');
+    Route::post('/textile/approvals/decisions', [TextileApprovalController::class, 'storeDecision'])->name('textile.approvals.decisions.store');
 });

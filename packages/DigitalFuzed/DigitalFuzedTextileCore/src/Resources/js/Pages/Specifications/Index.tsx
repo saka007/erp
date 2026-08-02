@@ -5,10 +5,10 @@ import { Plus, Factory, Pencil, ArchiveX } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { DataTable } from '@/components/ui/data-table';
 import NoRecordsFound from '@/components/no-records-found';
+import { TextileField as Field } from '@/components/textile/textile-field';
+import { TextileFormCard } from '@/components/textile/textile-form-card';
+import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 
 interface Specification {
     id: number;
@@ -75,23 +75,18 @@ export default function Index({ specifications }: { specifications: Specificatio
         <AuthenticatedLayout breadcrumbs={[{ label: t('Textile') }, { label: t('Specifications') }]} pageTitle={t('Textile Specifications')}>
             <Head title={t('Textile Specifications')} />
             <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-                <Card>
-                    <CardContent className="p-5 space-y-6">
-                        <div className="mb-5 flex items-center gap-2">
-                            <Factory className="h-5 w-5 text-violet-600" />
-                            <h2 className="font-semibold">{t('New Specification')}</h2>
-                        </div>
+                <TextileFormCard title={t('New Specification')} icon={Factory} contentClassName="p-5 space-y-6">
                         <form onSubmit={submit} className="space-y-4">
-                            <div><Label>{t('Name')}</Label><Input value={data.name} onChange={(event) => setData('name', event.target.value)} required /></div>
-                            <div><Label>{t('Code')}</Label><Input value={data.code} onChange={(event) => setData('code', event.target.value)} /></div>
-                            <div><Label>{t('Family')}</Label><Input value={data.family} onChange={(event) => setData('family', event.target.value)} /></div>
-                            <div><Label>{t('Composition')}</Label><Input value={data.composition} onChange={(event) => setData('composition', event.target.value)} /></div>
-                            <div><Label>{t('Construction')}</Label><Input value={data.construction} onChange={(event) => setData('construction', event.target.value)} /></div>
+                            <Field label={t('Name')} value={data.name} onChange={(value) => setData('name', value)} required />
+                            <Field label={t('Code')} value={data.code} onChange={(value) => setData('code', value)} />
+                            <Field label={t('Family')} value={data.family} onChange={(value) => setData('family', value)} />
+                            <Field label={t('Composition')} value={data.composition} onChange={(value) => setData('composition', value)} />
+                            <Field label={t('Construction')} value={data.construction} onChange={(value) => setData('construction', value)} />
                             <div className="grid grid-cols-2 gap-3">
-                                <div><Label>{t('Width')}</Label><Input value={data.width} onChange={(event) => setData('width', event.target.value)} /></div>
-                                <div><Label>{t('GSM')}</Label><Input value={data.gsm} onChange={(event) => setData('gsm', event.target.value)} /></div>
+                                <Field label={t('Width')} value={data.width} onChange={(value) => setData('width', value)} />
+                                <Field label={t('GSM')} value={data.gsm} onChange={(value) => setData('gsm', value)} />
                             </div>
-                            <div><Label>{t('Shade')}</Label><Input value={data.shade} onChange={(event) => setData('shade', event.target.value)} /></div>
+                            <Field label={t('Shade')} value={data.shade} onChange={(value) => setData('shade', value)} />
                             <Button type="submit" disabled={processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Specification')}</Button>
                         </form>
 
@@ -100,16 +95,16 @@ export default function Index({ specifications }: { specifications: Specificatio
                                 <div className="border-t border-border pt-5" />
                                 <h2 className="font-semibold">{t('Edit Specification')}</h2>
                                 <form onSubmit={submitEdit} className="space-y-4">
-                                    <div><Label>{t('Name')}</Label><Input value={editData.name} onChange={(event) => setEditData('name', event.target.value)} required /></div>
-                                    <div><Label>{t('Code')}</Label><Input value={editData.code} onChange={(event) => setEditData('code', event.target.value)} /></div>
-                                    <div><Label>{t('Family')}</Label><Input value={editData.family} onChange={(event) => setEditData('family', event.target.value)} /></div>
-                                    <div><Label>{t('Composition')}</Label><Input value={editData.composition} onChange={(event) => setEditData('composition', event.target.value)} /></div>
-                                    <div><Label>{t('Construction')}</Label><Input value={editData.construction} onChange={(event) => setEditData('construction', event.target.value)} /></div>
+                                    <Field label={t('Name')} value={editData.name} onChange={(value) => setEditData('name', value)} required />
+                                    <Field label={t('Code')} value={editData.code} onChange={(value) => setEditData('code', value)} />
+                                    <Field label={t('Family')} value={editData.family} onChange={(value) => setEditData('family', value)} />
+                                    <Field label={t('Composition')} value={editData.composition} onChange={(value) => setEditData('composition', value)} />
+                                    <Field label={t('Construction')} value={editData.construction} onChange={(value) => setEditData('construction', value)} />
                                     <div className="grid grid-cols-2 gap-3">
-                                        <div><Label>{t('Width')}</Label><Input value={editData.width} onChange={(event) => setEditData('width', event.target.value)} /></div>
-                                        <div><Label>{t('GSM')}</Label><Input value={editData.gsm} onChange={(event) => setEditData('gsm', event.target.value)} /></div>
+                                        <Field label={t('Width')} value={editData.width} onChange={(value) => setEditData('width', value)} />
+                                        <Field label={t('GSM')} value={editData.gsm} onChange={(value) => setEditData('gsm', value)} />
                                     </div>
-                                    <div><Label>{t('Shade')}</Label><Input value={editData.shade} onChange={(event) => setEditData('shade', event.target.value)} /></div>
+                                    <Field label={t('Shade')} value={editData.shade} onChange={(value) => setEditData('shade', value)} />
                                     <div className="grid grid-cols-2 gap-3">
                                         <Button type="submit" disabled={editing}>{t('Save Changes')}</Button>
                                         <Button
@@ -126,40 +121,35 @@ export default function Index({ specifications }: { specifications: Specificatio
                                 </form>
                             </>
                         ) : null}
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="p-0">
-                        <DataTable
-                            data={specifications}
-                            columns={[
-                                { key: 'name', header: t('Name') },
-                                { key: 'code', header: t('Code'), render: (value: string | null) => value || '-' },
-                                { key: 'family', header: t('Family'), render: (value: string | null) => value || '-' },
-                                { key: 'composition', header: t('Composition'), render: (value: string | null) => value || '-' },
-                                { key: 'width', header: t('Width'), render: (value: string | null) => value || '-' },
-                                { key: 'gsm', header: t('GSM'), render: (value: string | null) => value || '-' },
-                                {
-                                    key: 'actions',
-                                    header: t('Actions'),
-                                    render: (_value: unknown, row: Specification) => (
-                                        <div className="flex items-center gap-2">
-                                            <Button type="button" variant="outline" size="sm" onClick={() => startEdit(row)}>
-                                                <Pencil className="mr-1 h-3.5 w-3.5" />
-                                                {t('Edit')}
-                                            </Button>
-                                            <Button type="button" variant="destructive" size="sm" onClick={() => archive(row.id)}>
-                                                <ArchiveX className="mr-1 h-3.5 w-3.5" />
-                                                {t('Deactivate')}
-                                            </Button>
-                                        </div>
-                                    ),
-                                },
-                            ]}
-                            emptyState={<NoRecordsFound icon={Factory} title={t('No textile specifications found')} description={t('Create the first specification to define textile products.')} onCreateClick={() => router.reload()} createButtonText={t('Refresh')} />}
-                        />
-                    </CardContent>
-                </Card>
+                </TextileFormCard>
+                <TextileDataTableCard
+                    data={specifications}
+                    columns={[
+                        { key: 'name', header: t('Name') },
+                        { key: 'code', header: t('Code'), render: (value: string | null) => value || '-' },
+                        { key: 'family', header: t('Family'), render: (value: string | null) => value || '-' },
+                        { key: 'composition', header: t('Composition'), render: (value: string | null) => value || '-' },
+                        { key: 'width', header: t('Width'), render: (value: string | null) => value || '-' },
+                        { key: 'gsm', header: t('GSM'), render: (value: string | null) => value || '-' },
+                        {
+                            key: 'actions',
+                            header: t('Actions'),
+                            render: (_value: unknown, row: Specification) => (
+                                <div className="flex items-center gap-2">
+                                    <Button type="button" variant="outline" size="sm" onClick={() => startEdit(row)}>
+                                        <Pencil className="mr-1 h-3.5 w-3.5" />
+                                        {t('Edit')}
+                                    </Button>
+                                    <Button type="button" variant="destructive" size="sm" onClick={() => archive(row.id)}>
+                                        <ArchiveX className="mr-1 h-3.5 w-3.5" />
+                                        {t('Deactivate')}
+                                    </Button>
+                                </div>
+                            ),
+                        },
+                    ]}
+                    emptyState={<NoRecordsFound icon={Factory} title={t('No textile specifications found')} description={t('Create the first specification to define textile products.')} onCreateClick={() => router.reload()} createButtonText={t('Refresh')} />}
+                />
             </div>
         </AuthenticatedLayout>
     );

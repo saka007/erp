@@ -11,6 +11,7 @@ export interface User {
     roles?: string[];
     activatedPackages?: string[];
     industry_type?: 'standard' | 'textile';
+    textile_capabilities?: Record<string, boolean>;
 }
 
 export interface NavItem {
@@ -24,6 +25,7 @@ export interface NavItem {
     name?: string;
     order?: number;
     activePaths?: string[];
+    capability?: string;
 }
 
 export type PageProps<

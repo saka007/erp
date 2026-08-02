@@ -3,12 +3,14 @@
 namespace App\Http\Middleware;
 
 use App\Models\User;
+use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Cookie;
 use App\Classes\Module;
+use Throwable;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -54,10 +56,12 @@ class HandleInertiaRequests extends Middleware
 
         $activatedPackages = ActivatedModule();
         $industryType = 'standard';
+        $textileCapabilities = [];
 
         if ($request->user()) {
             $industryType = $this->detectIndustryType($request->user());
             $activatedPackages = $this->filterActivatedPackagesForIndustry($request->user(), $activatedPackages, $industryType);
+            $textileCapabilities = $this->resolveTextileCapabilitiesForUser($request->user(), $industryType);
         }
 
         return [
@@ -71,9 +75,10 @@ class HandleInertiaRequests extends Middleware
                             'roles' => $this->getUserRoles($request->user()),
                             'activatedPackages' => $activatedPackages,
                             'industry_type' => $industryType,
+                            'textile_capabilities' => $textileCapabilities,
                         ]
                     )
-                    : ['activatedPackages' => $activatedPackages, 'industry_type' => $industryType],
+                    : ['activatedPackages' => $activatedPackages, 'industry_type' => $industryType, 'textile_capabilities' => $textileCapabilities],
                 'impersonating' => $request->session()->has('impersonator_id'),
                 'lang' => $locale,
             ],
@@ -213,5 +218,28 @@ class HandleInertiaRequests extends Middleware
             })
             ->pluck('module')
             ->toArray();
+    }
+
+    private function resolveTextileCapabilitiesForUser($user, string $industryType): array
+    {
+        if (! $user || $industryType !== 'textile') {
+            return [];
+        }
+
+        $companyContextUser = $this->resolveCompanyContextUser($user);
+        if (! $companyContextUser) {
+            return [];
+        }
+
+        try {
+            /** @var TextileOperatingPolicyService $policyService */
+            $policyService = app(TextileOperatingPolicyService::class);
+            $policy = $policyService->resolveForTenant($companyContextUser->id);
+
+            return $policyService->capabilities($policy);
+        } catch (Throwable $exception) {
+            // Fail open for menu rendering if policy storage is not migrated yet.
+            return [];
+        }
     }
 }

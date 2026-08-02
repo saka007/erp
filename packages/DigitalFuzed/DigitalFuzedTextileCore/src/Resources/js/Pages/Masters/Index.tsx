@@ -6,9 +6,10 @@ import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { DataTable } from '@/components/ui/data-table';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import NoRecordsFound from '@/components/no-records-found';
+import { TextileField as Field } from '@/components/textile/textile-field';
+import { TextileFormCard } from '@/components/textile/textile-form-card';
+import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 
 type Master = 'quality-profiles' | 'route-recipes' | 'unit-conversions';
 type RecordItem = Record<string, string | number | string[] | null> & { id: number };
@@ -113,9 +114,7 @@ export default function Index({ master, records }: { master: Master; records: Re
         <AuthenticatedLayout breadcrumbs={[{ label: t('Textile') }, { label: t(config.title) }]} pageTitle={t(config.title)}>
             <Head title={t(config.title)} />
             <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
-                <Card>
-                    <CardContent className="p-5 space-y-6">
-                        <div className="mb-5 flex items-center gap-2"><Factory className="h-5 w-5 text-violet-600" /><h2 className="font-semibold">{t(`New ${config.title.slice(0, -1)}`)}</h2></div>
+                <TextileFormCard title={t(`New ${config.title.slice(0, -1)}`)} icon={Factory} contentClassName="p-5 space-y-6">
                         <form onSubmit={submit} className="space-y-4">{fields}<Button type="submit" disabled={processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create')}</Button></form>
                         {editingId !== null ? (
                             <>
@@ -139,16 +138,11 @@ export default function Index({ master, records }: { master: Master; records: Re
                                 </form>
                             </>
                         ) : null}
-                    </CardContent>
-                </Card>
-                <Card><CardContent className="p-0"><DataTable data={records} columns={columnsWithActions} emptyState={<NoRecordsFound icon={Factory} title={t(`No ${config.title.toLowerCase()} found`)} description={t('Create the first record to begin textile setup.')} />} /></CardContent></Card>
+                </TextileFormCard>
+                <TextileDataTableCard data={records} columns={columnsWithActions} emptyState={<NoRecordsFound icon={Factory} title={t(`No ${config.title.toLowerCase()} found`)} description={t('Create the first record to begin textile setup.')} />} />
             </div>
         </AuthenticatedLayout>
     );
-}
-
-function Field({ label, value, onChange, type = 'text', required = false, placeholder = '' }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean; placeholder?: string }) {
-    return <div><Label>{label}</Label><Input type={type} value={value} onChange={(event) => onChange(event.target.value)} required={required} placeholder={placeholder} /></div>;
 }
 
 function optional(value: string | null) {

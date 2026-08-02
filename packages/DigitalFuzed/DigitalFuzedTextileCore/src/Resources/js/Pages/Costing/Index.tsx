@@ -5,9 +5,11 @@ import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { DataTable } from '@/components/ui/data-table';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import NoRecordsFound from '@/components/no-records-found';
+import { TextileField as Field } from '@/components/textile/textile-field';
+import { TextileFormCard } from '@/components/textile/textile-form-card';
+import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
+import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 
 interface WorkflowDocument {
     id: number;
@@ -81,13 +83,7 @@ export default function Index({
             </div>
 
             <div className="mt-6 grid gap-6 xl:grid-cols-2">
-                <Card>
-                    <CardContent className="p-5 space-y-4">
-                        <div className="flex items-center gap-2">
-                            <Calculator className="h-5 w-5 text-violet-600" />
-                            <h2 className="font-semibold">{t('Capture Costing Entry')}</h2>
-                        </div>
-
+                <TextileFormCard title={t('Capture Costing Entry')} icon={Calculator}>
                         <form
                             className="space-y-3"
                             onSubmit={(event) => {
@@ -119,16 +115,9 @@ export default function Index({
                                 <Plus className="mr-2 h-4 w-4" />{t('Create Cost Entry')}
                             </Button>
                         </form>
-                    </CardContent>
-                </Card>
+                </TextileFormCard>
 
-                <Card>
-                    <CardContent className="p-5 space-y-4">
-                        <div className="flex items-center gap-2">
-                            <CheckCircle2 className="h-5 w-5 text-violet-600" />
-                            <h2 className="font-semibold">{t('Finalize and Post Margin')}</h2>
-                        </div>
-
+                <TextileFormCard title={t('Finalize and Post Margin')} icon={CheckCircle2}>
                         <form
                             className="grid grid-cols-[1fr_auto] gap-3"
                             onSubmit={(event) => {
@@ -155,44 +144,35 @@ export default function Index({
                             ]}
                             emptyState={<NoRecordsFound icon={Calculator} title={t('No eligible source documents')} description={t('Approved or released textile workflow documents will be available for costing.')} />}
                         />
-                    </CardContent>
-                </Card>
+                </TextileFormCard>
             </div>
 
             <div className="mt-6 grid gap-6 xl:grid-cols-2">
-                <Card>
-                    <CardContent className="p-0">
-                        <DataTable
-                            data={costingEntries}
-                            columns={[
-                                { key: 'id', header: t('ID') },
-                                { key: 'document_number', header: t('Number') },
-                                { key: 'lot_reference', header: t('Lot'), render: optional },
-                                { key: 'quantity', header: t('Qty') },
-                                { key: 'status', header: t('Status') },
-                                { key: 'metadata', header: t('Total Cost'), render: (value: WorkflowDocument['metadata']) => String(value?.total_cost ?? '-') },
-                            ]}
-                            emptyState={<NoRecordsFound icon={Calculator} title={t('No costing entries found')} description={t('Capture a costing entry to start margin tracking.')} />}
-                        />
-                    </CardContent>
-                </Card>
+                <TextileDataTableCard
+                    data={costingEntries}
+                    columns={[
+                        { key: 'id', header: t('ID') },
+                        { key: 'document_number', header: t('Number') },
+                        { key: 'lot_reference', header: t('Lot'), render: optional },
+                        { key: 'quantity', header: t('Qty') },
+                        { key: 'status', header: t('Status') },
+                        { key: 'metadata', header: t('Total Cost'), render: (value: WorkflowDocument['metadata']) => String(value?.total_cost ?? '-') },
+                    ]}
+                    emptyState={<NoRecordsFound icon={Calculator} title={t('No costing entries found')} description={t('Capture a costing entry to start margin tracking.')} />}
+                />
 
-                <Card>
-                    <CardContent className="p-0">
-                        <DataTable
-                            data={marginSnapshots}
-                            columns={[
-                                { key: 'id', header: t('ID') },
-                                { key: 'document_number', header: t('Number') },
-                                { key: 'lot_reference', header: t('Lot'), render: optional },
-                                { key: 'status', header: t('Status') },
-                                { key: 'metadata', header: t('Margin'), render: (value: WorkflowDocument['metadata']) => String(value?.margin_value ?? '-') },
-                                { key: 'metadata_percent', header: t('Margin %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.margin_percent ?? '-') },
-                            ]}
-                            emptyState={<NoRecordsFound icon={CheckCircle2} title={t('No margin snapshots found')} description={t('Finalize a costing entry to generate margin snapshot records.')} />}
-                        />
-                    </CardContent>
-                </Card>
+                <TextileDataTableCard
+                    data={marginSnapshots}
+                    columns={[
+                        { key: 'id', header: t('ID') },
+                        { key: 'document_number', header: t('Number') },
+                        { key: 'lot_reference', header: t('Lot'), render: optional },
+                        { key: 'status', header: t('Status') },
+                        { key: 'metadata', header: t('Margin'), render: (value: WorkflowDocument['metadata']) => String(value?.margin_value ?? '-') },
+                        { key: 'metadata_percent', header: t('Margin %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.margin_percent ?? '-') },
+                    ]}
+                    emptyState={<NoRecordsFound icon={CheckCircle2} title={t('No margin snapshots found')} description={t('Finalize a costing entry to generate margin snapshot records.')} />}
+                />
             </div>
         </AuthenticatedLayout>
     );
@@ -206,29 +186,6 @@ function Metric({ title, value }: { title: string; value: string }) {
                 <p className="mt-2 text-2xl font-semibold">{value}</p>
             </CardContent>
         </Card>
-    );
-}
-
-function Field({ label, value, onChange, type = 'text', required = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean }) {
-    return (
-        <div>
-            <Label>{label}</Label>
-            <Input type={type} value={value} required={required} onChange={(event) => onChange(event.target.value)} />
-        </div>
-    );
-}
-
-function SelectField({ label, value, onChange, options, required = false, includeEmpty = false, emptyLabel = 'Select' }: { label: string; value: string; onChange: (value: string) => void; options: string[]; required?: boolean; includeEmpty?: boolean; emptyLabel?: string }) {
-    return (
-        <div>
-            <Label>{label}</Label>
-            <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={value} required={required} onChange={(event) => onChange(event.target.value)}>
-                {includeEmpty && <option value="">{emptyLabel}</option>}
-                {options.map((option) => (
-                    <option key={option} value={option}>{option}</option>
-                ))}
-            </select>
-        </div>
     );
 }
 

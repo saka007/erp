@@ -1,0 +1,97 @@
+<?php
+
+namespace Tests\Feature\Textile;
+
+use App\Models\AddOn;
+use App\Models\Plan;
+use App\Models\User;
+use App\Models\UserActiveModule;
+use DigitalFuzed\TextileCore\Models\TextileOperatingPolicy;
+use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
+use Tests\TestCase;
+
+class TextileOperatingPolicyAdminTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_superadmin_can_set_company_policy_and_capabilities_gate_modules(): void
+    {
+        AddOn::create([
+            'module' => 'TextileCore',
+            'name' => 'Textile Core',
+            'package_name' => 'textile-core',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        $company = $this->company();
+        $superadmin = User::factory()->create([
+            'type' => 'superadmin',
+            'email_verified_at' => now(),
+        ]);
+
+        $this->actingAs($superadmin)
+            ->post(route('textile.operating-policy.update'), [
+                'company_id' => $company->id,
+                'operating_model' => TextileOperatingPolicyService::MODEL_JOBWORK_WEAVING,
+                'material_ownership' => 'customer_owned',
+                'billing_mode' => 'conversion_charge',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $policy = TextileOperatingPolicy::query()->where('created_by', $company->id)->first();
+        $this->assertNotNull($policy);
+        $this->assertSame(TextileOperatingPolicyService::MODEL_JOBWORK_WEAVING, $policy->operating_model);
+
+        $this->actingAs($company)
+            ->get(route('textile.manufacturing.index'))
+            ->assertOk();
+
+        $this->actingAs($company)
+            ->get(route('textile.procurement.index'))
+            ->assertForbidden();
+
+        $this->actingAs($company)
+            ->post(route('textile.procurement.requisitions.store'), [
+                'party_name' => 'Blocked Supplier',
+                'lot_reference' => 'LOT-BLOCK-1',
+                'quantity' => 10,
+                'unit' => 'kg',
+            ])
+            ->assertSessionHasErrors('party_name');
+    }
+
+    private function company(): User
+    {
+        $plan = Plan::create([
+            'name' => 'Textile Policy Plan',
+            'modules' => ['TextileCore'],
+        ]);
+
+        $company = User::factory()->create([
+            'type' => 'company',
+            'active_plan' => $plan->id,
+            'email_verified_at' => now(),
+        ]);
+
+        $role = Role::firstOrCreate([
+            'name' => 'company',
+            'guard_name' => 'web',
+        ], [
+            'label' => 'Company',
+            'created_by' => $company->id,
+        ]);
+
+        $company->assignRole($role);
+
+        UserActiveModule::create([
+            'user_id' => $company->id,
+            'module' => 'TextileCore',
+        ]);
+
+        return $company;
+    }
+}

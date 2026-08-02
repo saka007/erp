@@ -2,6 +2,8 @@
 
 namespace DigitalFuzed\TextileCore\Services;
 
+use App\Models\PurchaseInvoice;
+use App\Models\User;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Services\TextileMovementService;
@@ -95,7 +97,79 @@ class TextileProcurementService
             $grn = $this->workflowService->transitionStatus($grn->id, 'approved');
         }
 
-        return $this->workflowService->transitionStatus($grn->id, 'released');
+        $released = $this->workflowService->transitionStatus($grn->id, 'released');
+        $this->createPurchaseInvoiceFromGrn($released->id);
+
+        return $released->refresh();
+    }
+
+    public function createPurchaseInvoiceFromGrn(int $grnId): TextileWorkflowDocument
+    {
+        $grn = $this->findTenantDocument($grnId, 'grn');
+
+        if ($grn->status !== 'released') {
+            throw new RuntimeException('GRN must be released before creating purchase invoice.');
+        }
+
+        $metadata = is_array($grn->metadata) ? $grn->metadata : [];
+        $existingInvoiceId = isset($metadata['purchase_invoice_id']) ? (int) $metadata['purchase_invoice_id'] : null;
+
+        if ($existingInvoiceId) {
+            $invoice = PurchaseInvoice::query()
+                ->where('id', $existingInvoiceId)
+                ->where('created_by', $grn->created_by)
+                ->first();
+
+            if ($invoice) {
+                $grn->setAttribute('purchase_invoice_created_now', false);
+                return $grn;
+            }
+        }
+
+        $sourceDocument = TextileWorkflowDocument::query()
+            ->where('id', $grn->source_reference_id)
+            ->where('document_type', 'purchase_order')
+            ->where('created_by', $grn->created_by)
+            ->first();
+
+        $sourceMetadata = is_array($sourceDocument?->metadata) ? $sourceDocument->metadata : [];
+        $vendorId = isset($sourceMetadata['vendor_id']) ? (int) $sourceMetadata['vendor_id'] : (int) ($grn->creator_id ?? $grn->created_by);
+        $warehouseId = isset($sourceMetadata['warehouse_id']) ? (int) $sourceMetadata['warehouse_id'] : null;
+        $amount = (float) ($sourceMetadata['invoice_amount'] ?? 0);
+
+        if ($vendorId < 1 || !User::query()->whereKey($vendorId)->exists()) {
+            $grn->setAttribute('purchase_invoice_created_now', false);
+            return $grn;
+        }
+
+        $invoice = PurchaseInvoice::query()->create([
+            'invoice_number' => sprintf('TX-GRN-%s', str_pad((string) $grn->id, 6, '0', STR_PAD_LEFT)),
+            'invoice_date' => now()->toDateString(),
+            'due_date' => now()->addDays(15)->toDateString(),
+            'vendor_id' => $vendorId,
+            'warehouse_id' => $warehouseId,
+            'subtotal' => $amount,
+            'tax_amount' => 0,
+            'discount_amount' => 0,
+            'total_amount' => $amount,
+            'paid_amount' => 0,
+            'debit_note_applied' => 0,
+            'balance_amount' => $amount,
+            'status' => 'draft',
+            'payment_terms' => null,
+            'notes' => sprintf('Draft invoice from GRN %s (%s).', $grn->id, $grn->document_number),
+            'creator_id' => $grn->creator_id,
+            'created_by' => $grn->created_by,
+        ]);
+
+        $metadata['purchase_invoice_id'] = $invoice->id;
+        $metadata['purchase_invoice_number'] = $invoice->invoice_number;
+        $metadata['purchase_invoice_status'] = $invoice->status;
+        $grn->metadata = $metadata;
+        $grn->save();
+        $grn->setAttribute('purchase_invoice_created_now', true);
+
+        return $grn;
     }
 
     public function createIncomingQc(int $grnId, array $payload = []): TextileWorkflowDocument

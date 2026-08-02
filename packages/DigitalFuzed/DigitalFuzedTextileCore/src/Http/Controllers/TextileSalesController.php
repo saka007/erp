@@ -7,8 +7,10 @@ use DigitalFuzed\TextileCore\Services\TextileSalesService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use RuntimeException;
+use Workdo\Account\Models\Customer;
 
 class TextileSalesController extends Controller
 {
@@ -22,6 +24,7 @@ class TextileSalesController extends Controller
             'dispatches' => $this->documents('dispatch'),
             'challans' => $this->documents('challan'),
             'pods' => $this->documents('pod'),
+            'customers' => $this->customerOptions(),
         ]);
     }
 
@@ -33,6 +36,7 @@ class TextileSalesController extends Controller
             'source_reference_type' => ['required', 'string', 'max:100'],
             'source_reference_id' => ['required', 'integer', 'min:1'],
             'source_action' => ['nullable', 'string', 'max:100'],
+            'customer_id' => ['nullable', 'integer', 'min:1'],
             'party_name' => ['nullable', 'string', 'max:100'],
             'lot_reference' => ['required', 'string', 'max:100'],
             'quantity' => ['required', 'numeric', 'gt:0'],
@@ -174,6 +178,28 @@ class TextileSalesController extends Controller
             ->where('document_type', $type)
             ->latest()
             ->get();
+    }
+
+    private function customerOptions()
+    {
+        if (!Schema::hasTable('customers')) {
+            return [];
+        }
+
+        return Customer::query()
+            ->where('created_by', creatorId())
+            ->orderBy('company_name')
+            ->get(['id', 'company_name', 'operating_model', 'material_ownership', 'billing_mode'])
+            ->map(function (Customer $customer) {
+                return [
+                    'id' => (int) $customer->id,
+                    'company_name' => $customer->company_name,
+                    'operating_model' => $customer->operating_model,
+                    'material_ownership' => $customer->material_ownership,
+                    'billing_mode' => $customer->billing_mode,
+                ];
+            })
+            ->values();
     }
 
     private function authorizeTextileAccess(): void

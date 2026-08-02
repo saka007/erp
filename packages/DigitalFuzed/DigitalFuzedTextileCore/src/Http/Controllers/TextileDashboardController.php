@@ -2,7 +2,9 @@
 
 namespace DigitalFuzed\TextileCore\Http\Controllers;
 
+use App\Models\LoginHistory;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Models\TextileAuditLog;
 use DigitalFuzed\TextileCore\Services\TextileCostingService;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -40,12 +42,29 @@ class TextileDashboardController extends Controller
             ->limit(10)
             ->get(['id', 'document_number', 'lot_reference', 'quantity', 'unit', 'metadata', 'updated_at']);
 
+        $loginHistoryCount = LoginHistory::query()->where('created_by', creatorId())->count();
+        $auditLogCount = TextileAuditLog::query()->where('created_by', creatorId())->count();
+        $recentLoginHistory = LoginHistory::query()
+            ->where('created_by', creatorId())
+            ->latest('id')
+            ->limit(5)
+            ->get(['id', 'user_id', 'ip', 'date', 'details', 'type', 'created_at']);
+        $recentAuditLogs = TextileAuditLog::query()
+            ->where('created_by', creatorId())
+            ->latest('id')
+            ->limit(5)
+            ->get(['id', 'event_type', 'payload', 'creator_id', 'created_at']);
+
         return Inertia::render('DigitalFuzedTextileCore/Dashboard/Index', [
             'costingSummary' => $costingService->summary(),
             'byType' => $byType,
             'byStatus' => $byStatus,
             'recentDocuments' => $recentDocuments,
             'recentMargins' => $recentMargins,
+            'loginHistoryCount' => $loginHistoryCount,
+            'auditLogCount' => $auditLogCount,
+            'recentLoginHistory' => $recentLoginHistory,
+            'recentAuditLogs' => $recentAuditLogs,
         ]);
     }
 

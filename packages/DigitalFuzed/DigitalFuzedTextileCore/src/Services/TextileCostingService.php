@@ -3,7 +3,9 @@
 namespace DigitalFuzed\TextileCore\Services;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
+use Workdo\Account\Models\Customer;
 
 class TextileCostingService
 {
@@ -14,25 +16,40 @@ class TextileCostingService
     public function createCostingEntry(array $payload): TextileWorkflowDocument
     {
         $source = $this->findTenantSourceDocument((int) $payload['source_document_id']);
+        $profile = $this->resolveCustomerProfile($source, $payload['party_name'] ?? null);
+        $enteredMaterialCost = (float) ($payload['material_cost'] ?? 0);
+        $isCustomerOwned = ($profile['material_ownership'] ?? null) === 'customer_owned';
+        $effectiveMaterialCost = $isCustomerOwned ? 0.0 : $enteredMaterialCost;
+
+        $metadata = [
+            'material_cost' => $effectiveMaterialCost,
+            'conversion_cost' => (float) ($payload['conversion_cost'] ?? 0),
+            'overhead_cost' => (float) ($payload['overhead_cost'] ?? 0),
+            'revenue_value' => (float) ($payload['revenue_value'] ?? 0),
+            'variance_value' => (float) ($payload['variance_value'] ?? 0),
+            'notes' => $payload['notes'] ?? null,
+        ];
+
+        if ($isCustomerOwned) {
+            $metadata['entered_material_cost'] = $enteredMaterialCost;
+            $metadata['costing_mode'] = 'conversion_only';
+        }
+
+        if (!empty($profile)) {
+            $metadata = array_merge($metadata, $profile);
+        }
 
         return $this->workflowService->createDocument([
             'document_type' => 'costing_entry',
             'source_reference_type' => 'textile_workflow_document',
             'source_reference_id' => $source->id,
             'source_action' => 'cost_capture',
-            'party_name' => $payload['party_name'] ?? $source->party_name,
+            'party_name' => $payload['party_name'] ?? ($profile['party_name'] ?? $source->party_name),
             'lot_reference' => $payload['lot_reference'] ?? $source->lot_reference,
             'quantity' => $payload['quantity'] ?? $source->quantity,
             'unit' => $payload['unit'] ?? $source->unit,
             'status' => 'draft',
-            'metadata' => [
-                'material_cost' => (float) ($payload['material_cost'] ?? 0),
-                'conversion_cost' => (float) ($payload['conversion_cost'] ?? 0),
-                'overhead_cost' => (float) ($payload['overhead_cost'] ?? 0),
-                'revenue_value' => (float) ($payload['revenue_value'] ?? 0),
-                'variance_value' => (float) ($payload['variance_value'] ?? 0),
-                'notes' => $payload['notes'] ?? null,
-            ],
+            'metadata' => $metadata,
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
     }
@@ -47,6 +64,11 @@ class TextileCostingService
 
         $metadata = is_array($entry->metadata) ? $entry->metadata : [];
         $material = (float) ($metadata['material_cost'] ?? 0);
+        if (($metadata['material_ownership'] ?? null) === 'customer_owned') {
+            $material = 0.0;
+            $metadata['material_cost'] = 0.0;
+            $metadata['costing_mode'] = 'conversion_only';
+        }
         $conversion = (float) ($metadata['conversion_cost'] ?? 0);
         $overhead = (float) ($metadata['overhead_cost'] ?? 0);
         $variance = (float) ($metadata['variance_value'] ?? 0);
@@ -159,5 +181,52 @@ class TextileCostingService
         }
 
         return $document;
+    }
+
+    protected function resolveCustomerProfile(TextileWorkflowDocument $source, ?string $partyName = null): array
+    {
+        $metadata = is_array($source->metadata) ? $source->metadata : [];
+
+        if (isset($metadata['material_ownership']) || isset($metadata['operating_model']) || isset($metadata['billing_mode'])) {
+            return [
+                'customer_id' => isset($metadata['customer_id']) ? (int) $metadata['customer_id'] : null,
+                'operating_model' => $metadata['operating_model'] ?? null,
+                'material_ownership' => $metadata['material_ownership'] ?? null,
+                'billing_mode' => $metadata['billing_mode'] ?? null,
+                'party_name' => $partyName ?: ($metadata['party_name'] ?? $source->party_name),
+            ];
+        }
+
+        if (!Schema::hasTable('customers')) {
+            return [];
+        }
+
+        $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
+
+        $query = Customer::query()->where('created_by', $tenantId);
+        $customerId = isset($metadata['customer_id']) ? (int) $metadata['customer_id'] : null;
+        if ($customerId) {
+            $query->where('id', $customerId);
+        } else {
+            $effectiveParty = trim((string) ($partyName ?: $source->party_name ?: ''));
+            if ($effectiveParty === '') {
+                return [];
+            }
+
+            $query->where('company_name', $effectiveParty);
+        }
+
+        $customer = $query->first();
+        if (!$customer) {
+            return [];
+        }
+
+        return [
+            'customer_id' => (int) $customer->id,
+            'operating_model' => $customer->operating_model,
+            'material_ownership' => $customer->material_ownership,
+            'billing_mode' => $customer->billing_mode,
+            'party_name' => $customer->company_name,
+        ];
     }
 }
