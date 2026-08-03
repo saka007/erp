@@ -105,6 +105,14 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/master-setup/{domain}/inspection-results', [TextileMasterDataController::class, 'storeInspectionResultByDomain'])->name('textile.master-domains.inspection-results.store');
     Route::post('/textile/master-setup/{domain}/inspection-results/update', [TextileMasterDataController::class, 'updateInspectionResultByDomain'])->name('textile.master-domains.inspection-results.update');
     Route::post('/textile/master-setup/{domain}/inspection-results/archive', [TextileMasterDataController::class, 'archiveInspectionResultByDomain'])->name('textile.master-domains.inspection-results.archive');
+    Route::get('/textile/master-setup/{domain}/fabric-defects', [TextileMasterDataController::class, 'fabricDefectsByDomain'])->name('textile.master-domains.fabric-defects.index');
+    Route::post('/textile/master-setup/{domain}/fabric-defects', [TextileMasterDataController::class, 'storeFabricDefectByDomain'])->name('textile.master-domains.fabric-defects.store');
+    Route::post('/textile/master-setup/{domain}/fabric-defects/update', [TextileMasterDataController::class, 'updateFabricDefectByDomain'])->name('textile.master-domains.fabric-defects.update');
+    Route::post('/textile/master-setup/{domain}/fabric-defects/archive', [TextileMasterDataController::class, 'archiveFabricDefectByDomain'])->name('textile.master-domains.fabric-defects.archive');
+    Route::get('/textile/master-setup/{domain}/fabric-grades', [TextileMasterDataController::class, 'fabricGradesByDomain'])->name('textile.master-domains.fabric-grades.index');
+    Route::post('/textile/master-setup/{domain}/fabric-grades', [TextileMasterDataController::class, 'storeFabricGradeByDomain'])->name('textile.master-domains.fabric-grades.store');
+    Route::post('/textile/master-setup/{domain}/fabric-grades/update', [TextileMasterDataController::class, 'updateFabricGradeByDomain'])->name('textile.master-domains.fabric-grades.update');
+    Route::post('/textile/master-setup/{domain}/fabric-grades/archive', [TextileMasterDataController::class, 'archiveFabricGradeByDomain'])->name('textile.master-domains.fabric-grades.archive');
 
     Route::get('/textile/procurement', [TextileProcurementController::class, 'index'])->name('textile.procurement.index');
     Route::post('/textile/procurement/requisitions', [TextileProcurementController::class, 'storeRequisition'])->name('textile.procurement.requisitions.store');
@@ -139,7 +147,6 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/manufacturing/yarn-allocations', [TextileManufacturingController::class, 'storeYarnAllocation'])->name('textile.manufacturing.yarn-allocations.store');
     Route::post('/textile/manufacturing/warp-sheets', [TextileManufacturingController::class, 'storeWarpSheet'])->name('textile.manufacturing.warp-sheets.store');
     Route::post('/textile/manufacturing/warp-productions', [TextileManufacturingController::class, 'storeWarpProduction'])->name('textile.manufacturing.warp-productions.store');
-    Route::post('/textile/manufacturing/warp-costs', [TextileManufacturingController::class, 'storeWarpCost'])->name('textile.manufacturing.warp-costs.store');
     Route::post('/textile/manufacturing/sizing-recipes', [TextileManufacturingController::class, 'storeSizingRecipe'])->name('textile.manufacturing.sizing-recipes.store');
     Route::post('/textile/manufacturing/chemical-consumptions', [TextileManufacturingController::class, 'storeChemicalConsumption'])->name('textile.manufacturing.chemical-consumptions.store');
     Route::post('/textile/manufacturing/beams/from-sizing-recipe', [TextileManufacturingController::class, 'storeBeamFromSizingRecipe'])->name('textile.manufacturing.beams.from-sizing-recipe');
@@ -167,6 +174,8 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/manufacturing/operator-efficiencies', [TextileManufacturingController::class, 'storeOperatorEfficiency'])->name('textile.manufacturing.operator-efficiencies.store');
     Route::post('/textile/manufacturing/machine-downtimes', [TextileManufacturingController::class, 'storeMachineDowntime'])->name('textile.manufacturing.machine-downtimes.store');
     Route::post('/textile/manufacturing/production-costs', [TextileManufacturingController::class, 'storeProductionCost'])->name('textile.manufacturing.production-costs.store');
+    Route::post('/textile/manufacturing/grey-fabric-rolls', [TextileManufacturingController::class, 'storeGreyFabricRoll'])->name('textile.manufacturing.grey-fabric-rolls.store');
+    Route::post('/textile/manufacturing/grey-fabric-rolls/update', [TextileManufacturingController::class, 'updateGreyFabricRoll'])->name('textile.manufacturing.grey-fabric-rolls.update');
     Route::post('/textile/manufacturing/waste', [TextileManufacturingController::class, 'storeWaste'])->name('textile.manufacturing.waste.store');
     Route::post('/textile/manufacturing/rework', [TextileManufacturingController::class, 'storeRework'])->name('textile.manufacturing.rework.store');
 
@@ -175,6 +184,8 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/quality/inspections/finalize', [TextileQualityController::class, 'finalizeInspection'])->name('textile.quality.inspections.finalize');
     Route::post('/textile/quality/lots/hold', [TextileQualityController::class, 'holdLot'])->name('textile.quality.lots.hold');
     Route::post('/textile/quality/lots/release', [TextileQualityController::class, 'releaseLot'])->name('textile.quality.lots.release');
+    Route::post('/textile/quality/certificates', [TextileQualityController::class, 'storeCertificate'])->name('textile.quality.certificates.store');
+    Route::post('/textile/quality/certificates/issue', [TextileQualityController::class, 'issueCertificate'])->name('textile.quality.certificates.issue');
 
     Route::get('/textile/processing', [TextileProcessingController::class, 'index'])->name('textile.processing.index');
     Route::post('/textile/processing/outward', [TextileProcessingController::class, 'storeOutward'])->name('textile.processing.outward.store');
@@ -184,6 +195,15 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/processing/inward', [TextileProcessingController::class, 'storeInward'])->name('textile.processing.inward.store');
     Route::post('/textile/processing/inward/finalize', [TextileProcessingController::class, 'finalizeInward'])->name('textile.processing.inward.finalize');
     Route::post('/textile/processing/reconcile', [TextileProcessingController::class, 'reconcile'])->name('textile.processing.reconcile');
+    Route::post('/textile/processing/internal-processing', [TextileProcessingController::class, 'storeInternalProcessing'])->name('textile.processing.internal-processing.store');
+    Route::post('/textile/processing/dyeing', [TextileProcessingController::class, 'storeDyeing'])->name('textile.processing.dyeing.store');
+    Route::post('/textile/processing/printing', [TextileProcessingController::class, 'storePrinting'])->name('textile.processing.printing.store');
+    Route::post('/textile/processing/bleaching', [TextileProcessingController::class, 'storeBleaching'])->name('textile.processing.bleaching.store');
+    Route::post('/textile/processing/calendaring', [TextileProcessingController::class, 'storeCalendaring'])->name('textile.processing.calendaring.store');
+    Route::post('/textile/processing/compacting', [TextileProcessingController::class, 'storeCompacting'])->name('textile.processing.compacting.store');
+    Route::post('/textile/processing/finishing', [TextileProcessingController::class, 'storeFinishing'])->name('textile.processing.finishing.store');
+    Route::post('/textile/processing/shade-cards', [TextileProcessingController::class, 'storeShadeCard'])->name('textile.processing.shade-cards.store');
+    Route::post('/textile/processing/process-costs', [TextileProcessingController::class, 'storeProcessCost'])->name('textile.processing.process-costs.store');
 
     Route::get('/textile/costing', [TextileCostingController::class, 'index'])->name('textile.costing.index');
     Route::post('/textile/costing/entries', [TextileCostingController::class, 'storeCostingEntry'])->name('textile.costing.entries.store');

@@ -19,6 +19,8 @@ class TextileMasterDataController extends Controller
     private const MACHINE_TYPE_MASTER = 'machine_type';
     private const COST_TYPE_MASTER = 'cost_type';
     private const INSPECTION_RESULT_MASTER = 'inspection_result';
+    private const FABRIC_DEFECT_MASTER = 'fabric_defect';
+    private const FABRIC_GRADE_MASTER = 'fabric_grade';
     private const SHED_TYPE_MASTER = 'shed_type';
     private const LOOM_STATUS_MASTER = 'loom_status';
     private const BREAKDOWN_REASON_MASTER = 'breakdown_reason';
@@ -527,6 +529,46 @@ class TextileMasterDataController extends Controller
     public function archiveInspectionResultByDomain(Request $request, string $domain)
     {
         return $this->archiveReferenceMaster($request, self::INSPECTION_RESULT_MASTER, 'Textile inspection result deactivated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function fabricDefectsByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('fabric-defects', self::FABRIC_DEFECT_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeFabricDefectByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::FABRIC_DEFECT_MASTER, 'Textile fabric defect created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateFabricDefectByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::FABRIC_DEFECT_MASTER, 'Textile fabric defect updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveFabricDefectByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::FABRIC_DEFECT_MASTER, 'Textile fabric defect deactivated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function fabricGradesByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('fabric-grades', self::FABRIC_GRADE_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeFabricGradeByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::FABRIC_GRADE_MASTER, 'Textile fabric grade created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateFabricGradeByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::FABRIC_GRADE_MASTER, 'Textile fabric grade updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveFabricGradeByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::FABRIC_GRADE_MASTER, 'Textile fabric grade deactivated successfully.', $this->resolveDomain($domain));
     }
 
     public function storeMachineType(Request $request)

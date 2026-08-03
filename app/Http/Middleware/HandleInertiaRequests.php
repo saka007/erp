@@ -135,10 +135,6 @@ class HandleInertiaRequests extends Middleware
 
     private function isInstalled(): bool
     {
-        if (app()->environment('testing')) {
-            return true;
-        }
-
         return File::exists(storage_path('installed'));
     }
 

@@ -6,6 +6,7 @@ use App\Models\AddOn;
 use App\Models\Plan;
 use App\Models\User;
 use App\Models\UserActiveModule;
+use DigitalFuzed\TextileCore\Models\TextileOperatingPolicy;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -28,6 +29,16 @@ class TextileProcessingAdminTest extends TestCase
 
         $companyA = $this->company();
         $companyB = $this->company();
+
+        TextileOperatingPolicy::query()->updateOrCreate(
+            ['created_by' => $companyA->id],
+            [
+                'creator_id' => $companyA->id,
+                'operating_model' => 'jobwork_processing',
+                'material_ownership' => 'customer',
+                'billing_mode' => 'job_work_conversion',
+            ]
+        );
 
         $this->actingAs($companyA)
             ->post(route('textile.processing.outward.store'), [
@@ -128,17 +139,121 @@ class TextileProcessingAdminTest extends TestCase
         $this->assertSame('approved', $reconciliation->status);
         $this->assertSame((float) $outward->quantity - (float) $inward->quantity, (float) ($reconciliation->metadata['balance_quantity'] ?? -1));
 
+        $this->actingAs($companyA)
+            ->post(route('textile.processing.internal-processing.store'), [
+                'processing_batch_id' => $batch->id,
+                'recipe_code' => 'INT-001',
+                'quantity' => 94,
+                'unit' => 'mtr',
+                'notes' => 'Internal processing stage',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($companyA)
+            ->post(route('textile.processing.dyeing.store'), [
+                'processing_batch_id' => $batch->id,
+                'recipe_code' => 'DYE-001',
+                'quantity' => 93,
+                'unit' => 'mtr',
+                'notes' => 'Dyeing stage',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($companyA)
+            ->post(route('textile.processing.printing.store'), [
+                'processing_batch_id' => $batch->id,
+                'recipe_code' => 'PRN-001',
+                'quantity' => 92,
+                'unit' => 'mtr',
+                'notes' => 'Printing stage',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($companyA)
+            ->post(route('textile.processing.bleaching.store'), [
+                'processing_batch_id' => $batch->id,
+                'recipe_code' => 'BLE-001',
+                'quantity' => 91,
+                'unit' => 'mtr',
+                'notes' => 'Bleaching stage',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($companyA)
+            ->post(route('textile.processing.calendaring.store'), [
+                'processing_batch_id' => $batch->id,
+                'recipe_code' => 'CAL-001',
+                'quantity' => 90,
+                'unit' => 'mtr',
+                'notes' => 'Calendaring stage',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($companyA)
+            ->post(route('textile.processing.compacting.store'), [
+                'processing_batch_id' => $batch->id,
+                'recipe_code' => 'COM-001',
+                'quantity' => 89,
+                'unit' => 'mtr',
+                'notes' => 'Compacting stage',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($companyA)
+            ->post(route('textile.processing.finishing.store'), [
+                'processing_batch_id' => $batch->id,
+                'recipe_code' => 'FIN-001',
+                'quantity' => 88,
+                'unit' => 'mtr',
+                'notes' => 'Finishing stage',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($companyA)
+            ->post(route('textile.processing.shade-cards.store'), [
+                'processing_batch_id' => $batch->id,
+                'shade_code' => 'SHADE-ROYAL-BLUE',
+                'shade_family' => 'Blue',
+                'quantity' => 88,
+                'unit' => 'mtr',
+                'notes' => 'Shade card reference',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($companyA)
+            ->post(route('textile.processing.process-costs.store'), [
+                'processing_batch_id' => $batch->id,
+                'process_stage' => 'dyeing',
+                'cost_amount' => 1760,
+                'quantity' => 88,
+                'unit' => 'mtr',
+                'notes' => 'Dyeing process cost',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $processCost = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'process_cost')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($processCost);
+        $this->assertSame('dyeing', $processCost->metadata['process_stage']);
+        $this->assertSame(20.0, (float) $processCost->metadata['cost_per_unit']);
+
         $this->actingAs($companyB)
             ->get(route('textile.processing.index'))
             ->assertOk()
             ->assertDontSee('LOT-P-1')
-            ->assertDontSee('Dye House Alpha');
+            ->assertDontSee('Dye House Alpha')
+            ->assertDontSee('SHADE-ROYAL-BLUE');
 
         $this->actingAs($companyA)
             ->get(route('textile.processing.index'))
             ->assertOk()
             ->assertSee('LOT-P-1')
-            ->assertSee('Dye House Alpha');
+            ->assertSee('Dye House Alpha')
+            ->assertSee('SHADE-ROYAL-BLUE');
     }
 
     private function company(): User

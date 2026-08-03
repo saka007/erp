@@ -467,6 +467,69 @@ class TextileManufacturingAdminTest extends TestCase
         $this->assertSame(20.0, (float) $productionCost->metadata['cost_per_unit']);
 
         $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.grey-fabric-rolls.store'), [
+                'weaving_output_id' => $weavingOutput->id,
+                'roll_number' => 'ROLL-0001',
+                'roll_barcode' => 'BAR-0001',
+                'roll_qr_code' => 'QR-0001',
+                'roll_weight' => 48.5,
+                'roll_length' => 240,
+                'gsm' => 120,
+                'width' => 58,
+                'defects' => ['slub'],
+                'grade' => 'A',
+                'warehouse' => 'grey_store',
+                'unit' => 'mtr',
+                'operator_name' => 'Operator A',
+                'notes' => 'Initial grey roll generation',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $greyRoll = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'grey_fabric_roll')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($greyRoll);
+        $this->assertSame('ROLL-0001', $greyRoll->metadata['roll_number']);
+        $this->assertSame(48.5, (float) $greyRoll->metadata['roll_weight']);
+        $this->assertSame('A', $greyRoll->metadata['grade']);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.grey-fabric-rolls.update'), [
+                'grey_roll_id' => $greyRoll->id,
+                'roll_weight' => 49.0,
+                'roll_length' => 238,
+                'gsm' => 118,
+                'width' => 57,
+                'defects' => ['slub', 'stain'],
+                'grade' => 'B',
+                'warehouse' => 'dispatch_store',
+                'operator_name' => 'Operator A',
+                'notes' => 'Post-inspection update',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $greyRoll->refresh();
+        $this->assertSame(49.0, (float) $greyRoll->metadata['roll_weight']);
+        $this->assertSame(238.0, (float) $greyRoll->metadata['roll_length']);
+        $this->assertSame(118.0, (float) $greyRoll->metadata['gsm']);
+        $this->assertSame(57.0, (float) $greyRoll->metadata['width']);
+        $this->assertSame('B', $greyRoll->metadata['grade']);
+        $this->assertSame('dispatch_store', $greyRoll->metadata['warehouse']);
+
+        $greyRollHistory = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'grey_roll_history')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($greyRollHistory);
+        $this->assertSame($greyRoll->id, $greyRollHistory->source_reference_id);
+        $this->assertSame('updated', $greyRollHistory->metadata['history_event']);
+
+        $this->actingAs($companyA)
             ->post(route('textile.manufacturing.waste.store'), [
                 'batch_id' => $batch->id,
                 'quantity' => 8,
@@ -577,30 +640,6 @@ class TextileManufacturingAdminTest extends TestCase
         $this->assertNotNull($warpProduction);
         $this->assertSame('approved', $warpProduction->status);
         $this->assertSame($warpSheet->id, $warpProduction->source_reference_id);
-
-        $this->actingAs($companyA)
-            ->post(route('textile.manufacturing.warp-costs.store'), [
-                'warp_production_id' => $warpProduction->id,
-                'cost_type' => 'labor',
-                'cost_amount' => 1800,
-                'quantity' => 120,
-                'unit' => 'kg',
-                'notes' => 'Labor and overhead capture for warp batch run',
-            ])
-            ->assertSessionHasNoErrors();
-
-        $warpCost = TextileWorkflowDocument::query()
-            ->where('created_by', $companyA->id)
-            ->where('document_type', 'warp_cost')
-            ->latest('id')
-            ->first();
-
-        $this->assertNotNull($warpCost);
-        $this->assertSame('approved', $warpCost->status);
-        $this->assertSame($warpProduction->id, $warpCost->source_reference_id);
-        $this->assertSame('labor', $warpCost->metadata['cost_type']);
-        $this->assertSame(1800.0, (float) $warpCost->metadata['cost_amount']);
-        $this->assertSame(15.0, (float) $warpCost->metadata['cost_per_unit']);
 
         $this->actingAs($companyA)
             ->post(route('textile.manufacturing.sizing-recipes.store'), [
@@ -723,10 +762,11 @@ class TextileManufacturingAdminTest extends TestCase
             ->assertDontSee($operatorEfficiency->document_number)
             ->assertDontSee($machineDowntime->document_number)
             ->assertDontSee($productionCost->document_number)
+            ->assertDontSee($greyRoll->document_number)
+            ->assertDontSee($greyRollHistory->document_number)
             ->assertDontSee($beamFromSizing->document_number)
             ->assertDontSee($warpSheet->document_number)
             ->assertDontSee($warpProduction->document_number)
-            ->assertDontSee($warpCost->document_number)
             ->assertDontSee($sizingRecipe->document_number)
             ->assertDontSee($chemicalConsumption->document_number)
             ->assertDontSee($beamInspection->document_number)
@@ -758,9 +798,10 @@ class TextileManufacturingAdminTest extends TestCase
                 ->assertSee($operatorEfficiency->document_number)
                 ->assertSee($machineDowntime->document_number)
                 ->assertSee($productionCost->document_number)
+                ->assertSee($greyRoll->document_number)
+                ->assertSee($greyRollHistory->document_number)
                 ->assertSee($warpSheet->document_number)
                 ->assertSee($warpProduction->document_number)
-                ->assertSee($warpCost->document_number)
                 ->assertSee($sizingRecipe->document_number)
                 ->assertSee($chemicalConsumption->document_number)
                 ->assertSee($beamInspection->document_number)

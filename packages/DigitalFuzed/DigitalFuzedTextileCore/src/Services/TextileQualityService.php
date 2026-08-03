@@ -14,17 +14,25 @@ class TextileQualityService
 
     public function createInspection(array $payload): TextileWorkflowDocument
     {
+        $metadata = [
+            'qc_stage' => $payload['qc_stage'] ?? null,
+            'inspection_result' => $payload['inspection_result'] ?? null,
+            'shade_reference' => $payload['shade_reference'] ?? null,
+            'defects' => array_values(array_filter($payload['defects'] ?? [], fn ($value) => is_string($value) && trim($value) !== '')),
+            'notes' => $payload['notes'] ?? null,
+        ];
+
         return $this->workflowService->createDocument([
             'document_type' => 'inspection',
-            'source_reference_type' => $payload['source_reference_type'] ?? null,
+            'source_reference_type' => $payload['source_reference_type'] ?? ($payload['qc_stage'] ?? null),
             'source_reference_id' => $payload['source_reference_id'] ?? null,
-            'source_action' => $payload['source_action'] ?? null,
+            'source_action' => $payload['source_action'] ?? 'inspection',
             'party_name' => $payload['party_name'] ?? null,
             'lot_reference' => $payload['lot_reference'] ?? null,
             'quantity' => $payload['quantity'] ?? 0,
             'unit' => $payload['unit'] ?? null,
             'status' => 'draft',
-            'metadata' => $payload['metadata'] ?? null,
+            'metadata' => $metadata,
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
     }
@@ -33,11 +41,49 @@ class TextileQualityService
     {
         $inspection = $this->findTenantDocument($inspectionId, 'inspection');
 
-        if (!in_array($decision, ['pass', 'fail'], true)) {
-            throw new RuntimeException('Inspection decision must be pass or fail.');
+        if (!in_array($decision, ['pass', 'fail', 'rework'], true)) {
+            throw new RuntimeException('Inspection decision must be pass, fail, or rework.');
         }
 
+        $inspection->metadata = array_merge($inspection->metadata ?? [], [
+            'final_decision' => $decision,
+        ]);
+        $inspection->save();
+
         return $this->workflowService->transitionStatus($inspection->id, $decision === 'pass' ? 'approved' : 'rejected');
+    }
+
+    public function createCertificate(array $payload): TextileWorkflowDocument
+    {
+        if (!empty($payload['inspection_id'])) {
+            $inspection = $this->findTenantDocument((int) $payload['inspection_id'], 'inspection');
+
+            if (!in_array($inspection->status, ['approved', 'released'], true)) {
+                throw new RuntimeException('Inspection must be approved before certificate creation.');
+            }
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'quality_certificate',
+            'source_reference_type' => $payload['source_reference_type'] ?? 'quality_inspection',
+            'source_reference_id' => $payload['inspection_id'] ?? null,
+            'source_action' => $payload['source_action'] ?? 'quality_certificate',
+            'lot_reference' => $payload['lot_reference'] ?? null,
+            'quantity' => 0,
+            'status' => 'draft',
+            'metadata' => [
+                'certificate_number' => $payload['certificate_number'] ?? null,
+                'inspection_id' => $payload['inspection_id'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
+        ]);
+    }
+
+    public function issueCertificate(int $certificateId): TextileWorkflowDocument
+    {
+        $certificate = $this->findTenantDocument($certificateId, 'quality_certificate');
+
+        return $this->workflowService->transitionStatus($certificate->id, 'approved');
     }
 
     public function holdLot(string $lotReference, string $reason): TextileWorkflowDocument

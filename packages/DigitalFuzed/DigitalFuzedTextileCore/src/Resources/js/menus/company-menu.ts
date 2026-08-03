@@ -104,6 +104,18 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                         title: t('Weaving Production'),
                         href: route('textile.manufacturing.index', { section: 'weaving-output' }),
                         capability: 'manufacturing_weaving',
+                        children: [
+                            {
+                                title: t('Domain 13: Weaving Production'),
+                                href: route('textile.manufacturing.index', { section: 'weaving-output', sub: 'domain-13' }),
+                                capability: 'manufacturing_weaving',
+                            },
+                            {
+                                title: t('Domain 14: Grey Fabric'),
+                                href: route('textile.manufacturing.index', { section: 'weaving-output', sub: 'domain-14' }),
+                                capability: 'manufacturing_weaving',
+                            },
+                        ],
                     },
                     {
                         title: t('Waste'),
@@ -123,14 +135,44 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                 capability: 'quality',
                 children: [
                     {
-                        title: t('Inspection'),
-                        href: route('textile.quality.index'),
+                        title: t('Incoming QC'),
+                        href: route('textile.procurement.index', { section: 'incoming-qc' }),
+                        capability: 'quality_inspection',
+                    },
+                    {
+                        title: t('Process QC'),
+                        href: route('textile.quality.index', { section: 'inspection', qc_stage: 'in_process_qc' }),
+                        capability: 'quality_inspection',
+                    },
+                    {
+                        title: t('Final QC'),
+                        href: route('textile.quality.index', { section: 'inspection', qc_stage: 'final_qc' }),
+                        capability: 'quality_inspection',
+                    },
+                    {
+                        title: t('Shade Matching'),
+                        href: route('textile.quality.index', { section: 'inspection', qc_stage: 'shade_matching' }),
+                        capability: 'quality_inspection',
+                    },
+                    {
+                        title: t('Fabric Inspection'),
+                        href: route('textile.quality.index', { section: 'inspection' }),
+                        capability: 'quality_inspection',
+                    },
+                    {
+                        title: t('Reject'),
+                        href: route('textile.quality.index', { section: 'inspection', decision: 'fail' }),
                         capability: 'quality_inspection',
                     },
                     {
                         title: t('Hold and Release'),
-                        href: route('textile.quality.index'),
+                        href: route('textile.quality.index', { section: 'hold-release' }),
                         capability: 'quality_hold_release',
+                    },
+                    {
+                        title: t('Quality Certificates'),
+                        href: route('textile.quality.index', { section: 'certificates' }),
+                        capability: 'quality_inspection',
                     },
                 ],
             },
@@ -140,23 +182,68 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                 capability: 'processing',
                 children: [
                     {
+                        title: t('Internal Processing'),
+                        href: route('textile.processing.index', { section: 'internal-processing' }),
+                        capability: 'processing_batch',
+                    },
+                    {
                         title: t('Job Work Outward'),
-                        href: route('textile.processing.index'),
+                        href: route('textile.processing.index', { section: 'job-work-outward' }),
                         capability: 'processing_outward',
                     },
                     {
                         title: t('Processing Batch'),
-                        href: route('textile.processing.index'),
+                        href: route('textile.processing.index', { section: 'processing-batch' }),
+                        capability: 'processing_batch',
+                    },
+                    {
+                        title: t('Dyeing'),
+                        href: route('textile.processing.index', { section: 'dyeing' }),
+                        capability: 'processing_batch',
+                    },
+                    {
+                        title: t('Printing'),
+                        href: route('textile.processing.index', { section: 'printing' }),
+                        capability: 'processing_batch',
+                    },
+                    {
+                        title: t('Bleaching'),
+                        href: route('textile.processing.index', { section: 'bleaching' }),
+                        capability: 'processing_batch',
+                    },
+                    {
+                        title: t('Calendaring'),
+                        href: route('textile.processing.index', { section: 'calendaring' }),
+                        capability: 'processing_batch',
+                    },
+                    {
+                        title: t('Compacting'),
+                        href: route('textile.processing.index', { section: 'compacting' }),
+                        capability: 'processing_batch',
+                    },
+                    {
+                        title: t('Finishing'),
+                        href: route('textile.processing.index', { section: 'finishing' }),
+                        capability: 'processing_batch',
+                    },
+                    {
+                        title: t('Shade Card'),
+                        href: route('textile.processing.index', { section: 'shade-card' }),
+                        capability: 'processing_inward',
+                    },
+                    {
+                        title: t('Process Cost'),
+                        href: route('textile.processing.index', { section: 'process-cost' }),
                         capability: 'processing_batch',
                     },
                     {
                         title: t('Job Work Inward'),
-                        href: route('textile.processing.index'),
+                        href: route('textile.processing.index', { section: 'job-work-inward' }),
                         capability: 'processing_inward',
                     },
                     {
                         title: t('Reconciliation'),
-                        href: route('textile.processing.index'),
+                        href: route('textile.processing.index', { section: 'reconciliation' }),
                         capability: 'processing_reconciliation',
                     },
                 ],
@@ -255,6 +342,14 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                                 title: t('Inspection Results'),
                                 href: route('textile.master-domains.inspection-results.index', { domain: 'manufacturing' }),
                             },
+                            {
+                                title: t('Fabric Defects'),
+                                href: route('textile.master-domains.fabric-defects.index', { domain: 'manufacturing' }),
+                            },
+                            {
+                                title: t('Fabric Grades'),
+                                href: route('textile.master-domains.fabric-grades.index', { domain: 'manufacturing' }),
+                            },
                         ],
                     },
                     {
@@ -306,6 +401,14 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                             {
                                 title: t('Source Actions'),
                                 href: route('textile.master-domains.source-actions.index', { domain: 'quality' }),
+                            },
+                            {
+                                title: t('Inspection Results'),
+                                href: route('textile.master-domains.inspection-results.index', { domain: 'quality' }),
+                            },
+                            {
+                                title: t('Fabric Defects'),
+                                href: route('textile.master-domains.fabric-defects.index', { domain: 'quality' }),
                             },
                         ],
                     },

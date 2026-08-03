@@ -36,7 +36,6 @@ class TextileManufacturingController extends Controller
             'yarnAllocations' => $this->documents('yarn_allocation'),
             'warpSheets' => $this->documents('warp_sheet'),
             'warpProductions' => $this->documents('warp_production'),
-            'warpCosts' => $this->documents('warp_cost'),
             'sizingRecipes' => $this->documents('sizing_recipe'),
             'chemicalConsumptions' => $this->documents('chemical_consumption'),
             'loomMasters' => $this->documents('loom_master'),
@@ -61,6 +60,8 @@ class TextileManufacturingController extends Controller
             'operatorEfficiencies' => $this->documents('operator_efficiency'),
             'machineDowntimes' => $this->documents('machine_downtime'),
             'productionCosts' => $this->documents('production_cost'),
+            'greyFabricRolls' => $this->documents('grey_fabric_roll'),
+            'greyRollHistories' => $this->documents('grey_roll_history'),
             'wastes' => $this->documents('waste'),
             'reworks' => $this->documents('rework'),
             'sourceTypeOptions' => $this->sourceTypeOptions(),
@@ -76,6 +77,9 @@ class TextileManufacturingController extends Controller
             'costCenterOptions' => $this->costCenterOptions(),
             'costTypeOptions' => $this->costTypeOptions(),
             'inspectionResultOptions' => $this->inspectionResultOptions(),
+            'fabricDefectOptions' => $this->fabricDefectOptions(),
+            'fabricGradeOptions' => $this->fabricGradeOptions(),
+            'warehouseOptions' => $this->warehouseOptions(),
             'chemicalOptions' => $this->chemicalOptions(),
             'operatorOptions' => $this->operatorOptions(),
             'partyOptions' => $this->partyOptions(),
@@ -177,29 +181,6 @@ class TextileManufacturingController extends Controller
         }
 
         return back()->with('success', __('Warp production created successfully.'));
-    }
-
-    public function storeWarpCost(Request $request, TextileManufacturingService $service)
-    {
-        $this->authorizeTextileAccess();
-        $this->authorizeCapability('manufacturing_warping', 'warp_production_id');
-
-        $validated = $request->validate([
-            'warp_production_id' => ['required', 'integer', 'min:1'],
-            'cost_type' => ['required', 'string', 'max:100', Rule::in($this->costTypeOptions())],
-            'cost_amount' => ['required', 'numeric', 'gt:0'],
-            'quantity' => ['nullable', 'numeric', 'gt:0'],
-            'unit' => ['nullable', 'string', 'max:50'],
-            'notes' => ['nullable', 'string', 'max:500'],
-        ]);
-
-        try {
-            $service->createWarpCost((int) $validated['warp_production_id'], $validated);
-        } catch (RuntimeException $exception) {
-            return back()->withErrors(['warp_production_id' => __($exception->getMessage())]);
-        }
-
-        return back()->with('success', __('Warp cost recorded successfully.'));
     }
 
     public function storeSizingRecipe(Request $request, TextileManufacturingService $service)
@@ -800,6 +781,66 @@ class TextileManufacturingController extends Controller
         return back()->with('success', __('Production cost recorded successfully.'));
     }
 
+    public function storeGreyFabricRoll(Request $request, TextileManufacturingService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('manufacturing_weaving', 'weaving_output_id');
+
+        $validated = $request->validate([
+            'weaving_output_id' => ['required', 'integer', 'min:1'],
+            'roll_number' => ['nullable', 'string', 'max:100'],
+            'roll_barcode' => ['nullable', 'string', 'max:150'],
+            'roll_qr_code' => ['nullable', 'string', 'max:500'],
+            'roll_weight' => ['nullable', 'numeric', 'gt:0'],
+            'roll_length' => ['nullable', 'numeric', 'gt:0'],
+            'gsm' => ['nullable', 'numeric', 'gt:0'],
+            'width' => ['nullable', 'numeric', 'gt:0'],
+            'defects' => ['nullable', 'array'],
+            'defects.*' => ['required', 'string', Rule::in($this->fabricDefectOptions())],
+            'grade' => ['nullable', 'string', Rule::in($this->fabricGradeOptions())],
+            'warehouse' => ['nullable', 'string', Rule::in($this->warehouseOptions())],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $service->createGreyFabricRoll((int) $validated['weaving_output_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['weaving_output_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Grey fabric roll generated successfully.'));
+    }
+
+    public function updateGreyFabricRoll(Request $request, TextileManufacturingService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('manufacturing_weaving', 'grey_roll_id');
+
+        $validated = $request->validate([
+            'grey_roll_id' => ['required', 'integer', 'min:1'],
+            'roll_weight' => ['nullable', 'numeric', 'gt:0'],
+            'roll_length' => ['nullable', 'numeric', 'gt:0'],
+            'gsm' => ['nullable', 'numeric', 'gt:0'],
+            'width' => ['nullable', 'numeric', 'gt:0'],
+            'defects' => ['nullable', 'array'],
+            'defects.*' => ['required', 'string', Rule::in($this->fabricDefectOptions())],
+            'grade' => ['nullable', 'string', Rule::in($this->fabricGradeOptions())],
+            'warehouse' => ['nullable', 'string', Rule::in($this->warehouseOptions())],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $service->updateGreyFabricRoll((int) $validated['grey_roll_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['grey_roll_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Grey fabric roll updated successfully.'));
+    }
+
     public function storeWaste(Request $request, TextileManufacturingService $service)
     {
         $this->authorizeTextileAccess();
@@ -1096,6 +1137,56 @@ class TextileManufacturingController extends Controller
         return count($options) > 0 ? $options : $this->defaultInspectionResultOptions();
     }
 
+    private function fabricDefectOptions(): array
+    {
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultFabricDefectOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
+            ->type('fabric_defect')
+            ->where('created_by', creatorId())
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('manufacturing');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultFabricDefectOptions();
+    }
+
+    private function fabricGradeOptions(): array
+    {
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultFabricGradeOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
+            ->type('fabric_grade')
+            ->where('created_by', creatorId())
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('manufacturing');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultFabricGradeOptions();
+    }
+
+    private function warehouseOptions(): array
+    {
+        return [
+            'main_warehouse',
+            'grey_store',
+            'dispatch_store',
+            'quarantine_store',
+        ];
+    }
+
     private function defaultSourceTypeOptions(): array
     {
         return [
@@ -1183,6 +1274,28 @@ class TextileManufacturingController extends Controller
             'pass',
             'hold',
             'rework',
+        ];
+    }
+
+    private function defaultFabricDefectOptions(): array
+    {
+        return [
+            'slub',
+            'missing_end',
+            'broken_pick',
+            'stain',
+            'hole',
+            'shade_variation',
+        ];
+    }
+
+    private function defaultFabricGradeOptions(): array
+    {
+        return [
+            'A',
+            'B',
+            'C',
+            'reject',
         ];
     }
 

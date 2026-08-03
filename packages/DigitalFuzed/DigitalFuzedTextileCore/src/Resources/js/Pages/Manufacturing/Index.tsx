@@ -34,7 +34,6 @@ export default function Index({
     yarnAllocations,
     warpSheets,
     warpProductions,
-    warpCosts,
     sizingRecipes,
     chemicalConsumptions,
     loomMasters,
@@ -59,6 +58,8 @@ export default function Index({
     operatorEfficiencies,
     machineDowntimes,
     productionCosts,
+    greyFabricRolls,
+    greyRollHistories,
     wastes,
     reworks,
     sourceTypeOptions,
@@ -74,6 +75,9 @@ export default function Index({
     costCenterOptions,
     costTypeOptions,
     inspectionResultOptions,
+    fabricDefectOptions,
+    fabricGradeOptions,
+    warehouseOptions,
     chemicalOptions,
     operatorOptions,
     partyOptions,
@@ -83,7 +87,6 @@ export default function Index({
     yarnAllocations: WorkflowDocument[];
     warpSheets: WorkflowDocument[];
     warpProductions: WorkflowDocument[];
-    warpCosts: WorkflowDocument[];
     sizingRecipes: WorkflowDocument[];
     chemicalConsumptions: WorkflowDocument[];
     loomMasters: WorkflowDocument[];
@@ -108,6 +111,8 @@ export default function Index({
     operatorEfficiencies: WorkflowDocument[];
     machineDowntimes: WorkflowDocument[];
     productionCosts: WorkflowDocument[];
+    greyFabricRolls: WorkflowDocument[];
+    greyRollHistories: WorkflowDocument[];
     wastes: WorkflowDocument[];
     reworks: WorkflowDocument[];
     sourceTypeOptions: string[];
@@ -123,6 +128,9 @@ export default function Index({
     costCenterOptions: Array<{ value: string; label: string }>;
     costTypeOptions: string[];
     inspectionResultOptions: string[];
+    fabricDefectOptions: string[];
+    fabricGradeOptions: string[];
+    warehouseOptions: string[];
     chemicalOptions: string[];
     operatorOptions: string[];
     partyOptions: string[];
@@ -162,7 +170,6 @@ export default function Index({
     const yarnAllocationForm = useForm({ warp_plan_id: '' });
     const warpSheetForm = useForm({ yarn_allocation_id: '' });
     const warpProductionForm = useForm({ warp_sheet_id: '' });
-    const warpCostForm = useForm({ warp_production_id: '', cost_type: '', cost_amount: '', quantity: '', unit: 'kg', notes: '' });
     const sizingRecipeForm = useForm({ warp_production_id: '' });
     const chemicalConsumptionForm = useForm({
         sizing_recipe_id: '',
@@ -219,6 +226,8 @@ export default function Index({
     const operatorEfficiencyForm = useForm({ planned_shift: 'day', planned_quantity: '', actual_quantity: '', unit: 'mtr', operator_name: '', notes: '' });
     const machineDowntimeForm = useForm({ loom_master_id: '', planned_shift: 'day', downtime_reason: '', downtime_hours: '', unit: 'hour', operator_name: '', notes: '' });
     const productionCostForm = useForm({ weaving_output_id: '', cost_center_id: '', cost_amount: '', quantity: '', unit: 'mtr', operator_name: '', notes: '' });
+    const greyFabricRollForm = useForm({ weaving_output_id: '', roll_number: '', roll_barcode: '', roll_qr_code: '', roll_weight: '', roll_length: '', gsm: '', width: '', defects: [] as string[], grade: '', warehouse: '', unit: 'mtr', operator_name: '', notes: '' });
+    const greyFabricRollUpdateForm = useForm({ grey_roll_id: '', roll_weight: '', roll_length: '', gsm: '', width: '', defects: [] as string[], grade: '', warehouse: '', operator_name: '', notes: '' });
     const wasteForm = useForm({ batch_id: '', quantity: '', unit: 'mtr' });
     const reworkForm = useForm({ weaving_output_id: '', quantity: '', unit: 'mtr' });
     const approvedWarpPlans = warpPlans.filter((row) => row.status === 'approved');
@@ -257,12 +266,15 @@ export default function Index({
     const resolvedShiftOptions = shiftOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedUnitOptions = buildUnitOptions(unitOptions);
     const resolvedCostCenterOptions = costCenterOptions;
+    const resolvedFabricDefectOptions = fabricDefectOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
+    const resolvedFabricGradeOptions = fabricGradeOptions.map((value) => ({ value, label: value }));
+    const resolvedWarehouseOptions = warehouseOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedChemicalOptions = chemicalOptions.map((value) => ({ value, label: value }));
     const resolvedCostTypeOptions = costTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedInspectionResultOptions = inspectionResultOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedOperatorOptions = operatorOptions.map((value) => ({ value, label: value }));
 
-    const allDocuments = [...warpPlans, ...yarnAllocations, ...warpSheets, ...warpProductions, ...warpCosts, ...sizingRecipes, ...chemicalConsumptions, ...loomMasters, ...loomBreakdowns, ...loomMaintenances, ...productionCalendars, ...capacityPlans, ...shiftPlans, ...machinePlans, ...materialPlans, ...productionSchedules, ...beams, ...beamIssues, ...beamReturns, ...beamInspections, ...beamCosts, ...productionBatches, ...weavingOutputs, ...shiftProductions, ...takhaEntries, ...loomEfficiencies, ...operatorEfficiencies, ...machineDowntimes, ...productionCosts, ...wastes, ...reworks];
+    const allDocuments = [...warpPlans, ...yarnAllocations, ...warpSheets, ...warpProductions, ...sizingRecipes, ...chemicalConsumptions, ...loomMasters, ...loomBreakdowns, ...loomMaintenances, ...productionCalendars, ...capacityPlans, ...shiftPlans, ...machinePlans, ...materialPlans, ...productionSchedules, ...beams, ...beamIssues, ...beamReturns, ...beamInspections, ...beamCosts, ...productionBatches, ...weavingOutputs, ...shiftProductions, ...takhaEntries, ...loomEfficiencies, ...operatorEfficiencies, ...machineDowntimes, ...productionCosts, ...greyFabricRolls, ...greyRollHistories, ...wastes, ...reworks];
     const draftCount = allDocuments.filter((row) => row.status === 'draft').length;
     const approvedCount = allDocuments.filter((row) => row.status === 'approved').length;
     const releasedCount = allDocuments.filter((row) => row.status === 'released').length;
@@ -278,7 +290,6 @@ export default function Index({
 
     const beamIssueById = new Map<number, WorkflowDocument>(beamIssues.map((row) => [row.id, row]));
     const beamById = new Map<number, WorkflowDocument>(beams.map((row) => [row.id, row]));
-    const warpProductionById = new Map<number, WorkflowDocument>(warpProductions.map((row) => [row.id, row]));
     const issuedByBeamId = new Map<number, number>();
     const returnedByBeamId = new Map<number, number>();
 
@@ -375,7 +386,7 @@ export default function Index({
                 title={t('Manufacturing Overview')}
                 className="mb-6"
                 items={[
-                    { label: t('Total Documents'), value: allDocuments.length, hint: t('Warp + Yarn Allocation + Warp Sheet + Warp Production + Warp Cost + Sizing Recipe + Loom + Beam + Batch + Output + Waste + Rework') },
+                    { label: t('Total Documents'), value: allDocuments.length, hint: t('Warp + Yarn Allocation + Warp Sheet + Warp Production + Sizing Recipe + Loom + Beam + Batch + Output + Waste + Rework') },
                     { label: t('Chemical Records'), value: chemicalConsumptions.length, hint: t('Sizing chemical usage entries') },
                     { label: t('Loom Breakdowns'), value: loomBreakdowns.length, hint: t('Loom stoppage and downtime entries') },
                     { label: t('Loom Maintenance'), value: loomMaintenances.length, hint: t('Preventive/corrective maintenance entries') },
@@ -385,7 +396,6 @@ export default function Index({
                     { label: t('Production Cost Records'), value: productionCosts.length, hint: t('Weaving cost capture entries') },
                     { label: t('Beam Inspections'), value: beamInspections.length, hint: t('Sizing and beam quality checkpoints') },
                     { label: t('Beam Cost Records'), value: beamCosts.length, hint: t('Sizing and beam cost capture entries') },
-                    { label: t('Warp Cost Records'), value: warpCosts.length, hint: t('Warp batch cost capture entries') },
                     { label: t('Draft'), value: draftCount, hint: t('Waiting for review') },
                     { label: t('Approved'), value: approvedCount, hint: t('Ready for release actions') },
                     { label: t('Released'), value: releasedCount, hint: t('Ready for production execution') },
@@ -541,55 +551,6 @@ export default function Index({
                                 required
                             />
                             <Button type="submit" disabled={warpProductionForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Warp Production')}</Button>
-                        </form>
-                    </TextileFormCard>
-
-                    <TextileFormCard title={t('Record Warp Cost from Warp Production')} icon={Check}>
-                        <form className="space-y-3" onSubmit={(e) => {
-                            e.preventDefault();
-                            warpCostForm.post(route('textile.manufacturing.warp-costs.store'), {
-                                onSuccess: () => warpCostForm.reset('warp_production_id', 'cost_type', 'cost_amount', 'quantity', 'notes'),
-                            });
-                        }}>
-                            <SelectField
-                                label={t('Warp Production')}
-                                value={warpCostForm.data.warp_production_id}
-                                onChange={(v) => warpCostForm.setData('warp_production_id', v)}
-                                options={createTextileWorkflowSelectOptions(actionableWarpProductions)}
-                                includeEmpty
-                                emptyLabel={t('Select warp production')}
-                                helperText={t('Only completed warp production entries are listed for cost capture.')}
-                                disabled={actionableWarpProductions.length === 0}
-                                disabledReason={t('No completed warp production found. Create warp production first.')}
-                                required
-                            />
-                            <div className="grid grid-cols-2 gap-3">
-                                <SelectField
-                                    label={t('Cost Type')}
-                                    value={warpCostForm.data.cost_type}
-                                    onChange={(v) => warpCostForm.setData('cost_type', v)}
-                                    options={resolvedCostTypeOptions}
-                                    includeEmpty
-                                    emptyLabel={t('Select cost type')}
-                                    helperText={t('Cost types are controlled from Master Setup > Manufacturing Setup > Cost Types.')}
-                                    required
-                                />
-                                <Field label={t('Cost Amount')} type="number" value={warpCostForm.data.cost_amount} onChange={(v) => warpCostForm.setData('cost_amount', v)} required />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <Field label={t('Quantity')} type="number" value={warpCostForm.data.quantity} onChange={(v) => warpCostForm.setData('quantity', v)} />
-                                <SelectField
-                                    label={t('Unit')}
-                                    value={warpCostForm.data.unit}
-                                    onChange={(v) => warpCostForm.setData('unit', v)}
-                                    options={resolvedUnitOptions}
-                                    includeEmpty
-                                    emptyLabel={t('Select unit')}
-                                    helperText={t('Units are derived from Unit Conversion master.')}
-                                />
-                            </div>
-                            <Field label={t('Notes')} value={warpCostForm.data.notes} onChange={(v) => warpCostForm.setData('notes', v)} />
-                            <Button type="submit" disabled={warpCostForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Warp Cost')}</Button>
                         </form>
                     </TextileFormCard>
 
@@ -781,30 +742,6 @@ export default function Index({
                         data={warpProductions}
                         columns={createTextileWorkflowColumns(t)}
                         emptyState={<NoRecordsFound icon={Factory} title={t('No warp production found')} description={t('Create warp production entries from completed warp sheets.')} />}
-                    />
-                    <TextileDataTableSection
-                        title={t('Warp Cost Records')}
-                        data={warpCosts}
-                        columns={[
-                            { key: 'document_number', header: t('Number') },
-                            {
-                                key: 'source_reference_id',
-                                header: t('Warp Production'),
-                                render: (value: unknown) => {
-                                    const warpProductionId = Number(value ?? 0);
-                                    const warpProductionRecord = warpProductionById.get(warpProductionId);
-
-                                    return warpProductionRecord?.document_number ?? String(value ?? '-');
-                                },
-                            },
-                            { key: 'cost_type', header: t('Cost Type'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_type ?? '-') },
-                            { key: 'cost_amount', header: t('Cost Amount'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_amount ?? '-') },
-                            { key: 'cost_per_unit', header: t('Cost/Unit'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_per_unit ?? '-') },
-                            { key: 'quantity', header: t('Quantity') },
-                            { key: 'unit', header: t('Unit') },
-                            { key: 'status', header: t('Status') },
-                        ]}
-                        emptyState={<NoRecordsFound icon={Factory} title={t('No warp cost found')} description={t('Record warp cost entries from completed warp production.')} />}
                     />
                     <TextileDataTableSection
                         title={t('Sizing Recipe Records')}
@@ -1783,6 +1720,66 @@ export default function Index({
                         </form>
                     </TextileFormCard>
 
+                    <TextileFormCard title={t('Generate Grey Fabric Roll')} icon={Factory}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            greyFabricRollForm.post(route('textile.manufacturing.grey-fabric-rolls.store'), {
+                                onSuccess: () => greyFabricRollForm.reset('weaving_output_id', 'roll_number', 'roll_barcode', 'roll_qr_code', 'roll_weight', 'roll_length', 'gsm', 'width', 'grade', 'warehouse', 'operator_name', 'notes'),
+                            });
+                        }}>
+                            <SelectField label={t('Weaving Output')} value={greyFabricRollForm.data.weaving_output_id} onChange={(v) => greyFabricRollForm.setData('weaving_output_id', v)} options={createTextileWorkflowSelectOptions(completedWeavingOutputs)} includeEmpty emptyLabel={t('Select weaving output')} helperText={t('Only completed weaving outputs are listed.')} disabled={completedWeavingOutputs.length === 0} disabledReason={t('No weaving output found. Record weaving output first.')} required />
+                            <div className="grid grid-cols-3 gap-3">
+                                <Field label={t('Roll Number')} value={greyFabricRollForm.data.roll_number} onChange={(v) => greyFabricRollForm.setData('roll_number', v)} />
+                                <Field label={t('Roll Barcode')} value={greyFabricRollForm.data.roll_barcode} onChange={(v) => greyFabricRollForm.setData('roll_barcode', v)} />
+                                <Field label={t('Roll QR Code')} value={greyFabricRollForm.data.roll_qr_code} onChange={(v) => greyFabricRollForm.setData('roll_qr_code', v)} />
+                            </div>
+                            <div className="grid grid-cols-4 gap-3">
+                                <Field label={t('Roll Weight')} type="number" value={greyFabricRollForm.data.roll_weight} onChange={(v) => greyFabricRollForm.setData('roll_weight', v)} required />
+                                <Field label={t('Roll Length')} type="number" value={greyFabricRollForm.data.roll_length} onChange={(v) => greyFabricRollForm.setData('roll_length', v)} required />
+                                <Field label={t('GSM')} type="number" value={greyFabricRollForm.data.gsm} onChange={(v) => greyFabricRollForm.setData('gsm', v)} required />
+                                <Field label={t('Width')} type="number" value={greyFabricRollForm.data.width} onChange={(v) => greyFabricRollForm.setData('width', v)} required />
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
+                                <SelectField label={t('Defects')} value={greyFabricRollForm.data.defects.join(',')} onChange={(v) => greyFabricRollForm.setData('defects', v ? v.split(',').map((item) => item.trim()).filter(Boolean) : [])} options={resolvedFabricDefectOptions} includeEmpty emptyLabel={t('Select defects')} helperText={t('Defects are managed from Beam and Cost Setup > Fabric Defects.')} />
+                                <SelectField label={t('Grade')} value={greyFabricRollForm.data.grade} onChange={(v) => greyFabricRollForm.setData('grade', v)} options={resolvedFabricGradeOptions} includeEmpty emptyLabel={t('Select grade')} helperText={t('Grades are managed from Beam and Cost Setup > Fabric Grades.')} required />
+                                <SelectField label={t('Warehouse')} value={greyFabricRollForm.data.warehouse} onChange={(v) => greyFabricRollForm.setData('warehouse', v)} options={resolvedWarehouseOptions} includeEmpty emptyLabel={t('Select warehouse')} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <SelectField label={t('Unit')} value={greyFabricRollForm.data.unit} onChange={(v) => greyFabricRollForm.setData('unit', v)} options={resolvedUnitOptions} includeEmpty emptyLabel={t('Select unit')} helperText={t('Units are derived from Unit Conversion master.')} />
+                                <SelectField label={t('Operator')} value={greyFabricRollForm.data.operator_name} onChange={(v) => greyFabricRollForm.setData('operator_name', v)} options={resolvedOperatorOptions} includeEmpty emptyLabel={t('Select operator')} helperText={t('Operators are listed from your company users.')} disabled={resolvedOperatorOptions.length === 0} disabledReason={t('No operators found. Add company users first.')} />
+                            </div>
+                            <Field label={t('Notes')} value={greyFabricRollForm.data.notes} onChange={(v) => greyFabricRollForm.setData('notes', v)} />
+                            <Button type="submit" disabled={greyFabricRollForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Generate Roll')}</Button>
+                        </form>
+                    </TextileFormCard>
+
+                    <TextileFormCard title={t('Update Grey Fabric Roll')} icon={Factory}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            greyFabricRollUpdateForm.post(route('textile.manufacturing.grey-fabric-rolls.update'), {
+                                onSuccess: () => greyFabricRollUpdateForm.reset('grey_roll_id', 'roll_weight', 'roll_length', 'gsm', 'width', 'grade', 'warehouse', 'operator_name', 'notes'),
+                            });
+                        }}>
+                            <SelectField label={t('Grey Roll')} value={greyFabricRollUpdateForm.data.grey_roll_id} onChange={(v) => greyFabricRollUpdateForm.setData('grey_roll_id', v)} options={createTextileWorkflowSelectOptions(greyFabricRolls)} includeEmpty emptyLabel={t('Select grey roll')} helperText={t('Select generated roll to update quality and trace fields.')} disabled={greyFabricRolls.length === 0} disabledReason={t('No grey roll found. Generate grey roll first.')} required />
+                            <div className="grid grid-cols-4 gap-3">
+                                <Field label={t('Roll Weight')} type="number" value={greyFabricRollUpdateForm.data.roll_weight} onChange={(v) => greyFabricRollUpdateForm.setData('roll_weight', v)} />
+                                <Field label={t('Roll Length')} type="number" value={greyFabricRollUpdateForm.data.roll_length} onChange={(v) => greyFabricRollUpdateForm.setData('roll_length', v)} />
+                                <Field label={t('GSM')} type="number" value={greyFabricRollUpdateForm.data.gsm} onChange={(v) => greyFabricRollUpdateForm.setData('gsm', v)} />
+                                <Field label={t('Width')} type="number" value={greyFabricRollUpdateForm.data.width} onChange={(v) => greyFabricRollUpdateForm.setData('width', v)} />
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
+                                <SelectField label={t('Defects')} value={greyFabricRollUpdateForm.data.defects.join(',')} onChange={(v) => greyFabricRollUpdateForm.setData('defects', v ? v.split(',').map((item) => item.trim()).filter(Boolean) : [])} options={resolvedFabricDefectOptions} includeEmpty emptyLabel={t('Select defects')} helperText={t('Defects are managed from Beam and Cost Setup > Fabric Defects.')} />
+                                <SelectField label={t('Grade')} value={greyFabricRollUpdateForm.data.grade} onChange={(v) => greyFabricRollUpdateForm.setData('grade', v)} options={resolvedFabricGradeOptions} includeEmpty emptyLabel={t('Select grade')} helperText={t('Grades are managed from Beam and Cost Setup > Fabric Grades.')} />
+                                <SelectField label={t('Warehouse')} value={greyFabricRollUpdateForm.data.warehouse} onChange={(v) => greyFabricRollUpdateForm.setData('warehouse', v)} options={resolvedWarehouseOptions} includeEmpty emptyLabel={t('Select warehouse')} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <SelectField label={t('Operator')} value={greyFabricRollUpdateForm.data.operator_name} onChange={(v) => greyFabricRollUpdateForm.setData('operator_name', v)} options={resolvedOperatorOptions} includeEmpty emptyLabel={t('Select operator')} helperText={t('Operators are listed from your company users.')} disabled={resolvedOperatorOptions.length === 0} disabledReason={t('No operators found. Add company users first.')} />
+                                <Field label={t('Notes')} value={greyFabricRollUpdateForm.data.notes} onChange={(v) => greyFabricRollUpdateForm.setData('notes', v)} />
+                            </div>
+                            <Button type="submit" disabled={greyFabricRollUpdateForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Update Roll')}</Button>
+                        </form>
+                    </TextileFormCard>
+
                     <TextileDataTableSection title={t('Weaving Output Records')} data={weavingOutputs} columns={createTextileWorkflowColumns(t)} emptyState={<NoRecordsFound icon={Factory} title={t('No weaving output found')} description={t('Record weaving output from released batches.')} />} />
                     <TextileDataTableSection title={t('Shift Production Records')} data={shiftProductions} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Batch ID') }, { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') }, { key: 'quantity', header: t('Qty') }, { key: 'unit', header: t('Unit') }, { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No shift production found')} description={t('Record shift-wise weaving production from released batches.')} />} />
                     <TextileDataTableSection title={t('Takha Entry Records')} data={takhaEntries} columns={[{ key: 'document_number', header: t('Number') }, { key: 'takha_number', header: t('Takha'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.takha_number ?? row.lot_reference ?? '-') }, { key: 'quantity', header: t('Qty') }, { key: 'unit', header: t('Unit') }, { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No takha entries found')} description={t('Record takha-level production entries from completed weaving output.')} />} />
@@ -1790,6 +1787,8 @@ export default function Index({
                     <TextileDataTableSection title={t('Operator Efficiency Records')} data={operatorEfficiencies} columns={[{ key: 'document_number', header: t('Number') }, { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') }, { key: 'planned_quantity', header: t('Planned Qty'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_quantity ?? '-') }, { key: 'actual_quantity', header: t('Actual Qty'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.actual_quantity ?? '-') }, { key: 'efficiency_percent', header: t('Efficiency %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.efficiency_percent ?? '-') }, { key: 'party_name', header: t('Operator') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No operator efficiency found')} description={t('Record operator planned vs actual production to track efficiency.')} />} />
                     <TextileDataTableSection title={t('Machine Downtime Records')} data={machineDowntimes} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Loom ID') }, { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') }, { key: 'downtime_reason', header: t('Reason'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.downtime_reason ?? '-') }, { key: 'downtime_hours', header: t('Downtime Hrs'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.downtime_hours ?? '-') }, { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No machine downtime found')} description={t('Record weaving-stage machine downtime by shift and loom.')} />} />
                     <TextileDataTableSection title={t('Production Cost Records')} data={productionCosts} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Weaving Output ID') }, { key: 'cost_amount', header: t('Cost Amount'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_amount ?? '-') }, { key: 'cost_per_unit', header: t('Cost/Unit'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_per_unit ?? '-') }, { key: 'quantity', header: t('Qty') }, { key: 'unit', header: t('Unit') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No production cost found')} description={t('Record weaving production cost against completed output.')} />} />
+                    <TextileDataTableSection title={t('Grey Fabric Roll Records')} data={greyFabricRolls} columns={[{ key: 'document_number', header: t('Number') }, { key: 'roll_number', header: t('Roll No.'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_number ?? row.lot_reference ?? '-') }, { key: 'roll_barcode', header: t('Barcode'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_barcode ?? '-') }, { key: 'roll_qr_code', header: t('QR'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_qr_code ?? '-') }, { key: 'roll_weight', header: t('Weight'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_weight ?? '-') }, { key: 'roll_length', header: t('Length'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_length ?? row.quantity ?? '-') }, { key: 'gsm', header: t('GSM'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.gsm ?? '-') }, { key: 'width', header: t('Width'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.width ?? '-') }, { key: 'grade', header: t('Grade'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.grade ?? '-') }, { key: 'warehouse', header: t('Warehouse'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.warehouse ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No grey fabric roll found')} description={t('Generate grey fabric roll with roll-number, barcode, QR, and quality profile fields.')} />} />
+                    <TextileDataTableSection title={t('Grey Roll History Records')} data={greyRollHistories} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Roll ID') }, { key: 'roll_number', header: t('Roll No.'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_number ?? row.lot_reference ?? '-') }, { key: 'history_event', header: t('Event'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.history_event ?? '-') }, { key: 'history_notes', header: t('Notes'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.history_notes ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No grey roll history found')} description={t('Grey roll updates and lifecycle events will appear here.')} />} />
                 </div>
                 </TabsContent> : null}
 

@@ -149,6 +149,124 @@ class TextileProcessingService
         ]);
     }
 
+    public function createInternalProcessing(int $batchId, array $payload = []): TextileWorkflowDocument
+    {
+        return $this->createStageDocument($batchId, 'internal_processing', $payload, 'internal_processing');
+    }
+
+    public function createDyeing(int $batchId, array $payload = []): TextileWorkflowDocument
+    {
+        return $this->createStageDocument($batchId, 'dyeing_process', $payload, 'dyeing');
+    }
+
+    public function createPrinting(int $batchId, array $payload = []): TextileWorkflowDocument
+    {
+        return $this->createStageDocument($batchId, 'printing_process', $payload, 'printing');
+    }
+
+    public function createBleaching(int $batchId, array $payload = []): TextileWorkflowDocument
+    {
+        return $this->createStageDocument($batchId, 'bleaching_process', $payload, 'bleaching');
+    }
+
+    public function createCalendaring(int $batchId, array $payload = []): TextileWorkflowDocument
+    {
+        return $this->createStageDocument($batchId, 'calendaring_process', $payload, 'calendaring');
+    }
+
+    public function createCompacting(int $batchId, array $payload = []): TextileWorkflowDocument
+    {
+        return $this->createStageDocument($batchId, 'compacting_process', $payload, 'compacting');
+    }
+
+    public function createFinishing(int $batchId, array $payload = []): TextileWorkflowDocument
+    {
+        return $this->createStageDocument($batchId, 'finishing_process', $payload, 'finishing');
+    }
+
+    public function createShadeCard(int $batchId, array $payload = []): TextileWorkflowDocument
+    {
+        $batch = $this->findTenantDocument($batchId, 'processing_batch');
+        if (!in_array($batch->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Processing batch must be completed before shade card creation.');
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'shade_card',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $batch->id,
+            'source_action' => 'shade_card',
+            'party_name' => $payload['party_name'] ?? $batch->party_name,
+            'lot_reference' => $payload['shade_code'] ?? $batch->lot_reference,
+            'quantity' => $payload['quantity'] ?? $batch->quantity,
+            'unit' => $payload['unit'] ?? $batch->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'shade_code' => $payload['shade_code'] ?? null,
+                'shade_family' => $payload['shade_family'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createProcessCost(int $batchId, array $payload = []): TextileWorkflowDocument
+    {
+        $batch = $this->findTenantDocument($batchId, 'processing_batch');
+        if (!in_array($batch->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Processing batch must be completed before process cost entry.');
+        }
+
+        $quantity = (float) ($payload['quantity'] ?? $batch->quantity ?? 0);
+        $costAmount = (float) ($payload['cost_amount'] ?? 0);
+        $costPerUnit = $quantity > 0 ? round($costAmount / $quantity, 4) : null;
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'process_cost',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $batch->id,
+            'source_action' => 'process_cost',
+            'party_name' => $payload['party_name'] ?? $batch->party_name,
+            'lot_reference' => $batch->lot_reference,
+            'quantity' => $quantity,
+            'unit' => $payload['unit'] ?? $batch->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'process_stage' => $payload['process_stage'] ?? null,
+                'cost_amount' => $costAmount,
+                'cost_per_unit' => $costPerUnit,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    private function createStageDocument(int $batchId, string $documentType, array $payload, string $stage): TextileWorkflowDocument
+    {
+        $batch = $this->findTenantDocument($batchId, 'processing_batch');
+        if (!in_array($batch->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Processing batch must be completed before stage entry.');
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => $documentType,
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $batch->id,
+            'source_action' => 'processing_stage',
+            'party_name' => $payload['party_name'] ?? $batch->party_name,
+            'lot_reference' => $payload['lot_reference'] ?? $batch->lot_reference,
+            'quantity' => $payload['quantity'] ?? $batch->quantity,
+            'unit' => $payload['unit'] ?? $batch->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'process_stage' => $stage,
+                'recipe_code' => $payload['recipe_code'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
     protected function findTenantDocument(int $documentId, string $documentType): TextileWorkflowDocument
     {
         $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();

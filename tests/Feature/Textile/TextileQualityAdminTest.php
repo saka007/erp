@@ -59,13 +59,17 @@ class TextileQualityAdminTest extends TestCase
 
         $this->actingAs($companyA)
             ->post(route('textile.quality.inspections.store'), [
-                'source_reference_type' => 'grn',
+                'source_reference_type' => 'incoming_qc',
                 'source_reference_id' => 1,
-                'source_action' => 'incoming_inspection',
+                'source_action' => 'incoming_qc',
                 'party_name' => 'Alpha Fibers',
                 'lot_reference' => 'LOT-QA-1',
                 'quantity' => 80,
                 'unit' => 'mtr',
+                'qc_stage' => 'in_process_qc',
+                'inspection_result' => 'pass',
+                'defects' => ['shade_variance'],
+                'notes' => 'Process QC check',
             ])
             ->assertSessionHasNoErrors();
 
@@ -77,6 +81,35 @@ class TextileQualityAdminTest extends TestCase
 
         $this->assertNotNull($inspection);
         $this->assertSame('draft', $inspection->status);
+        $this->assertSame('in_process_qc', $inspection->metadata['qc_stage'] ?? null);
+        $this->assertSame('pass', $inspection->metadata['inspection_result'] ?? null);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.quality.inspections.store'), [
+                'source_reference_type' => 'shade_matching',
+                'source_reference_id' => 2,
+                'source_action' => 'shade_matching',
+                'party_name' => 'Alpha Fibers',
+                'lot_reference' => 'LOT-QA-1',
+                'quantity' => 20,
+                'unit' => 'mtr',
+                'qc_stage' => 'shade_matching',
+                'inspection_result' => 'rework',
+                'shade_reference' => 'SC-100',
+                'defects' => ['stain'],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $shadeInspection = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'inspection')
+            ->where('source_reference_type', 'shade_matching')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($shadeInspection);
+        $this->assertSame('shade_matching', $shadeInspection->metadata['qc_stage'] ?? null);
+        $this->assertSame('SC-100', $shadeInspection->metadata['shade_reference'] ?? null);
 
         $this->actingAs($companyA)
             ->post(route('textile.quality.inspections.finalize'), [
@@ -87,6 +120,17 @@ class TextileQualityAdminTest extends TestCase
 
         $inspection->refresh();
         $this->assertSame('approved', $inspection->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.quality.inspections.finalize'), [
+                'inspection_id' => $shadeInspection->id,
+                'decision' => 'fail',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $shadeInspection->refresh();
+        $this->assertSame('rejected', $shadeInspection->status);
+        $this->assertSame('fail', $shadeInspection->metadata['final_decision'] ?? null);
 
         $this->actingAs($companyA)
             ->post(route('textile.quality.lots.hold'), [
@@ -128,18 +172,56 @@ class TextileQualityAdminTest extends TestCase
             'created_by' => $companyA->id,
         ]);
 
+        $this->actingAs($companyA)
+            ->post(route('textile.quality.certificates.store'), [
+                'source_reference_type' => 'quality_certificate',
+                'source_action' => 'quality_certificate',
+                'inspection_id' => $inspection->id,
+                'lot_reference' => 'LOT-QA-1',
+                'certificate_number' => 'QC-CERT-001',
+                'notes' => 'Issued after process QC',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $certificate = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'quality_certificate')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($certificate);
+        $this->assertSame('draft', $certificate->status);
+        $this->assertSame('QC-CERT-001', $certificate->metadata['certificate_number'] ?? null);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.quality.certificates.issue'), [
+                'certificate_id' => $certificate->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $certificate->refresh();
+        $this->assertSame('approved', $certificate->status);
+
         $this->actingAs($companyB)
             ->get(route('textile.quality.index'))
             ->assertOk()
             ->assertDontSee('LOT-QA-1')
-            ->assertDontSee('Alpha Fibers');
+            ->assertDontSee('Alpha Fibers')
+            ->assertDontSee('QC-CERT-001');
 
         $this->actingAs($companyA)
             ->get(route('textile.quality.index'))
             ->assertOk()
             ->assertSee('LOT-QA-1')
             ->assertSee('Alpha Fibers')
+            ->assertSee('QC-CERT-001')
             ->assertDontSee('LOT-QB-1');
+
+        $this->actingAs($companyB)
+            ->post(route('textile.quality.certificates.issue'), [
+                'certificate_id' => $certificate->id,
+            ])
+            ->assertSessionHasErrors('certificate_id');
     }
 
     private function company(): User

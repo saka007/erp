@@ -329,26 +329,6 @@ class TextileManufacturingApiController extends Controller
         ], 201);
     }
 
-    public function storeWarpCost(Request $request): JsonResponse
-    {
-        $payload = $request->validate([
-            'warp_production_id' => ['required', 'integer', 'min:1'],
-            'cost_type' => ['required', 'string', 'max:100', Rule::in($this->costTypeOptions())],
-            'cost_amount' => ['required', 'numeric', 'gt:0'],
-            'quantity' => ['nullable', 'numeric', 'gt:0'],
-            'unit' => ['nullable', 'string', 'max:50'],
-            'notes' => ['nullable', 'string', 'max:500'],
-            'party_name' => ['nullable', 'string', 'max:100'],
-            'lot_reference' => ['nullable', 'string', 'max:100'],
-            'idempotency_key' => ['nullable', 'string', 'max:190'],
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'data' => $this->manufacturingService->createWarpCost((int) $payload['warp_production_id'], $payload),
-        ], 201);
-    }
-
     public function storeBeamIssue(Request $request): JsonResponse
     {
         $payload = $request->validate([
@@ -608,6 +588,56 @@ class TextileManufacturingApiController extends Controller
         ], 201);
     }
 
+    public function storeGreyFabricRoll(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'weaving_output_id' => ['required', 'integer', 'min:1'],
+            'roll_number' => ['nullable', 'string', 'max:100'],
+            'roll_barcode' => ['nullable', 'string', 'max:150'],
+            'roll_qr_code' => ['nullable', 'string', 'max:500'],
+            'roll_weight' => ['nullable', 'numeric', 'gt:0'],
+            'roll_length' => ['nullable', 'numeric', 'gt:0'],
+            'gsm' => ['nullable', 'numeric', 'gt:0'],
+            'width' => ['nullable', 'numeric', 'gt:0'],
+            'defects' => ['nullable', 'array'],
+            'defects.*' => ['required', 'string', Rule::in($this->fabricDefectOptions())],
+            'grade' => ['nullable', 'string', Rule::in($this->fabricGradeOptions())],
+            'warehouse' => ['nullable', 'string', Rule::in($this->warehouseOptions())],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createGreyFabricRoll((int) $payload['weaving_output_id'], $payload),
+        ], 201);
+    }
+
+    public function updateGreyFabricRoll(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'grey_roll_id' => ['required', 'integer', 'min:1'],
+            'roll_weight' => ['nullable', 'numeric', 'gt:0'],
+            'roll_length' => ['nullable', 'numeric', 'gt:0'],
+            'gsm' => ['nullable', 'numeric', 'gt:0'],
+            'width' => ['nullable', 'numeric', 'gt:0'],
+            'defects' => ['nullable', 'array'],
+            'defects.*' => ['required', 'string', Rule::in($this->fabricDefectOptions())],
+            'grade' => ['nullable', 'string', Rule::in($this->fabricGradeOptions())],
+            'warehouse' => ['nullable', 'string', Rule::in($this->warehouseOptions())],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->updateGreyFabricRoll((int) $payload['grey_roll_id'], $payload),
+        ]);
+    }
+
     public function storeWaste(Request $request): JsonResponse
     {
         $payload = $request->validate([
@@ -701,6 +731,78 @@ class TextileManufacturingApiController extends Controller
             'pass',
             'hold',
             'rework',
+        ];
+    }
+
+    private function fabricDefectOptions(): array
+    {
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultFabricDefectOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
+            ->type('fabric_defect')
+            ->where('created_by', creatorId())
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('manufacturing');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultFabricDefectOptions();
+    }
+
+    private function fabricGradeOptions(): array
+    {
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultFabricGradeOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
+            ->type('fabric_grade')
+            ->where('created_by', creatorId())
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('manufacturing');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultFabricGradeOptions();
+    }
+
+    private function warehouseOptions(): array
+    {
+        return [
+            'main_warehouse',
+            'grey_store',
+            'dispatch_store',
+            'quarantine_store',
+        ];
+    }
+
+    private function defaultFabricDefectOptions(): array
+    {
+        return [
+            'slub',
+            'missing_end',
+            'broken_pick',
+            'stain',
+            'hole',
+            'shade_variation',
+        ];
+    }
+
+    private function defaultFabricGradeOptions(): array
+    {
+        return [
+            'A',
+            'B',
+            'C',
+            'reject',
         ];
     }
 

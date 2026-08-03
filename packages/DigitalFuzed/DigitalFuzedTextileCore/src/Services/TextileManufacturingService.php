@@ -173,37 +173,6 @@ class TextileManufacturingService
         ]);
     }
 
-    public function createWarpCost(int $warpProductionId, array $payload = []): TextileWorkflowDocument
-    {
-        $warpProduction = $this->findTenantDocument($warpProductionId, 'warp_production');
-        if (! in_array($warpProduction->status, ['approved', 'released', 'closed'], true)) {
-            throw new RuntimeException('Warp production must be completed before warp cost capture.');
-        }
-
-        $quantity = (float) ($payload['quantity'] ?? $warpProduction->quantity ?? 0);
-        $costAmount = (float) ($payload['cost_amount'] ?? 0);
-        $costPerUnit = $quantity > 0 ? round($costAmount / $quantity, 4) : null;
-
-        return $this->workflowService->createDocument([
-            'document_type' => 'warp_cost',
-            'source_reference_type' => 'textile_workflow_document',
-            'source_reference_id' => $warpProduction->id,
-            'source_action' => 'warp_cost_capture',
-            'party_name' => $payload['party_name'] ?? $warpProduction->party_name,
-            'lot_reference' => $payload['lot_reference'] ?? $warpProduction->lot_reference,
-            'quantity' => $quantity,
-            'unit' => $payload['unit'] ?? $warpProduction->unit,
-            'status' => 'approved',
-            'metadata' => [
-                'cost_type' => $payload['cost_type'] ?? null,
-                'cost_amount' => $costAmount,
-                'cost_per_unit' => $costPerUnit,
-                'notes' => $payload['notes'] ?? null,
-            ],
-            'idempotency_key' => $payload['idempotency_key'] ?? null,
-        ]);
-    }
-
     public function createBeamIssue(int $beamId, array $payload = []): TextileWorkflowDocument
     {
         $beam = $this->findTenantDocument($beamId, 'beam');
@@ -789,6 +758,87 @@ class TextileManufacturingService
         ]);
     }
 
+    public function createGreyFabricRoll(int $weavingOutputId, array $payload = []): TextileWorkflowDocument
+    {
+        $output = $this->findTenantDocument($weavingOutputId, 'weaving_output');
+
+        $rollNumber = trim((string) ($payload['roll_number'] ?? ''));
+        if ($rollNumber === '') {
+            $rollNumber = sprintf('ROLL-%s-%s', date('Ymd'), substr((string) uniqid('', true), -6));
+        }
+
+        $barcode = trim((string) ($payload['roll_barcode'] ?? ''));
+        if ($barcode === '') {
+            $barcode = sprintf('BAR-%s', $rollNumber);
+        }
+
+        $qrCode = trim((string) ($payload['roll_qr_code'] ?? ''));
+        if ($qrCode === '') {
+            $qrCode = sprintf('ROLL:%s|BAR:%s|LOT:%s', $rollNumber, $barcode, (string) ($output->lot_reference ?? '-'));
+        }
+
+        $roll = $this->workflowService->createDocument([
+            'document_type' => 'grey_fabric_roll',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $output->id,
+            'source_action' => 'roll_generate',
+            'party_name' => $payload['party_name'] ?? $output->party_name,
+            'lot_reference' => $rollNumber,
+            'quantity' => $payload['roll_length'] ?? $output->quantity,
+            'unit' => $payload['unit'] ?? $output->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'roll_number' => $rollNumber,
+                'roll_barcode' => $barcode,
+                'roll_qr_code' => $qrCode,
+                'roll_weight' => $payload['roll_weight'] ?? null,
+                'roll_length' => $payload['roll_length'] ?? null,
+                'gsm' => $payload['gsm'] ?? null,
+                'width' => $payload['width'] ?? null,
+                'defects' => $this->normalizeDefects($payload['defects'] ?? []),
+                'grade' => $payload['grade'] ?? null,
+                'warehouse' => $payload['warehouse'] ?? null,
+                'operator_name' => $payload['operator_name'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+
+        $this->createGreyRollHistory($roll, 'created', [
+            'notes' => $payload['notes'] ?? null,
+        ]);
+
+        return $roll;
+    }
+
+    public function updateGreyFabricRoll(int $rollId, array $payload = []): TextileWorkflowDocument
+    {
+        $roll = $this->findTenantDocument($rollId, 'grey_fabric_roll');
+
+        $metadata = is_array($roll->metadata) ? $roll->metadata : [];
+
+        $updates = [
+            'roll_weight' => $payload['roll_weight'] ?? ($metadata['roll_weight'] ?? null),
+            'roll_length' => $payload['roll_length'] ?? ($metadata['roll_length'] ?? null),
+            'gsm' => $payload['gsm'] ?? ($metadata['gsm'] ?? null),
+            'width' => $payload['width'] ?? ($metadata['width'] ?? null),
+            'defects' => array_key_exists('defects', $payload) ? $this->normalizeDefects($payload['defects']) : ($metadata['defects'] ?? []),
+            'grade' => $payload['grade'] ?? ($metadata['grade'] ?? null),
+            'warehouse' => $payload['warehouse'] ?? ($metadata['warehouse'] ?? null),
+            'operator_name' => $payload['operator_name'] ?? ($metadata['operator_name'] ?? null),
+            'notes' => $payload['notes'] ?? ($metadata['notes'] ?? null),
+        ];
+
+        $roll->metadata = array_merge($metadata, $updates);
+        $roll->save();
+
+        $this->createGreyRollHistory($roll, 'updated', [
+            'notes' => $payload['notes'] ?? null,
+        ]);
+
+        return $roll;
+    }
+
     public function createWaste(int $batchId, array $payload = []): TextileWorkflowDocument
     {
         $batch = $this->findTenantDocument($batchId, 'production_batch');
@@ -848,5 +898,38 @@ class TextileManufacturingService
         }
 
         return $document;
+    }
+
+    private function createGreyRollHistory(TextileWorkflowDocument $roll, string $event, array $extra = []): TextileWorkflowDocument
+    {
+        $metadata = is_array($roll->metadata) ? $roll->metadata : [];
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'grey_roll_history',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $roll->id,
+            'source_action' => sprintf('history_%s_%s', $event, str_replace('.', '', (string) microtime(true))),
+            'party_name' => $roll->party_name,
+            'lot_reference' => (string) ($metadata['roll_number'] ?? $roll->lot_reference),
+            'quantity' => $roll->quantity,
+            'unit' => $roll->unit,
+            'status' => 'approved',
+            'metadata' => array_merge($metadata, [
+                'history_event' => $event,
+                'history_notes' => $extra['notes'] ?? null,
+            ]),
+        ]);
+    }
+
+    private function normalizeDefects(mixed $defects): array
+    {
+        if (!is_array($defects)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn ($value) => is_string($value) ? trim($value) : '',
+            $defects
+        ))));
     }
 }

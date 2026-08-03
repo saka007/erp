@@ -32,9 +32,19 @@ class TextileProcessingController extends Controller
             'batches' => $this->documents('processing_batch'),
             'inwards' => $this->documents('job_work_inward'),
             'reconciliations' => $this->documents('job_work_reconciliation'),
+            'internalProcessings' => $this->documents('internal_processing'),
+            'dyeings' => $this->documents('dyeing_process'),
+            'printings' => $this->documents('printing_process'),
+            'bleachings' => $this->documents('bleaching_process'),
+            'calendarings' => $this->documents('calendaring_process'),
+            'compactings' => $this->documents('compacting_process'),
+            'finishings' => $this->documents('finishing_process'),
+            'shadeCards' => $this->documents('shade_card'),
+            'processCosts' => $this->documents('process_cost'),
             'sourceTypeOptions' => $this->sourceTypeOptions(),
             'sourceActionOptions' => $this->sourceActionOptions(),
             'unitOptions' => $this->unitOptions(),
+            'processStageOptions' => $this->processStageOptions(),
             'partyOptions' => $this->partyOptions(),
             'lotReferenceOptions' => $this->lotReferenceOptions(),
         ]);
@@ -173,6 +183,87 @@ class TextileProcessingController extends Controller
         return back()->with('success', __('Job-work reconciliation completed successfully.'));
     }
 
+    public function storeInternalProcessing(Request $request, TextileProcessingService $service)
+    {
+        return $this->storeProcessingStage($request, $service, 'processing_batch', 'processing_batch_id', fn (int $batchId, array $payload) => $service->createInternalProcessing($batchId, $payload), __('Internal processing recorded successfully.'));
+    }
+
+    public function storeDyeing(Request $request, TextileProcessingService $service)
+    {
+        return $this->storeProcessingStage($request, $service, 'processing_batch', 'processing_batch_id', fn (int $batchId, array $payload) => $service->createDyeing($batchId, $payload), __('Dyeing process recorded successfully.'));
+    }
+
+    public function storePrinting(Request $request, TextileProcessingService $service)
+    {
+        return $this->storeProcessingStage($request, $service, 'processing_batch', 'processing_batch_id', fn (int $batchId, array $payload) => $service->createPrinting($batchId, $payload), __('Printing process recorded successfully.'));
+    }
+
+    public function storeBleaching(Request $request, TextileProcessingService $service)
+    {
+        return $this->storeProcessingStage($request, $service, 'processing_batch', 'processing_batch_id', fn (int $batchId, array $payload) => $service->createBleaching($batchId, $payload), __('Bleaching process recorded successfully.'));
+    }
+
+    public function storeCalendaring(Request $request, TextileProcessingService $service)
+    {
+        return $this->storeProcessingStage($request, $service, 'processing_batch', 'processing_batch_id', fn (int $batchId, array $payload) => $service->createCalendaring($batchId, $payload), __('Calendaring process recorded successfully.'));
+    }
+
+    public function storeCompacting(Request $request, TextileProcessingService $service)
+    {
+        return $this->storeProcessingStage($request, $service, 'processing_batch', 'processing_batch_id', fn (int $batchId, array $payload) => $service->createCompacting($batchId, $payload), __('Compacting process recorded successfully.'));
+    }
+
+    public function storeFinishing(Request $request, TextileProcessingService $service)
+    {
+        return $this->storeProcessingStage($request, $service, 'processing_batch', 'processing_batch_id', fn (int $batchId, array $payload) => $service->createFinishing($batchId, $payload), __('Finishing process recorded successfully.'));
+    }
+
+    public function storeShadeCard(Request $request, TextileProcessingService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('processing_inward', 'processing_batch_id');
+
+        $validated = $request->validate([
+            'processing_batch_id' => ['required', 'integer', 'min:1'],
+            'shade_code' => ['required', 'string', 'max:100'],
+            'shade_family' => ['nullable', 'string', 'max:100'],
+            'quantity' => ['nullable', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $service->createShadeCard((int) $validated['processing_batch_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['processing_batch_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Shade card recorded successfully.'));
+    }
+
+    public function storeProcessCost(Request $request, TextileProcessingService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('processing_reconciliation', 'processing_batch_id');
+
+        $validated = $request->validate([
+            'processing_batch_id' => ['required', 'integer', 'min:1'],
+            'process_stage' => ['required', 'string', 'max:100', 'in:internal_processing,dyeing,printing,bleaching,calendaring,compacting,finishing'],
+            'cost_amount' => ['required', 'numeric', 'gt:0'],
+            'quantity' => ['nullable', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $service->createProcessCost((int) $validated['processing_batch_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['processing_batch_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Process cost recorded successfully.'));
+    }
+
     private function documents(string $type)
     {
         return TextileWorkflowDocument::query()
@@ -255,6 +346,19 @@ class TextileProcessingController extends Controller
         ];
     }
 
+    private function processStageOptions(): array
+    {
+        return [
+            'internal_processing',
+            'dyeing',
+            'printing',
+            'bleaching',
+            'calendaring',
+            'compacting',
+            'finishing',
+        ];
+    }
+
     private function partyOptions(): array
     {
         $vendors = collect();
@@ -328,5 +432,27 @@ class TextileProcessingController extends Controller
         } catch (RuntimeException $exception) {
             abort(403, __($exception->getMessage()));
         }
+    }
+
+    private function storeProcessingStage(Request $request, TextileProcessingService $service, string $capability, string $batchKey, \Closure $handler, string $successMessage)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability($capability, $batchKey);
+
+        $validated = $request->validate([
+            $batchKey => ['required', 'integer', 'min:1'],
+            'recipe_code' => ['nullable', 'string', 'max:100'],
+            'quantity' => ['nullable', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $handler((int) $validated[$batchKey], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors([$batchKey => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', $successMessage);
     }
 }

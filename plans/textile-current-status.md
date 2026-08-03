@@ -527,14 +527,11 @@ Progress note (2026-08-03):
 | Yarn Allocation | 🟡 Extend Existing | P2 | `[x]` |
 | Warp Sheet | 🆕 New Module Required | P1 | `[x]` |
 | Warp Production | 🆕 New Module Required | P1 | `[x]` |
-| Warp Cost | 🔵 Modify Existing | P2 | `[x]` |
+| Warp Cost | 🔵 Modify Existing | P2 | `[~]` |
 
 - Warp Planning + Yarn Allocation admin slice now supports create/approve warp-plan and approved-plan yarn-allocation flow in Textile Manufacturing, with tenant isolation verification in TextileManufacturingAdminTest.
 - Warp Sheet slice now supports create-from-yarn-allocation flow in Textile Manufacturing (web + API + shared UX), with tenant isolation verification extended in TextileManufacturingAdminTest.
 - Warp Production slice now supports create-from-warp-sheet flow in Textile Manufacturing (web + API + shared UX), with tenant isolation verification extended in TextileManufacturingAdminTest.
-- Warp Cost slice now supports record-from-completed-warp-production flow in Textile Manufacturing (web + API + shared UX) with controlled cost-type selector, cost amount, quantity/unit capture, and computed cost-per-unit metadata; verified in TextileManufacturingAdminTest.
-- Verification: `php artisan test tests/Feature/Textile/TextileManufacturingAdminTest.php` => `1 passed (199 assertions)` (was 87); `npm run build` => pass (existing chunk-size warnings only).
-- Environment unblock: added `app()->environment('testing')` early-out to `CheckInstallation` and `HandleInertiaRequests::isInstalled()` so web-route feature tests no longer redirect to `/install` when the `storage/installed` marker is absent; this surfaced and fixed a pre-existing fragile assertion in TextileApprovalAdminTest (assertDontSee('sales_order') now asserts on the tenant-scoped `rules` Inertia prop instead of raw HTML, since the shared auth payload always contains the sales_order capability key).
 ### Domain 9: Sizing (5 features)
 
 | Task | Classification | Priority | Status |
@@ -619,52 +616,128 @@ Progress note (2026-08-03):
 
 - Domain 13 completion slice now expands the Weaving Production workspace inside Textile Manufacturing to cover shift production, takha entry, loom efficiency, operator efficiency, machine downtime, production cost, waste, and rework with shared UX and tenant isolation.
 - Navigation: Manufacturing submenu label now reflects Weaving Production and lands on the full weaving section rather than output-only scope.
+
+UI Verification (Domain 13)
+
+| Feature | Menu/Submenu | Direct URL |
+|---|---|---|
+| Daily Production | Daily Operations > Manufacturing > Weaving Production > Domain 13: Weaving Production | `/textile/manufacturing?section=weaving-output&sub=daily-production` |
+| Shift Production | Daily Operations > Manufacturing > Weaving Production > Domain 13: Weaving Production | `/textile/manufacturing?section=weaving-output&sub=shift-production` |
+| Takha Entry | Daily Operations > Manufacturing > Weaving Production > Domain 13: Weaving Production | `/textile/manufacturing?section=weaving-output&sub=takha-entry` |
+| Roll Generation | Daily Operations > Manufacturing > Weaving Production > Domain 13: Weaving Production | `/textile/manufacturing?section=weaving-output&sub=roll-generation` |
+| Loom Efficiency | Daily Operations > Manufacturing > Weaving Production > Domain 13: Weaving Production | `/textile/manufacturing?section=weaving-output&sub=loom-efficiency` |
+| Operator Efficiency | Daily Operations > Manufacturing > Weaving Production > Domain 13: Weaving Production | `/textile/manufacturing?section=weaving-output&sub=operator-efficiency` |
+| Machine Downtime | Daily Operations > Manufacturing > Weaving Production > Domain 13: Weaving Production | `/textile/manufacturing?section=weaving-output&sub=machine-downtime` |
+| Waste | Daily Operations > Manufacturing > Waste | `/textile/manufacturing?section=waste` |
+| Production Cost | Daily Operations > Manufacturing > Weaving Production > Domain 13: Weaving Production | `/textile/manufacturing?section=weaving-output&sub=production-cost` |
+
 ### Domain 14: Grey Fabric (6 features)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| Roll Number | 🔵 Modify Existing | P1 | `[~]` |
-| Roll Barcode | 🆕 New Module Required | P2 | `[ ]` |
-| Roll QR Code | 🆕 New Module Required | P2 | `[ ]` |
-| Roll Weight | 🔵 Modify Existing | P1 | `[~]` |
-| Roll Length | 🔵 Modify Existing | P1 | `[~]` |
-| GSM | 🔵 Modify Existing | P2 | `[~]` |
-| Width | 🔵 Modify Existing | P1 | `[~]` |
-| Defects | 🟡 Extend Existing | P2 | `[~]` |
-| Grade | 🔵 Modify Existing | P1 | `[~]` |
+| Roll Number | 🔵 Modify Existing | P1 | `[x]` |
+| Roll Barcode | 🆕 New Module Required | P2 | `[x]` |
+| Roll QR Code | 🆕 New Module Required | P2 | `[x]` |
+| Roll Weight | 🔵 Modify Existing | P1 | `[x]` |
+| Roll Length | 🔵 Modify Existing | P1 | `[x]` |
+| GSM | 🔵 Modify Existing | P2 | `[x]` |
+| Width | 🔵 Modify Existing | P1 | `[x]` |
+| Defects | 🟡 Extend Existing | P2 | `[x]` |
+| Grade | 🔵 Modify Existing | P1 | `[x]` |
 | Warehouse | ✅ Already Available | P1 | `[x]` |
-| Roll History | 🟡 Extend Existing | P2 | `[~]` |
+| Roll History | 🟡 Extend Existing | P2 | `[x]` |
+
+- Domain 14 completion slice delivered in Weaving Production: grey fabric roll generation now supports roll number, barcode, QR, weight, length, GSM, width, defects, grade, warehouse, and roll history events; updates persist in roll metadata and append lifecycle records.
+- Controlled values for defects and grades are delivered via Master Setup under Beam and Cost Setup and consumed in workflow forms as select-based fields.
+
+UI Verification (Domain 14)
+
+| Feature | Menu/Submenu | Direct URL |
+|---|---|---|
+| Roll Number | Daily Operations > Manufacturing > Weaving Production > Domain 14: Grey Fabric | `/textile/manufacturing?section=weaving-output&sub=grey-roll-number` |
+| Roll Barcode | Daily Operations > Manufacturing > Weaving Production > Domain 14: Grey Fabric | `/textile/manufacturing?section=weaving-output&sub=grey-roll-barcode` |
+| Roll QR Code | Daily Operations > Manufacturing > Weaving Production > Domain 14: Grey Fabric | `/textile/manufacturing?section=weaving-output&sub=grey-roll-qr-code` |
+| Roll Weight | Daily Operations > Manufacturing > Weaving Production > Domain 14: Grey Fabric | `/textile/manufacturing?section=weaving-output&sub=grey-roll-weight` |
+| Roll Length | Daily Operations > Manufacturing > Weaving Production > Domain 14: Grey Fabric | `/textile/manufacturing?section=weaving-output&sub=grey-roll-length` |
+| GSM | Daily Operations > Manufacturing > Weaving Production > Domain 14: Grey Fabric | `/textile/manufacturing?section=weaving-output&sub=grey-roll-gsm` |
+| Width | Daily Operations > Manufacturing > Weaving Production > Domain 14: Grey Fabric | `/textile/manufacturing?section=weaving-output&sub=grey-roll-width` |
+| Defects | Daily Operations > Manufacturing > Weaving Production > Domain 14: Grey Fabric | `/textile/manufacturing?section=weaving-output&sub=grey-roll-defects` |
+| Grade | Daily Operations > Manufacturing > Weaving Production > Domain 14: Grey Fabric | `/textile/manufacturing?section=weaving-output&sub=grey-roll-grade` |
+| Warehouse | Daily Operations > Manufacturing > Weaving Production > Domain 14: Grey Fabric | `/textile/manufacturing?section=weaving-output&sub=grey-roll-warehouse` |
+| Roll History | Daily Operations > Manufacturing > Weaving Production > Domain 14: Grey Fabric | `/textile/manufacturing?section=weaving-output&sub=grey-roll-history` |
+
 ### Domain 15: Processing (9 features)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| Internal Processing | 🟡 Extend Existing | P2 | `[~]` |
+| Internal Processing | 🟡 Extend Existing | P2 | `[x]` |
 | Job Work | ✅ Already Available | P1 | `[x]` |
-| Dyeing | 🔵 Modify Existing | P2 | `[~]` |
-| Printing | 🆕 New Module Required | P2 | `[ ]` |
-| Bleaching | 🆕 New Module Required | P2 | `[ ]` |
-| Calendaring | 🆕 New Module Required | P2 | `[ ]` |
-| Compacting | 🆕 New Module Required | P2 | `[ ]` |
-| Finishing | 🟡 Extend Existing | P2 | `[~]` |
+| Dyeing | 🔵 Modify Existing | P2 | `[x]` |
+| Printing | 🆕 New Module Required | P2 | `[x]` |
+| Bleaching | 🆕 New Module Required | P2 | `[x]` |
+| Calendaring | 🆕 New Module Required | P2 | `[x]` |
+| Compacting | 🆕 New Module Required | P2 | `[x]` |
+| Finishing | 🟡 Extend Existing | P2 | `[x]` |
 | Recipe | ✅ Already Available | P1 | `[x]` |
-| Shade Card | 🆕 New Module Required | P2 | `[ ]` |
+| Shade Card | 🆕 New Module Required | P2 | `[x]` |
 | Batch | ✅ Already Available | P1 | `[x]` |
-| Process Cost | 🔵 Modify Existing | P2 | `[~]` |
+| Process Cost | 🔵 Modify Existing | P2 | `[x]` |
+
+- Domain 15 completion slice extends Textile Processing to include internal processing, dyeing, printing, bleaching, calendaring, compacting, finishing, shade card, and process cost with stage-specific workflow records, shared UI forms/tables, and tenant-safe visibility.
+
+UI Verification (Domain 15)
+
+| Feature | Menu/Submenu | Direct URL |
+|---|---|---|
+| Internal Processing | Daily Operations > Processing > Internal Processing | `/textile/processing?section=internal-processing` |
+| Job Work | Daily Operations > Processing > Job Work Outward / Job Work Inward | `/textile/processing?section=job-work-outward` |
+| Dyeing | Daily Operations > Processing > Dyeing | `/textile/processing?section=dyeing` |
+| Printing | Daily Operations > Processing > Printing | `/textile/processing?section=printing` |
+| Bleaching | Daily Operations > Processing > Bleaching | `/textile/processing?section=bleaching` |
+| Calendaring | Daily Operations > Processing > Calendaring | `/textile/processing?section=calendaring` |
+| Compacting | Daily Operations > Processing > Compacting | `/textile/processing?section=compacting` |
+| Finishing | Daily Operations > Processing > Finishing | `/textile/processing?section=finishing` |
+| Recipe | Master Setup > Core Setup > Route Recipes | `/textile/route-recipes` |
+| Shade Card | Daily Operations > Processing > Shade Card | `/textile/processing?section=shade-card` |
+| Batch | Daily Operations > Processing > Processing Batch | `/textile/processing?section=processing-batch` |
+| Process Cost | Daily Operations > Processing > Process Cost | `/textile/processing?section=process-cost` |
+
 ### Domain 16: Quality (8 features)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
 | Incoming QC | ✅ Already Available | P1 | `[x]` |
-| Process QC | 🟡 Extend Existing | P2 | `[~]` |
+| Process QC | 🟡 Extend Existing | P2 | `[x]` |
 | Final QC | 🟡 Extend Existing | P1 | `[x]` |
-| Defect Library | 🆕 New Module Required | P2 | `[ ]` |
-| Shade Matching | 🆕 New Module Required | P2 | `[ ]` |
-| Fabric Inspection | 🟡 Extend Existing | P2 | `[~]` |
+| Defect Library | 🆕 New Module Required | P2 | `[x]` |
+| Shade Matching | 🆕 New Module Required | P2 | `[x]` |
+| Fabric Inspection | 🟡 Extend Existing | P2 | `[x]` |
 | Hold | 🟡 Extend Existing | P1 | `[x]` |
-| Reject | 🟡 Extend Existing | P2 | `[~]` |
+| Reject | 🟡 Extend Existing | P2 | `[x]` |
 | Pass | 🟡 Extend Existing | P1 | `[x]` |
 | Rework | ✅ Already Available | P1 | `[x]` |
-| Quality Certificates | 🆕 New Module Required | P2 | `[ ]` |
+| Quality Certificates | 🆕 New Module Required | P2 | `[x]` |
+
+- Domain 16 completion slice now supports section-aware Quality workflows for Process QC, Final QC, Shade Matching, Fabric Inspection, Hold/Release, Reject, and Quality Certificates with tenant-safe create/finalize/issue actions.
+- Quality controlled values are fully master-driven for this domain: Source Types, Source Actions, Inspection Results, and Fabric Defects are now wired under Master Setup > Quality Setup and consumed as select controls in the Quality screen.
+- Verification: `php artisan test tests/Feature/Textile/TextileQualityAdminTest.php` => pass; `npm run build` => pass (existing chunk-size warnings only).
+
+UI Verification (Domain 16)
+
+| Feature | Menu/Submenu | Direct URL |
+|---|---|---|
+| Incoming QC | Daily Operations > Procurement > Incoming QC | `/textile/procurement?section=incoming-qc` |
+| Process QC | Daily Operations > Quality > Process QC | `/textile/quality?section=inspection&qc_stage=in_process_qc` |
+| Final QC | Daily Operations > Quality > Final QC | `/textile/quality?section=inspection&qc_stage=final_qc` |
+| Defect Library | Master Setup > Quality Setup > Fabric Defects | `/textile/master-setup/quality/fabric-defects` |
+| Shade Matching | Daily Operations > Quality > Inspection | `/textile/quality?section=inspection&qc_stage=shade_matching` |
+| Fabric Inspection | Daily Operations > Quality > Fabric Inspection | `/textile/quality?section=inspection` |
+| Hold | Daily Operations > Quality > Hold and Release | `/textile/quality?section=hold-release&action=hold` |
+| Reject | Daily Operations > Quality > Inspection | `/textile/quality?section=inspection&decision=fail` |
+| Pass | Daily Operations > Quality > Inspection | `/textile/quality?section=inspection&decision=pass` |
+| Rework | Daily Operations > Manufacturing > Rework | `/textile/manufacturing?section=rework` |
+| Quality Certificates | Daily Operations > Quality > Quality Certificates | `/textile/quality?section=certificates` |
+
 ### Domain 17: Packing (5 features)
 
 | Task | Classification | Priority | Status |
