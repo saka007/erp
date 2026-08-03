@@ -329,6 +329,26 @@ class TextileManufacturingApiController extends Controller
         ], 201);
     }
 
+    public function storeWarpCost(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'warp_production_id' => ['required', 'integer', 'min:1'],
+            'cost_type' => ['required', 'string', 'max:100', Rule::in($this->costTypeOptions())],
+            'cost_amount' => ['required', 'numeric', 'gt:0'],
+            'quantity' => ['nullable', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'party_name' => ['nullable', 'string', 'max:100'],
+            'lot_reference' => ['nullable', 'string', 'max:100'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createWarpCost((int) $payload['warp_production_id'], $payload),
+        ], 201);
+    }
+
     public function storeBeamIssue(Request $request): JsonResponse
     {
         $payload = $request->validate([

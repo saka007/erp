@@ -10,6 +10,7 @@ use DigitalFuzed\TextileCore\Models\TextileApprovalRule;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Services\TextileWorkflowService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -115,7 +116,16 @@ class TextileApprovalAdminTest extends TestCase
             ->get(route('textile.approvals.index'))
             ->assertOk()
             ->assertSee('purchase_requisition')
-            ->assertDontSee('sales_order');
+            ->assertInertia(function (Assert $page): void {
+                $ruleTypes = collect($page->toArray()['props']['rules'] ?? [])
+                    ->pluck('document_type')
+                    ->filter()
+                    ->values()
+                    ->all();
+
+                $this->assertContains('purchase_requisition', $ruleTypes);
+                $this->assertNotContains('sales_order', $ruleTypes);
+            });
     }
 
     private function company(): User

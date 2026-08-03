@@ -36,6 +36,7 @@ class TextileManufacturingController extends Controller
             'yarnAllocations' => $this->documents('yarn_allocation'),
             'warpSheets' => $this->documents('warp_sheet'),
             'warpProductions' => $this->documents('warp_production'),
+            'warpCosts' => $this->documents('warp_cost'),
             'sizingRecipes' => $this->documents('sizing_recipe'),
             'chemicalConsumptions' => $this->documents('chemical_consumption'),
             'loomMasters' => $this->documents('loom_master'),
@@ -176,6 +177,29 @@ class TextileManufacturingController extends Controller
         }
 
         return back()->with('success', __('Warp production created successfully.'));
+    }
+
+    public function storeWarpCost(Request $request, TextileManufacturingService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('manufacturing_warping', 'warp_production_id');
+
+        $validated = $request->validate([
+            'warp_production_id' => ['required', 'integer', 'min:1'],
+            'cost_type' => ['required', 'string', 'max:100', Rule::in($this->costTypeOptions())],
+            'cost_amount' => ['required', 'numeric', 'gt:0'],
+            'quantity' => ['nullable', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $service->createWarpCost((int) $validated['warp_production_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['warp_production_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Warp cost recorded successfully.'));
     }
 
     public function storeSizingRecipe(Request $request, TextileManufacturingService $service)

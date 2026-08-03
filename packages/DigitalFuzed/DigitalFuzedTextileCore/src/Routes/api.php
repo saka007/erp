@@ -52,6 +52,7 @@ Route::prefix('api')->middleware(['api.json'])->group(function () {
         Route::post('manufacturing/yarn-allocations/store', [TextileManufacturingApiController::class, 'storeYarnAllocation']);
         Route::post('manufacturing/warp-sheets/store', [TextileManufacturingApiController::class, 'storeWarpSheet']);
         Route::post('manufacturing/warp-productions/store', [TextileManufacturingApiController::class, 'storeWarpProduction']);
+        Route::post('manufacturing/warp-costs/store', [TextileManufacturingApiController::class, 'storeWarpCost']);
         Route::post('manufacturing/sizing-recipes/store', [TextileManufacturingApiController::class, 'storeSizingRecipe']);
         Route::post('manufacturing/chemical-consumptions/store', [TextileManufacturingApiController::class, 'storeChemicalConsumption']);
         Route::post('manufacturing/beams/from-sizing-recipe/store', [TextileManufacturingApiController::class, 'storeBeamFromSizingRecipe']);
