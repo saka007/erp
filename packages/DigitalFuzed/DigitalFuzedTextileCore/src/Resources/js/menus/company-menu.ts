@@ -177,6 +177,33 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                 ],
             },
             {
+                title: t('Packing'),
+                href: route('textile.packing.index'),
+                capability: 'sales',
+                children: [
+                    {
+                        title: t('Roll Packing'),
+                        href: route('textile.packing.index', { section: 'roll-packing' }),
+                        capability: 'sales_challan_pod',
+                    },
+                    {
+                        title: t('Bundle Packing'),
+                        href: route('textile.packing.index', { section: 'bundle-packing' }),
+                        capability: 'sales_challan_pod',
+                    },
+                    {
+                        title: t('Bale Packing'),
+                        href: route('textile.packing.index', { section: 'bale-packing' }),
+                        capability: 'sales_challan_pod',
+                    },
+                    {
+                        title: t('Labels'),
+                        href: route('textile.packing.index', { section: 'labels' }),
+                        capability: 'sales_challan_pod',
+                    },
+                ],
+            },
+            {
                 title: t('Processing'),
                 href: route('textile.processing.index'),
                 capability: 'processing',
@@ -409,6 +436,19 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                             {
                                 title: t('Fabric Defects'),
                                 href: route('textile.master-domains.fabric-defects.index', { domain: 'quality' }),
+                            },
+                        ],
+                    },
+                    {
+                        title: t('Packing Setup'),
+                        children: [
+                            {
+                                title: t('Source Types'),
+                                href: route('textile.master-domains.source-types.index', { domain: 'packing' }),
+                            },
+                            {
+                                title: t('Source Actions'),
+                                href: route('textile.master-domains.source-actions.index', { domain: 'packing' }),
                             },
                         ],
                     },

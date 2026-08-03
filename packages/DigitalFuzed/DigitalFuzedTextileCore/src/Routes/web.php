@@ -8,6 +8,7 @@ use DigitalFuzed\TextileCore\Http\Controllers\TextileSalesController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileManufacturingController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileQualityController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileProcessingController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextilePackingController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileCostingController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileDashboardController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileApprovalController;
@@ -140,6 +141,13 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/sales/dispatches/release', [TextileSalesController::class, 'releaseDispatch'])->name('textile.sales.dispatches.release');
     Route::post('/textile/sales/challans', [TextileSalesController::class, 'storeChallan'])->name('textile.sales.challans.store');
     Route::post('/textile/sales/challans/pod', [TextileSalesController::class, 'markPod'])->name('textile.sales.challans.pod');
+
+    Route::get('/textile/packing', [TextilePackingController::class, 'index'])->name('textile.packing.index');
+    Route::post('/textile/packing/rolls', [TextilePackingController::class, 'storeRollPacking'])->name('textile.packing.rolls.store');
+    Route::post('/textile/packing/bundles', [TextilePackingController::class, 'storeBundlePacking'])->name('textile.packing.bundles.store');
+    Route::post('/textile/packing/bales', [TextilePackingController::class, 'storeBalePacking'])->name('textile.packing.bales.store');
+    Route::post('/textile/packing/labels', [TextilePackingController::class, 'storeLabel'])->name('textile.packing.labels.store');
+    Route::post('/textile/packing/labels/issue', [TextilePackingController::class, 'issueLabel'])->name('textile.packing.labels.issue');
 
     Route::get('/textile/manufacturing', [TextileManufacturingController::class, 'index'])->name('textile.manufacturing.index');
     Route::post('/textile/manufacturing/warp-plans', [TextileManufacturingController::class, 'storeWarpPlan'])->name('textile.manufacturing.warp-plans.store');

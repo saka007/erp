@@ -742,14 +742,33 @@ UI Verification (Domain 16)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| Roll Packing | 🆕 New Module Required | P2 | `[ ]` |
-| Bundle Packing | 🆕 New Module Required | P2 | `[ ]` |
-| Bale Packing | 🆕 New Module Required | P2 | `[ ]` |
-| Labels | 🆕 New Module Required | P2 | `[ ]` |
-| Barcode Labels | 🟡 Extend Existing | P2 | `[~]` |
-| QR Labels | 🟡 Extend Existing | P2 | `[~]` |
-| Packing Material | 🟡 Extend Existing | P2 | `[~]` |
-| Weight | 🟡 Extend Existing | P2 | `[~]` |
+| Roll Packing | 🆕 New Module Required | P2 | `[x]` |
+| Bundle Packing | 🆕 New Module Required | P2 | `[x]` |
+| Bale Packing | 🆕 New Module Required | P2 | `[x]` |
+| Labels | 🆕 New Module Required | P2 | `[x]` |
+| Barcode Labels | 🟡 Extend Existing | P2 | `[x]` |
+| QR Labels | 🟡 Extend Existing | P2 | `[x]` |
+| Packing Material | 🟡 Extend Existing | P2 | `[x]` |
+| Weight | 🟡 Extend Existing | P2 | `[x]` |
+
+Progress note (2026-08-03):
+
+- Domain 17 completion slice now supports section-aware Packing workflows for Roll Packing, Bundle Packing, Bale Packing, and Label generation/issue with tenant-safe document operations.
+- Packing controlled values are master-driven for this domain: Source Types and Source Actions are wired under Master Setup > Packing Setup and consumed as select controls in the Packing screen.
+- Barcode and QR label generation is integrated into the Labels section with issued-state transition and challan linkage checks.
+- Verification: `php artisan test tests/Feature/Textile/TextilePackingAdminTest.php` => pass; `npm run build` => pass (existing chunk-size warnings only).
+
+UI Verification (Domain 17)
+
+| Feature | Menu/Submenu | Direct URL |
+|---|---|---|
+| Roll Packing | Daily Operations > Packing > Roll Packing | `/textile/packing?section=roll-packing` |
+| Bundle Packing | Daily Operations > Packing > Bundle Packing | `/textile/packing?section=bundle-packing` |
+| Bale Packing | Daily Operations > Packing > Bale Packing | `/textile/packing?section=bale-packing` |
+| Labels | Daily Operations > Packing > Labels | `/textile/packing?section=labels` |
+| Packing Source Types | Master Setup > Packing Setup > Source Types | `/textile/master-setup/packing/source-types` |
+| Packing Source Actions (Materials) | Master Setup > Packing Setup > Source Actions | `/textile/master-setup/packing/source-actions` |
+
 ### Domain 18: Dispatch (7 features)
 
 | Task | Classification | Priority | Status |
