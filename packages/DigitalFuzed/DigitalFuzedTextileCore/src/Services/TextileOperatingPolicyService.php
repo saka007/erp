@@ -168,6 +168,7 @@ class TextileOperatingPolicyService
             'sales_order' => false,
             'sales_allocation_dispatch' => false,
             'sales_challan_pod' => false,
+            'sales_dispatch_tracking' => false,
             'inventory_transactions' => false,
             'inventory_controls' => false,
             'inventory_records' => false,
@@ -237,6 +238,7 @@ class TextileOperatingPolicyService
         $capabilities['sales_order'] = $capabilities['sales'];
         $capabilities['sales_allocation_dispatch'] = $capabilities['sales'] && (($settings[self::SETTING_HAS_SALES_ALLOCATION] ?? false) || ($settings[self::SETTING_HAS_SALES_DISPATCH] ?? false));
         $capabilities['sales_challan_pod'] = $capabilities['sales'] && ($settings[self::SETTING_HAS_CHALLAN_POD] ?? false);
+        $capabilities['sales_dispatch_tracking'] = $capabilities['sales'] && ($settings[self::SETTING_HAS_SALES_DISPATCH] ?? false);
         $capabilities['inventory'] = $settings[self::SETTING_HAS_INVENTORY] ?? false;
         $capabilities['inventory_transactions'] = $capabilities['inventory'];
         $capabilities['inventory_controls'] = $capabilities['inventory'];

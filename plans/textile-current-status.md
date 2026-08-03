@@ -773,17 +773,38 @@ UI Verification (Domain 17)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| Dispatch Planning | 🟡 Extend Existing | P2 | `[~]` |
+| Dispatch Planning | 🟡 Extend Existing | P2 | `[x]` |
 | Delivery Challan | ✅ Already Available | P1 | `[x]` |
-| Truck | 🟡 Extend Existing | P2 | `[~]` |
-| Container | 🆕 New Module Required | P2 | `[ ]` |
-| Driver | 🆕 New Module Required | P2 | `[ ]` |
-| Vehicle | 🟡 Extend Existing | P2 | `[~]` |
-| LR Number | 🆕 New Module Required | P2 | `[ ]` |
-| E-Way Bill | 🆕 New Module Required | P3 | `[ ]` |
-| Freight | 🔵 Modify Existing | P2 | `[~]` |
+| Truck | 🟡 Extend Existing | P2 | `[x]` |
+| Container | 🆕 New Module Required | P2 | `[x]` |
+| Driver | 🆕 New Module Required | P2 | `[x]` |
+| Vehicle | 🟡 Extend Existing | P2 | `[x]` |
+| LR Number | 🆕 New Module Required | P2 | `[x]` |
+| E-Way Bill | 🆕 New Module Required | P3 | `[x]` |
+| Freight | 🔵 Modify Existing | P2 | `[x]` |
 | POD | ✅ Already Available | P1 | `[x]` |
-| Dispatch Tracking | 🆕 New Module Required | P3 | `[ ]` |
+| Dispatch Tracking | 🆕 New Module Required | P3 | `[x]` |
+
+Progress note (2026-08-03):
+
+- Domain 18 completion slice now supports a dedicated Dispatch workspace with section-aware Dispatch Planning and Dispatch Tracking flows, linked to released challans and POD visibility.
+- Dispatch planning captures Truck, Container, Driver, Vehicle, LR Number, E-Way Bill, and Freight metadata with tenant-safe workflows.
+- Dispatch controlled values are master-driven for this domain: Source Types and Source Actions are wired under Master Setup > Dispatch Setup and consumed as select controls in Dispatch planning/tracking forms.
+- Verification: `php artisan test tests/Feature/Textile/TextileDispatchAdminTest.php` => pass; `npm run build` => pass (existing chunk-size warnings only).
+
+UI Verification (Domain 18)
+
+| Feature | Menu/Submenu | Direct URL |
+|---|---|---|
+| Dispatch Planning | Daily Operations > Dispatch > Dispatch Planning | `/textile/dispatch?section=planning` |
+| Truck Dispatch | Daily Operations > Dispatch > Truck Dispatch | `/textile/dispatch?section=planning&mode=truck` |
+| Container Dispatch | Daily Operations > Dispatch > Container Dispatch | `/textile/dispatch?section=planning&mode=container` |
+| Dispatch Tracking | Daily Operations > Dispatch > Dispatch Tracking | `/textile/dispatch?section=tracking` |
+| Delivery Challan | Daily Operations > Dispatch > Delivery Challan | `/textile/sales?section=challan-pod` |
+| POD | Daily Operations > Dispatch > POD | `/textile/sales?section=challan-pod` |
+| Dispatch Source Types | Master Setup > Dispatch Setup > Source Types | `/textile/master-setup/dispatch/source-types` |
+| Dispatch Source Actions | Master Setup > Dispatch Setup > Source Actions | `/textile/master-setup/dispatch/source-actions` |
+
 ### Domain 19: Transport (5 features)
 
 | Task | Classification | Priority | Status |

@@ -204,6 +204,43 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                 ],
             },
             {
+                title: t('Dispatch'),
+                href: route('textile.dispatch.index'),
+                capability: 'sales_allocation_dispatch',
+                children: [
+                    {
+                        title: t('Dispatch Planning'),
+                        href: route('textile.dispatch.index', { section: 'planning' }),
+                        capability: 'sales_allocation_dispatch',
+                    },
+                    {
+                        title: t('Truck Dispatch'),
+                        href: route('textile.dispatch.index', { section: 'planning', mode: 'truck' }),
+                        capability: 'sales_allocation_dispatch',
+                    },
+                    {
+                        title: t('Container Dispatch'),
+                        href: route('textile.dispatch.index', { section: 'planning', mode: 'container' }),
+                        capability: 'sales_allocation_dispatch',
+                    },
+                    {
+                        title: t('Dispatch Tracking'),
+                        href: route('textile.dispatch.index', { section: 'tracking' }),
+                        capability: 'sales_dispatch_tracking',
+                    },
+                    {
+                        title: t('Delivery Challan'),
+                        href: route('textile.sales.index', { section: 'challan-pod' }),
+                        capability: 'sales_challan_pod',
+                    },
+                    {
+                        title: t('POD'),
+                        href: route('textile.sales.index', { section: 'challan-pod' }),
+                        capability: 'sales_challan_pod',
+                    },
+                ],
+            },
+            {
                 title: t('Processing'),
                 href: route('textile.processing.index'),
                 capability: 'processing',
@@ -449,6 +486,19 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                             {
                                 title: t('Source Actions'),
                                 href: route('textile.master-domains.source-actions.index', { domain: 'packing' }),
+                            },
+                        ],
+                    },
+                    {
+                        title: t('Dispatch Setup'),
+                        children: [
+                            {
+                                title: t('Source Types'),
+                                href: route('textile.master-domains.source-types.index', { domain: 'dispatch' }),
+                            },
+                            {
+                                title: t('Source Actions'),
+                                href: route('textile.master-domains.source-actions.index', { domain: 'dispatch' }),
                             },
                         ],
                     },

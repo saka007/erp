@@ -9,6 +9,7 @@ use DigitalFuzed\TextileCore\Http\Controllers\TextileManufacturingController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileQualityController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileProcessingController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextilePackingController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextileDispatchController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileCostingController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileDashboardController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileApprovalController;
@@ -148,6 +149,12 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/packing/bales', [TextilePackingController::class, 'storeBalePacking'])->name('textile.packing.bales.store');
     Route::post('/textile/packing/labels', [TextilePackingController::class, 'storeLabel'])->name('textile.packing.labels.store');
     Route::post('/textile/packing/labels/issue', [TextilePackingController::class, 'issueLabel'])->name('textile.packing.labels.issue');
+
+    Route::get('/textile/dispatch', [TextileDispatchController::class, 'index'])->name('textile.dispatch.index');
+    Route::post('/textile/dispatch/plans', [TextileDispatchController::class, 'storeDispatchPlan'])->name('textile.dispatch.plans.store');
+    Route::post('/textile/dispatch/plans/approve', [TextileDispatchController::class, 'approveDispatchPlan'])->name('textile.dispatch.plans.approve');
+    Route::post('/textile/dispatch/trackings', [TextileDispatchController::class, 'storeDispatchTracking'])->name('textile.dispatch.trackings.store');
+    Route::post('/textile/dispatch/trackings/finalize', [TextileDispatchController::class, 'finalizeDispatchTracking'])->name('textile.dispatch.trackings.finalize');
 
     Route::get('/textile/manufacturing', [TextileManufacturingController::class, 'index'])->name('textile.manufacturing.index');
     Route::post('/textile/manufacturing/warp-plans', [TextileManufacturingController::class, 'storeWarpPlan'])->name('textile.manufacturing.warp-plans.store');

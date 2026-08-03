@@ -1,0 +1,108 @@
+<?php
+
+namespace DigitalFuzed\TextileCore\Services;
+
+use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use RuntimeException;
+
+class TextileDispatchService
+{
+    public function __construct(protected TextileWorkflowService $workflowService)
+    {
+    }
+
+    public function createDispatchPlan(array $payload): TextileWorkflowDocument
+    {
+        $challan = $this->findTenantDocument((int) $payload['challan_id'], 'challan');
+        if (!in_array($challan->status, ['released', 'closed'], true)) {
+            throw new RuntimeException('Challan must be released before dispatch planning.');
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'dispatch_plan',
+            'source_reference_type' => $payload['source_reference_type'],
+            'source_reference_id' => $challan->id,
+            'source_action' => $payload['source_action'],
+            'party_name' => $challan->party_name,
+            'lot_reference' => $challan->lot_reference,
+            'quantity' => $challan->quantity,
+            'unit' => $challan->unit,
+            'status' => 'draft',
+            'metadata' => [
+                'dispatch_mode' => $payload['dispatch_mode'],
+                'truck_number' => $payload['truck_number'] ?? null,
+                'container_number' => $payload['container_number'] ?? null,
+                'driver_name' => $payload['driver_name'] ?? null,
+                'vehicle_number' => $payload['vehicle_number'] ?? null,
+                'lr_number' => $payload['lr_number'] ?? null,
+                'eway_bill_number' => $payload['eway_bill_number'] ?? null,
+                'freight_amount' => $payload['freight_amount'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+                'challan_id' => $challan->id,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function approveDispatchPlan(int $dispatchPlanId): TextileWorkflowDocument
+    {
+        $plan = $this->findTenantDocument($dispatchPlanId, 'dispatch_plan');
+
+        return $this->workflowService->transitionStatus($plan->id, 'approved');
+    }
+
+    public function createDispatchTracking(array $payload): TextileWorkflowDocument
+    {
+        $plan = $this->findTenantDocument((int) $payload['dispatch_plan_id'], 'dispatch_plan');
+        if (!in_array($plan->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Dispatch plan must be approved before tracking updates.');
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'dispatch_tracking',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $plan->id,
+            'source_action' => $payload['source_action'],
+            'party_name' => $plan->party_name,
+            'lot_reference' => $plan->lot_reference,
+            'quantity' => $plan->quantity,
+            'unit' => $plan->unit,
+            'status' => 'draft',
+            'metadata' => [
+                'tracking_status' => $payload['tracking_status'],
+                'current_location' => $payload['current_location'] ?? null,
+                'vehicle_number' => $payload['vehicle_number'] ?? ($plan->metadata['vehicle_number'] ?? null),
+                'driver_name' => $payload['driver_name'] ?? ($plan->metadata['driver_name'] ?? null),
+                'lr_number' => $payload['lr_number'] ?? ($plan->metadata['lr_number'] ?? null),
+                'eway_bill_number' => $payload['eway_bill_number'] ?? ($plan->metadata['eway_bill_number'] ?? null),
+                'challan_id' => $plan->metadata['challan_id'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function finalizeDispatchTracking(int $trackingId): TextileWorkflowDocument
+    {
+        $tracking = $this->findTenantDocument($trackingId, 'dispatch_tracking');
+
+        return $this->workflowService->transitionStatus($tracking->id, 'approved');
+    }
+
+    protected function findTenantDocument(int $documentId, string $documentType): TextileWorkflowDocument
+    {
+        $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
+
+        $document = TextileWorkflowDocument::query()
+            ->where('id', $documentId)
+            ->where('document_type', $documentType)
+            ->when($tenantId !== null, fn ($query) => $query->where('created_by', $tenantId))
+            ->first();
+
+        if ($document === null) {
+            throw new RuntimeException('Document not found for tenant context.');
+        }
+
+        return $document;
+    }
+}
