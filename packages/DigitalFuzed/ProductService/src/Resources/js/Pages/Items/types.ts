@@ -19,6 +19,11 @@ export interface Item {
         unit_name: string;
     };
     image?: string;
+    images?: string[];
+    cone_number?: string;
+    cone_weight?: number;
+    yarn_barcode?: string;
+    yarn_qr_code?: string;
 }
 
 export interface ItemFormData {
@@ -33,6 +38,11 @@ export interface ItemFormData {
     unit?: string;
     quantity?: string;
     image?: string;
+    images?: string[];
+    cone_number?: string;
+    cone_weight?: string;
+    yarn_barcode?: string;
+    yarn_qr_code?: string;
     warehouse_id?: string;
     type?: string;
 }

@@ -100,6 +100,12 @@ class TextileManufacturingAdminTest extends TestCase
                 'lot_reference' => 'Rapier',
                 'quantity' => 540,
                 'unit' => 'rpm',
+                'shed_type' => 'dobby',
+                'width' => 110,
+                'loom_status' => 'running',
+                'running_hours' => 7.5,
+                'idle_hours' => 0.5,
+                'operator_name' => 'Operator A',
             ])
             ->assertSessionHasNoErrors();
 
@@ -111,6 +117,58 @@ class TextileManufacturingAdminTest extends TestCase
 
         $this->assertNotNull($loomMaster);
         $this->assertSame('approved', $loomMaster->status);
+        $this->assertSame('dobby', $loomMaster->metadata['shed_type']);
+        $this->assertSame(110.0, (float) $loomMaster->metadata['width']);
+        $this->assertSame('running', $loomMaster->metadata['loom_status']);
+        $this->assertSame(7.5, (float) $loomMaster->metadata['running_hours']);
+        $this->assertSame(0.5, (float) $loomMaster->metadata['idle_hours']);
+        $this->assertSame('Operator A', $loomMaster->metadata['operator_name']);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.loom-breakdowns.store'), [
+                'loom_master_id' => $loomMaster->id,
+                'breakdown_reason' => 'mechanical',
+                'downtime_hours' => 1.75,
+                'unit' => 'hour',
+                'operator_name' => 'Operator A',
+                'notes' => 'Picking arm jammed and corrected',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $loomBreakdown = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'loom_breakdown')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($loomBreakdown);
+        $this->assertSame('approved', $loomBreakdown->status);
+        $this->assertSame($loomMaster->id, $loomBreakdown->source_reference_id);
+        $this->assertSame('mechanical', $loomBreakdown->metadata['breakdown_reason']);
+        $this->assertSame(1.75, (float) $loomBreakdown->metadata['downtime_hours']);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.loom-maintenances.store'), [
+                'loom_master_id' => $loomMaster->id,
+                'maintenance_type' => 'preventive',
+                'maintenance_hours' => 2.0,
+                'unit' => 'hour',
+                'operator_name' => 'Operator A',
+                'notes' => 'Lubrication and alignment check completed',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $loomMaintenance = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'loom_maintenance')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($loomMaintenance);
+        $this->assertSame('approved', $loomMaintenance->status);
+        $this->assertSame($loomMaster->id, $loomMaintenance->source_reference_id);
+        $this->assertSame('preventive', $loomMaintenance->metadata['maintenance_type']);
+        $this->assertSame(2.0, (float) $loomMaintenance->metadata['maintenance_hours']);
 
         $this->actingAs($companyA)
             ->post(route('textile.manufacturing.batches.store'), [
@@ -282,6 +340,28 @@ class TextileManufacturingAdminTest extends TestCase
         $this->assertSame($warpProduction->id, $sizingRecipe->source_reference_id);
 
         $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.chemical-consumptions.store'), [
+                'sizing_recipe_id' => $sizingRecipe->id,
+                'chemical_type' => 'Starch',
+                'composition_percent' => 62.5,
+                'consumption_quantity' => 15,
+                'unit' => 'kg',
+                'notes' => 'Standard sizing blend',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $chemicalConsumption = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'chemical_consumption')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($chemicalConsumption);
+        $this->assertSame('approved', $chemicalConsumption->status);
+        $this->assertSame($sizingRecipe->id, $chemicalConsumption->source_reference_id);
+        $this->assertSame('Starch', $chemicalConsumption->metadata['chemical_type']);
+
+        $this->actingAs($companyA)
             ->post(route('textile.manufacturing.beams.from-sizing-recipe'), [
                 'sizing_recipe_id' => $sizingRecipe->id,
             ])
@@ -297,6 +377,48 @@ class TextileManufacturingAdminTest extends TestCase
         $this->assertNotNull($beamFromSizing);
         $this->assertSame('draft', $beamFromSizing->status);
 
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.beam-inspections.store'), [
+                'beam_id' => $beam->id,
+                'inspection_result' => 'pass',
+                'remarks' => 'Beam quality verified for downstream use',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $beamInspection = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'beam_inspection')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($beamInspection);
+        $this->assertSame('approved', $beamInspection->status);
+        $this->assertSame($beam->id, $beamInspection->source_reference_id);
+        $this->assertSame('pass', $beamInspection->metadata['inspection_result']);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.beam-costs.store'), [
+                'beam_id' => $beam->id,
+                'cost_type' => 'sizing_overhead',
+                'cost_amount' => 3250,
+                'quantity' => 250,
+                'unit' => 'mtr',
+                'notes' => 'Sizing and preparation overhead for beam run',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $beamCost = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'beam_cost')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($beamCost);
+        $this->assertSame('approved', $beamCost->status);
+        $this->assertSame($beam->id, $beamCost->source_reference_id);
+        $this->assertSame('sizing_overhead', $beamCost->metadata['cost_type']);
+        $this->assertSame(3250.0, (float) $beamCost->metadata['cost_amount']);
+
         $this->actingAs($companyB)
             ->get(route('textile.manufacturing.index'))
             ->assertOk()
@@ -308,10 +430,15 @@ class TextileManufacturingAdminTest extends TestCase
             ->assertDontSee($beamIssue->document_number)
             ->assertDontSee($beamReturn->document_number)
             ->assertDontSee($loomMaster->document_number)
+            ->assertDontSee($loomBreakdown->document_number)
+            ->assertDontSee($loomMaintenance->document_number)
             ->assertDontSee($beamFromSizing->document_number)
             ->assertDontSee($warpSheet->document_number)
             ->assertDontSee($warpProduction->document_number)
-            ->assertDontSee($sizingRecipe->document_number);
+            ->assertDontSee($sizingRecipe->document_number)
+            ->assertDontSee($chemicalConsumption->document_number)
+            ->assertDontSee($beamInspection->document_number)
+            ->assertDontSee($beamCost->document_number);
 
         $this->actingAs($companyA)
             ->get(route('textile.manufacturing.index'))
@@ -325,9 +452,14 @@ class TextileManufacturingAdminTest extends TestCase
             ->assertSee($beamReturn->document_number)
                 ->assertSee($beamFromSizing->document_number)
                 ->assertSee($loomMaster->document_number)
+                ->assertSee($loomBreakdown->document_number)
+                ->assertSee($loomMaintenance->document_number)
                 ->assertSee($warpSheet->document_number)
                 ->assertSee($warpProduction->document_number)
-                ->assertSee($sizingRecipe->document_number);
+                ->assertSee($sizingRecipe->document_number)
+                ->assertSee($chemicalConsumption->document_number)
+                ->assertSee($beamInspection->document_number)
+                ->assertSee($beamCost->document_number);
     }
 
     private function company(): User

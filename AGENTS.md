@@ -20,7 +20,7 @@ Priority modules:
 
 ## Working rules for future agents
 - Read this file first before starting work.
-- Read the roadmap in plans/textile-erpgo-phase1-mapping-roadmap.md before making changes.
+- Read the roadmap in plans/textile-current-status.md before making changes.
 - Prefer package-based extension under packages/workdo rather than injecting large amounts of logic into the core app.
 - Reuse existing shared capabilities such as ProductService, Quotation, Account, DoubleEntry, and Hrm instead of duplicating business masters.
 - Keep finance downstream of operational textile truth where appropriate.
@@ -28,7 +28,9 @@ Priority modules:
 - Follow the roadmap in small vertical slices rather than trying to implement everything at once.
 - Frontend textile pages must follow shared UX format: reuse shared components under resources/js/components/textile and keep standard page flow as KPI cards -> forms -> list/tables.
 - Use Inventory and Procurement textile pages as baseline reference for layout and behavior consistency when implementing new workflow screens.
+- Apply page type standard from the roadmap: popup/modal for small single-purpose actions, inline section forms for medium actions, and full-page sections for lifecycle workflows.
 - Menu and submenu are mandatory for every delivered slice: no feature is complete until its sidebar placement, submenu link, and route target are added and verifiable in UI.
+- Navigation acceptance checklist is mandatory before marking any task complete: menu placement, submenu route landing, breadcrumb, page title, controlled selectors, and verification evidence.
 - Type/unit/machine/source-style fields must not be free-text in workflow forms when they represent controlled values; deliver and wire domain master CRUD (under textile setup) and consume them via select controls.
 
 ## Resume guidance

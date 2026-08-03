@@ -27,6 +27,10 @@ class StoreProductServiceItemRequest extends FormRequest
             'image' => 'nullable|string',
             'images' => 'nullable|array',
             'images.*' => 'string',
+            'cone_number' => 'nullable|string|max:100',
+            'cone_weight' => 'nullable|numeric|min:0',
+            'yarn_barcode' => 'nullable|string|max:140',
+            'yarn_qr_code' => 'nullable|string|max:255',
             'warehouse_id' => 'nullable|exists:warehouses,id|required_unless:type,service',
             'type' => 'nullable|string|max:255',
         ];

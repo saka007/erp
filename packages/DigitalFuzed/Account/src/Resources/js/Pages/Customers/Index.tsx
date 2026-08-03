@@ -21,7 +21,7 @@ import { Pagination } from "@/components/ui/pagination";
 import Create from './Create';
 import Edit from './Edit';
 import View from './View';
-import { Customer, User } from './types';
+import { Customer, CustomerCategoryOption, User } from './types';
 import { resolveBillingModeLabel, resolveMaterialOwnershipLabel, resolveOperatingModelLabel } from './operating-profile-options';
 import { usePageButtons } from '@/hooks/usePageButtons';
 interface CustomerFilters {
@@ -45,6 +45,7 @@ interface CustomersIndexProps {
         total: number;
     };
     users: User[];
+    customerCategories: CustomerCategoryOption[];
     auth: {
         user: {
             permissions: string[];
@@ -53,7 +54,7 @@ interface CustomersIndexProps {
 }
 
 export default function Index() {
-    const { customers, users, auth, is_demo } = usePage<any>().props;
+    const { customers, users, customerCategories, auth, is_demo } = usePage<CustomersIndexProps & { is_demo?: boolean }>().props;
     const { t } = useTranslation();
     const urlParams = new URLSearchParams(window.location.search);
 
@@ -178,6 +179,19 @@ export default function Index() {
             key: 'operating_model',
             header: t('Operating Model'),
             render: (value: string) => resolveOperatingModelLabel(value),
+            sortable: false,
+        },
+        {
+            key: 'customerCategory',
+            header: t('Category'),
+            render: (_value: unknown, customer: Customer) => customer.customerCategory?.name || '-',
+            sortable: false,
+        },
+        {
+            key: 'credit_limit',
+            header: t('Credit Limit'),
+            render: (_value: unknown, customer: Customer) =>
+                customer.credit_limit ? `${customer.currency_code || 'USD'} ${Number(customer.credit_limit).toFixed(2)}` : '-',
             sortable: false,
         },
         ...(auth.user?.permissions?.some((p: string) => ['view-customers', 'edit-customers', 'delete-customers', 'view-customer-detail-report'].includes(p)) ? [{
@@ -438,6 +452,14 @@ export default function Index() {
                                                         <span className="text-xs text-gray-900 text-right ml-2">{resolveOperatingModelLabel(customer.operating_model)}</span>
                                                     </div>
                                                     <div className="flex justify-between items-center">
+                                                        <span className="text-xs text-gray-500">{t('Category')}</span>
+                                                        <span className="text-xs text-gray-900 text-right ml-2">{customer.customerCategory?.name || '-'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-xs text-gray-500">{t('Credit Limit')}</span>
+                                                        <span className="text-xs text-gray-900 text-right ml-2">{customer.credit_limit ? `${customer.currency_code || 'USD'} ${Number(customer.credit_limit).toFixed(2)}` : '-'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
                                                         <span className="text-xs text-gray-500">{t('Material')}</span>
                                                         <span className="text-xs text-gray-900 text-right ml-2">{resolveMaterialOwnershipLabel(customer.material_ownership)}</span>
                                                     </div>
@@ -581,11 +603,12 @@ export default function Index() {
 
             <Dialog open={modalState.isOpen} onOpenChange={closeModal}>
                 {modalState.mode === 'add' && (
-                    <Create onSuccess={closeModal} users={users} auth={auth} />
+                    <Create onSuccess={closeModal} users={users} customerCategories={customerCategories} auth={auth} />
                 )}
                 {modalState.mode === 'edit' && modalState.data && (
                     <Edit
                         customer={modalState.data}
+                        customerCategories={customerCategories}
                         onSuccess={closeModal}
                     />
                 )}

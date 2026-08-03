@@ -36,8 +36,69 @@ class TextileProcurementService
         return $this->workflowService->transitionStatus($requisitionId, 'approved');
     }
 
-    public function createPurchaseOrder(int $requisitionId, array $payload = []): TextileWorkflowDocument
+    public function createRfq(int $requisitionId, array $payload = []): TextileWorkflowDocument
     {
+        $requisition = $this->findTenantDocument($requisitionId, 'purchase_requisition');
+        if ($requisition->status !== 'approved') {
+            throw new RuntimeException('Requisition must be approved before creating RFQ.');
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'rfq',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $requisition->id,
+            'source_action' => 'request_for_quote',
+            'party_name' => $payload['party_name'] ?? $requisition->party_name,
+            'lot_reference' => $payload['lot_reference'] ?? $requisition->lot_reference,
+            'quantity' => $payload['quantity'] ?? $requisition->quantity,
+            'unit' => $payload['unit'] ?? $requisition->unit,
+            'status' => 'draft',
+            'metadata' => $payload['metadata'] ?? null,
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function sendRfq(int $rfqId): TextileWorkflowDocument
+    {
+        $rfq = $this->findTenantDocument($rfqId, 'rfq');
+
+        return $this->workflowService->transitionStatus($rfq->id, 'approved');
+    }
+
+    public function closeRfq(int $rfqId): TextileWorkflowDocument
+    {
+        $rfq = $this->findTenantDocument($rfqId, 'rfq');
+
+        return $this->workflowService->transitionStatus($rfq->id, 'released');
+    }
+
+    public function createPurchaseOrder(?int $requisitionId, ?int $rfqId = null, array $payload = []): TextileWorkflowDocument
+    {
+        if ($rfqId !== null) {
+            $rfq = $this->findTenantDocument($rfqId, 'rfq');
+            if (!in_array($rfq->status, ['approved', 'released'], true)) {
+                throw new RuntimeException('RFQ must be sent before creating purchase order.');
+            }
+
+            return $this->workflowService->createDocument([
+                'document_type' => 'purchase_order',
+                'source_reference_type' => 'textile_workflow_document',
+                'source_reference_id' => $rfq->id,
+                'source_action' => 'convert_rfq_to_po',
+                'party_name' => $payload['party_name'] ?? $rfq->party_name,
+                'lot_reference' => $payload['lot_reference'] ?? $rfq->lot_reference,
+                'quantity' => $payload['quantity'] ?? $rfq->quantity,
+                'unit' => $payload['unit'] ?? $rfq->unit,
+                'status' => 'draft',
+                'metadata' => $payload['metadata'] ?? null,
+                'idempotency_key' => $payload['idempotency_key'] ?? null,
+            ]);
+        }
+
+        if ($requisitionId === null) {
+            throw new RuntimeException('Requisition or RFQ reference is required for purchase order.');
+        }
+
         $requisition = $this->findTenantDocument($requisitionId, 'purchase_requisition');
         if ($requisition->status !== 'approved') {
             throw new RuntimeException('Requisition must be approved before creating purchase order.');
@@ -192,6 +253,47 @@ class TextileProcurementService
             'metadata' => $payload['metadata'] ?? null,
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
+    }
+
+    public function createSupplierClaim(int $grnId, array $payload = []): TextileWorkflowDocument
+    {
+        $grn = $this->findTenantDocument($grnId, 'grn');
+        if ($grn->status !== 'released') {
+            throw new RuntimeException('GRN must be released before creating supplier claim.');
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'supplier_claim',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $grn->id,
+            'source_action' => 'supplier_claim',
+            'party_name' => $payload['party_name'] ?? $grn->party_name,
+            'lot_reference' => $payload['lot_reference'] ?? $grn->lot_reference,
+            'quantity' => $payload['quantity'] ?? $grn->quantity,
+            'unit' => $payload['unit'] ?? $grn->unit,
+            'status' => 'draft',
+            'metadata' => [
+                'claim_type' => $payload['claim_type'] ?? null,
+                'claim_amount' => $payload['claim_amount'] ?? null,
+                'claim_note' => $payload['claim_note'] ?? null,
+                'resolution_type' => $payload['resolution_type'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function approveSupplierClaim(int $supplierClaimId): TextileWorkflowDocument
+    {
+        $claim = $this->findTenantDocument($supplierClaimId, 'supplier_claim');
+
+        return $this->workflowService->transitionStatus($claim->id, 'approved');
+    }
+
+    public function settleSupplierClaim(int $supplierClaimId): TextileWorkflowDocument
+    {
+        $claim = $this->findTenantDocument($supplierClaimId, 'supplier_claim');
+
+        return $this->workflowService->transitionStatus($claim->id, 'released');
     }
 
     public function finalizeIncomingQc(int $incomingQcId, string $decision): TextileWorkflowDocument

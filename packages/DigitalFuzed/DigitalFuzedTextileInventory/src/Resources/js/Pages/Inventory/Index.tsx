@@ -147,6 +147,37 @@ export default function Index({
     const frozenLots = activeLots.filter((lot) => lot.is_frozen === true);
     const totalAvailableQuantity = activeLots.reduce((sum, lot) => sum + toNumber(lot.available_quantity), 0);
     const openReservations = reservations.filter((reservation) => reservation.status !== 'released' && reservation.status !== 'cancelled');
+    const activeLotReferenceOptions = activeLots.map((lot) => lot.lot_reference);
+    const allLotReferenceOptions = lots.map((lot) => lot.lot_reference);
+    const activeLocationOptions = locations.map((location) => ({
+        value: String(location.id),
+        label: location.code ? `${location.name} (${location.code})` : location.name,
+    }));
+    const locationNameOptions = locations.map((location) => location.name);
+    const activeLotIdOptions = activeLots.map((lot) => ({
+        value: String(lot.id),
+        label: `${lot.lot_reference}${lot.batch_number ? ` | ${lot.batch_number}` : ''}`,
+    }));
+    const freezableLotIdOptions = activeLots
+        .filter((lot) => lot.is_frozen !== true)
+        .map((lot) => ({
+            value: String(lot.id),
+            label: `${lot.lot_reference}${lot.batch_number ? ` | ${lot.batch_number}` : ''}`,
+        }));
+    const frozenLotIdOptions = activeLots
+        .filter((lot) => lot.is_frozen === true)
+        .map((lot) => ({
+            value: String(lot.id),
+            label: `${lot.lot_reference}${lot.batch_number ? ` | ${lot.batch_number}` : ''}`,
+        }));
+    const activeReservationOptions = reservations.map((reservation) => ({
+        value: String(reservation.id),
+        label: `${reservation.lot_reference} | Qty ${reservation.reserved_quantity} | ${reservation.status}`,
+    }));
+    const lotStatusOptions = ['active', 'hold', 'inactive'];
+    const unitOptions = ['kg', 'mtr', 'pcs', 'cone', 'roll', 'set', 'rpm'];
+    const reservationReferenceTypeOptions = ['sales_order', 'allocation', 'job_work_outward', 'production_batch', 'manual'];
+    const allocationReferenceTypeOptions = ['allocation', 'dispatch', 'sales_order', 'manual'];
 
     const lotForm = useForm({
         lot_reference: '',
@@ -405,7 +436,13 @@ export default function Index({
                                         <TextileField label={t('QR Code')} value={lotForm.data.qr_code} onChange={(value) => lotForm.setData('qr_code', value)} />
                                         <TextileField label={t('Received Quantity')} type="number" value={lotForm.data.received_quantity} onChange={(value) => lotForm.setData('received_quantity', value)} required />
                                         <TextileField label={t('Opening Available Quantity')} type="number" value={lotForm.data.available_quantity} onChange={(value) => lotForm.setData('available_quantity', value)} />
-                                        <TextileField label={t('Status')} value={lotForm.data.status} onChange={(value) => lotForm.setData('status', value)} />
+                                        <TextileSelectField
+                                            label={t('Status')}
+                                            value={lotForm.data.status}
+                                            onChange={(value) => lotForm.setData('status', value)}
+                                            options={lotStatusOptions}
+                                            required
+                                        />
                                         <Button type="submit" disabled={lotForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Lot')}</Button>
                                     </form>
                                 </CardContent>
@@ -426,14 +463,29 @@ export default function Index({
                                         {movementForm.data.movement_type === 'adjustment' && (
                                             <TextileSelectField label={t('Adjustment Direction')} value={movementForm.data.adjustment_direction} onChange={(value) => movementForm.setData('adjustment_direction', value)} options={['increase', 'decrease']} required />
                                         )}
-                                        <TextileField label={t('Lot Reference')} value={movementForm.data.lot_reference} onChange={(value) => movementForm.setData('lot_reference', value)} />
+                                        <TextileSelectField
+                                            label={t('Lot Reference')}
+                                            value={movementForm.data.lot_reference}
+                                            onChange={(value) => movementForm.setData('lot_reference', value)}
+                                            options={activeLotReferenceOptions}
+                                            includeEmpty
+                                            emptyLabel={t('Select active lot')}
+                                            required
+                                        />
                                         <div className="grid grid-cols-2 gap-3">
-                                            <TextileSelectField label={t('From Location')} value={movementForm.data.location_from} onChange={(value) => movementForm.setData('location_from', value)} options={locations.map((location) => location.name)} includeEmpty emptyLabel={t('Select location')} />
-                                            <TextileSelectField label={t('To Location')} value={movementForm.data.location_to} onChange={(value) => movementForm.setData('location_to', value)} options={locations.map((location) => location.name)} includeEmpty emptyLabel={t('Select location')} />
+                                            <TextileSelectField label={t('From Location')} value={movementForm.data.location_from} onChange={(value) => movementForm.setData('location_from', value)} options={locationNameOptions} includeEmpty emptyLabel={t('Select location')} />
+                                            <TextileSelectField label={t('To Location')} value={movementForm.data.location_to} onChange={(value) => movementForm.setData('location_to', value)} options={locationNameOptions} includeEmpty emptyLabel={t('Select location')} />
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <TextileField label={t('Quantity')} type="number" value={movementForm.data.quantity} onChange={(value) => movementForm.setData('quantity', value)} required />
-                                            <TextileField label={t('Unit')} value={movementForm.data.unit} onChange={(value) => movementForm.setData('unit', value)} />
+                                            <TextileSelectField
+                                                label={t('Unit')}
+                                                value={movementForm.data.unit}
+                                                onChange={(value) => movementForm.setData('unit', value)}
+                                                options={unitOptions}
+                                                includeEmpty
+                                                emptyLabel={t('Select unit')}
+                                            />
                                         </div>
                                         <TextileSelectField label={t('Status')} value={movementForm.data.status} onChange={(value) => movementForm.setData('status', value)} options={movementStatuses} required />
                                         <TextileField label={t('Notes')} value={movementForm.data.notes} onChange={(value) => movementForm.setData('notes', value)} />
@@ -453,9 +505,24 @@ export default function Index({
                                         <h2 className="font-semibold">{t('Reserve Lot Quantity')}</h2>
                                     </div>
                                     <form onSubmit={submitReservation} className="grid gap-4 xl:grid-cols-4">
-                                        <TextileField label={t('Lot Reference')} value={reservationForm.data.lot_reference} onChange={(value) => reservationForm.setData('lot_reference', value)} required />
+                                        <TextileSelectField
+                                            label={t('Lot Reference')}
+                                            value={reservationForm.data.lot_reference}
+                                            onChange={(value) => reservationForm.setData('lot_reference', value)}
+                                            options={activeLotReferenceOptions}
+                                            includeEmpty
+                                            emptyLabel={t('Select active lot')}
+                                            required
+                                        />
                                         <TextileField label={t('Quantity')} type="number" value={reservationForm.data.quantity} onChange={(value) => reservationForm.setData('quantity', value)} required />
-                                        <TextileField label={t('Reference Type')} value={reservationForm.data.reference_type} onChange={(value) => reservationForm.setData('reference_type', value)} />
+                                        <TextileSelectField
+                                            label={t('Reference Type')}
+                                            value={reservationForm.data.reference_type}
+                                            onChange={(value) => reservationForm.setData('reference_type', value)}
+                                            options={reservationReferenceTypeOptions}
+                                            includeEmpty
+                                            emptyLabel={t('Select reference type')}
+                                        />
                                         <TextileField label={t('Reference ID')} type="number" value={reservationForm.data.reference_id} onChange={(value) => reservationForm.setData('reference_id', value)} />
                                         <div className="xl:col-span-4">
                                             <Button type="submit" disabled={reservationForm.processing} className="w-full xl:w-auto"><Plus className="mr-2 h-4 w-4" />{t('Reserve Quantity')}</Button>
@@ -517,7 +584,7 @@ export default function Index({
                                         <h2 className="font-semibold">{t('Archive Location')}</h2>
                                     </div>
                                     <form onSubmit={submitLocationArchive} className="grid gap-4 xl:grid-cols-4">
-                                        <TextileSelectField label={t('Archive Location')} value={locationArchiveForm.data.location_id} onChange={(value) => locationArchiveForm.setData('location_id', value)} options={locations.map((location) => String(location.id))} includeEmpty emptyLabel={t('Select active location ID')} required />
+                                        <TextileSelectField label={t('Archive Location')} value={locationArchiveForm.data.location_id} onChange={(value) => locationArchiveForm.setData('location_id', value)} options={activeLocationOptions} includeEmpty emptyLabel={t('Select active location')} required />
                                         <div className="flex items-end"><Button type="submit" variant="outline" disabled={locationArchiveForm.processing} className="w-full">{t('Archive Location')}</Button></div>
                                     </form>
                                 </CardContent>
@@ -534,8 +601,8 @@ export default function Index({
                                         <h2 className="font-semibold">{t('Update Lot Status')}</h2>
                                     </div>
                                     <form onSubmit={submitLotUpdate} className="grid gap-4 xl:grid-cols-4">
-                                        <TextileSelectField label={t('Update Lot Status')} value={lotUpdateForm.data.lot_id} onChange={(value) => lotUpdateForm.setData('lot_id', value)} options={lots.filter((lot) => lot.is_active !== false).map((lot) => String(lot.id))} includeEmpty emptyLabel={t('Select active lot ID')} required />
-                                        <TextileSelectField label={t('New Status')} value={lotUpdateForm.data.status} onChange={(value) => lotUpdateForm.setData('status', value)} options={['active', 'hold', 'inactive']} required />
+                                        <TextileSelectField label={t('Update Lot Status')} value={lotUpdateForm.data.lot_id} onChange={(value) => lotUpdateForm.setData('lot_id', value)} options={activeLotIdOptions} includeEmpty emptyLabel={t('Select active lot')} required />
+                                        <TextileSelectField label={t('New Status')} value={lotUpdateForm.data.status} onChange={(value) => lotUpdateForm.setData('status', value)} options={lotStatusOptions} required />
                                         <div className="flex items-end"><Button type="submit" variant="outline" disabled={lotUpdateForm.processing} className="w-full">{t('Update Lot')}</Button></div>
                                     </form>
 
@@ -553,7 +620,7 @@ export default function Index({
                                         <h2 className="font-semibold">{t('Archive Lot')}</h2>
                                     </div>
                                     <form onSubmit={submitLotArchive} className="grid gap-4 xl:grid-cols-4">
-                                        <TextileSelectField label={t('Archive Lot')} value={lotArchiveForm.data.lot_id} onChange={(value) => lotArchiveForm.setData('lot_id', value)} options={lots.filter((lot) => lot.is_active !== false).map((lot) => String(lot.id))} includeEmpty emptyLabel={t('Select active lot ID')} required />
+                                        <TextileSelectField label={t('Archive Lot')} value={lotArchiveForm.data.lot_id} onChange={(value) => lotArchiveForm.setData('lot_id', value)} options={activeLotIdOptions} includeEmpty emptyLabel={t('Select active lot')} required />
                                         <div className="flex items-end"><Button type="submit" variant="outline" disabled={lotArchiveForm.processing} className="w-full">{t('Archive Lot')}</Button></div>
                                     </form>
                                 </CardContent>
@@ -570,7 +637,7 @@ export default function Index({
                                         <h2 className="font-semibold">{t('Freeze Lot')}</h2>
                                     </div>
                                     <form onSubmit={submitLotFreeze} className="grid gap-4 xl:grid-cols-4">
-                                        <TextileSelectField label={t('Freeze Lot')} value={lotFreezeForm.data.lot_id} onChange={(value) => lotFreezeForm.setData('lot_id', value)} options={lots.filter((lot) => lot.is_active !== false && lot.is_frozen !== true).map((lot) => String(lot.id))} includeEmpty emptyLabel={t('Select lot to freeze')} required />
+                                        <TextileSelectField label={t('Freeze Lot')} value={lotFreezeForm.data.lot_id} onChange={(value) => lotFreezeForm.setData('lot_id', value)} options={freezableLotIdOptions} includeEmpty emptyLabel={t('Select lot to freeze')} required />
                                         <TextileField label={t('Freeze Note')} value={lotFreezeForm.data.freeze_note} onChange={(value) => lotFreezeForm.setData('freeze_note', value)} />
                                         <div className="flex items-end"><Button type="submit" variant="outline" disabled={lotFreezeForm.processing} className="w-full">{t('Freeze Lot')}</Button></div>
                                     </form>
@@ -588,7 +655,7 @@ export default function Index({
                                         <h2 className="font-semibold">{t('Unfreeze Lot')}</h2>
                                     </div>
                                     <form onSubmit={submitLotUnfreeze} className="grid gap-4 xl:grid-cols-4">
-                                        <TextileSelectField label={t('Unfreeze Lot')} value={lotUnfreezeForm.data.lot_id} onChange={(value) => lotUnfreezeForm.setData('lot_id', value)} options={lots.filter((lot) => lot.is_active !== false && lot.is_frozen === true).map((lot) => String(lot.id))} includeEmpty emptyLabel={t('Select lot to unfreeze')} required />
+                                        <TextileSelectField label={t('Unfreeze Lot')} value={lotUnfreezeForm.data.lot_id} onChange={(value) => lotUnfreezeForm.setData('lot_id', value)} options={frozenLotIdOptions} includeEmpty emptyLabel={t('Select lot to unfreeze')} required />
                                         <div className="flex items-end"><Button type="submit" variant="outline" disabled={lotUnfreezeForm.processing} className="w-full">{t('Unfreeze Lot')}</Button></div>
                                     </form>
                                 </CardContent>
@@ -605,11 +672,18 @@ export default function Index({
                                         <h2 className="font-semibold">{t('Physical Verification')}</h2>
                                     </div>
                                     <form onSubmit={submitPhysicalVerification} className="grid gap-4 xl:grid-cols-4">
-                                        <TextileSelectField label={t('Verify Lot')} value={physicalVerificationForm.data.lot_reference} onChange={(value) => physicalVerificationForm.setData('lot_reference', value)} options={lots.filter((lot) => lot.is_active !== false).map((lot) => lot.lot_reference)} includeEmpty emptyLabel={t('Select active lot')} required />
+                                        <TextileSelectField label={t('Verify Lot')} value={physicalVerificationForm.data.lot_reference} onChange={(value) => physicalVerificationForm.setData('lot_reference', value)} options={activeLotReferenceOptions} includeEmpty emptyLabel={t('Select active lot')} required />
                                         <TextileField label={t('Counted Quantity')} type="number" value={physicalVerificationForm.data.counted_quantity} onChange={(value) => physicalVerificationForm.setData('counted_quantity', value)} required />
-                                        <TextileSelectField label={t('Location')} value={physicalVerificationForm.data.location} onChange={(value) => physicalVerificationForm.setData('location', value)} options={locations.map((location) => location.name)} includeEmpty emptyLabel={t('Optional location')} />
+                                        <TextileSelectField label={t('Location')} value={physicalVerificationForm.data.location} onChange={(value) => physicalVerificationForm.setData('location', value)} options={locationNameOptions} includeEmpty emptyLabel={t('Optional location')} />
                                         <div className="grid grid-cols-2 gap-2">
-                                            <TextileField label={t('Unit')} value={physicalVerificationForm.data.unit} onChange={(value) => physicalVerificationForm.setData('unit', value)} />
+                                            <TextileSelectField
+                                                label={t('Unit')}
+                                                value={physicalVerificationForm.data.unit}
+                                                onChange={(value) => physicalVerificationForm.setData('unit', value)}
+                                                options={unitOptions}
+                                                includeEmpty
+                                                emptyLabel={t('Select unit')}
+                                            />
                                             <div className="flex items-end"><Button type="submit" variant="outline" disabled={physicalVerificationForm.processing} className="w-full">{t('Post Verification')}</Button></div>
                                         </div>
                                     </form>
@@ -628,10 +702,17 @@ export default function Index({
                                     </div>
 
                                     <form onSubmit={submitCycleCount} className="grid gap-4 xl:grid-cols-4">
-                                        <TextileSelectField label={t('Cycle Count Lot')} value={cycleCountForm.data.lot_reference} onChange={(value) => cycleCountForm.setData('lot_reference', value)} options={lots.filter((lot) => lot.is_active !== false).map((lot) => lot.lot_reference)} includeEmpty emptyLabel={t('Select active lot')} required />
+                                        <TextileSelectField label={t('Cycle Count Lot')} value={cycleCountForm.data.lot_reference} onChange={(value) => cycleCountForm.setData('lot_reference', value)} options={activeLotReferenceOptions} includeEmpty emptyLabel={t('Select active lot')} required />
                                         <TextileField label={t('Counted Quantity')} type="number" value={cycleCountForm.data.counted_quantity} onChange={(value) => cycleCountForm.setData('counted_quantity', value)} required />
-                                        <TextileSelectField label={t('Location')} value={cycleCountForm.data.location} onChange={(value) => cycleCountForm.setData('location', value)} options={locations.map((location) => location.name)} includeEmpty emptyLabel={t('Optional location')} />
-                                        <TextileField label={t('Unit')} value={cycleCountForm.data.unit} onChange={(value) => cycleCountForm.setData('unit', value)} />
+                                        <TextileSelectField label={t('Location')} value={cycleCountForm.data.location} onChange={(value) => cycleCountForm.setData('location', value)} options={locationNameOptions} includeEmpty emptyLabel={t('Optional location')} />
+                                        <TextileSelectField
+                                            label={t('Unit')}
+                                            value={cycleCountForm.data.unit}
+                                            onChange={(value) => cycleCountForm.setData('unit', value)}
+                                            options={unitOptions}
+                                            includeEmpty
+                                            emptyLabel={t('Select unit')}
+                                        />
                                         <div className="xl:col-span-4">
                                             <TextileField label={t('Notes')} value={cycleCountForm.data.notes} onChange={(value) => cycleCountForm.setData('notes', value)} />
                                             <Button type="submit" variant="outline" disabled={cycleCountForm.processing} className="mt-2 w-full">{t('Post Cycle Count')}</Button>
@@ -651,7 +732,7 @@ export default function Index({
                                         <h2 className="font-semibold">{t('Release Reservation')}</h2>
                                     </div>
                                     <form onSubmit={submitReservationRelease} className="grid gap-4 xl:grid-cols-4">
-                                        <TextileSelectField label={t('Reservation ID')} value={reservationReleaseForm.data.reservation_id} onChange={(value) => reservationReleaseForm.setData('reservation_id', value)} options={reservations.map((reservation) => String(reservation.id))} includeEmpty emptyLabel={t('Select active reservation')} required />
+                                        <TextileSelectField label={t('Reservation ID')} value={reservationReleaseForm.data.reservation_id} onChange={(value) => reservationReleaseForm.setData('reservation_id', value)} options={activeReservationOptions} includeEmpty emptyLabel={t('Select active reservation')} required />
                                         <div className="flex items-end"><Button type="submit" variant="outline" disabled={reservationReleaseForm.processing} className="w-full">{t('Release Reservation')}</Button></div>
                                     </form>
                                 </CardContent>
@@ -668,9 +749,16 @@ export default function Index({
                                         <h2 className="font-semibold">{t('Allocate Reservation')}</h2>
                                     </div>
                                     <form onSubmit={submitReservationAllocate} className="grid gap-4 xl:grid-cols-4">
-                                        <TextileSelectField label={t('Allocate Reservation ID')} value={reservationAllocateForm.data.reservation_id} onChange={(value) => reservationAllocateForm.setData('reservation_id', value)} options={reservations.map((reservation) => String(reservation.id))} includeEmpty emptyLabel={t('Select active reservation')} required />
+                                        <TextileSelectField label={t('Allocate Reservation ID')} value={reservationAllocateForm.data.reservation_id} onChange={(value) => reservationAllocateForm.setData('reservation_id', value)} options={activeReservationOptions} includeEmpty emptyLabel={t('Select active reservation')} required />
                                         <TextileField label={t('Allocation Reference ID')} type="number" value={reservationAllocateForm.data.allocation_reference_id} onChange={(value) => reservationAllocateForm.setData('allocation_reference_id', value)} required />
-                                        <TextileField label={t('Allocation Reference Type')} value={reservationAllocateForm.data.allocation_reference_type} onChange={(value) => reservationAllocateForm.setData('allocation_reference_type', value)} />
+                                        <TextileSelectField
+                                            label={t('Allocation Reference Type')}
+                                            value={reservationAllocateForm.data.allocation_reference_type}
+                                            onChange={(value) => reservationAllocateForm.setData('allocation_reference_type', value)}
+                                            options={allocationReferenceTypeOptions}
+                                            includeEmpty
+                                            emptyLabel={t('Select allocation reference type')}
+                                        />
                                         <div className="flex items-end"><Button type="submit" variant="outline" disabled={reservationAllocateForm.processing} className="w-full">{t('Link Allocation')}</Button></div>
                                     </form>
                                 </CardContent>
@@ -711,8 +799,8 @@ export default function Index({
                                     <form onSubmit={submitMovementFilter} className="grid gap-4 xl:grid-cols-5">
                                         <TextileSelectField label={t('Type')} value={movementFilterForm.data.movement_type} onChange={(value) => movementFilterForm.setData('movement_type', value)} options={movementTypes} includeEmpty emptyLabel={t('All types')} />
                                         <TextileSelectField label={t('Status')} value={movementFilterForm.data.status} onChange={(value) => movementFilterForm.setData('status', value)} options={movementStatuses} includeEmpty emptyLabel={t('All statuses')} />
-                                        <TextileField label={t('Lot Reference')} value={movementFilterForm.data.lot_reference} onChange={(value) => movementFilterForm.setData('lot_reference', value)} />
-                                        <TextileSelectField label={t('Location')} value={movementFilterForm.data.location} onChange={(value) => movementFilterForm.setData('location', value)} options={locations.map((location) => location.name)} includeEmpty emptyLabel={t('All locations')} />
+                                        <TextileSelectField label={t('Lot Reference')} value={movementFilterForm.data.lot_reference} onChange={(value) => movementFilterForm.setData('lot_reference', value)} options={allLotReferenceOptions} includeEmpty emptyLabel={t('All lots')} />
+                                        <TextileSelectField label={t('Location')} value={movementFilterForm.data.location} onChange={(value) => movementFilterForm.setData('location', value)} options={locationNameOptions} includeEmpty emptyLabel={t('All locations')} />
                                         <div className="flex items-end gap-2"><Button type="submit" className="w-full">{t('Apply')}</Button><Button type="button" variant="outline" className="w-full" onClick={clearMovementFilter}>{t('Clear')}</Button></div>
                                     </form>
                                 </CardContent>

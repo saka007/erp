@@ -23,7 +23,7 @@ class ProductServiceItemController extends Controller
     public function index()
     {
         if(Auth::user()->can('manage-product-service-item')){
-            $items = ProductServiceItem::select('id', 'name', 'sku', 'sale_price', 'purchase_price', 'tax_ids', 'category_id', 'unit', 'type', 'image', 'description', 'long_description', 'created_at')
+            $items = ProductServiceItem::select('id', 'name', 'sku', 'sale_price', 'purchase_price', 'tax_ids', 'category_id', 'unit', 'type', 'image', 'cone_number', 'cone_weight', 'yarn_barcode', 'yarn_qr_code', 'description', 'long_description', 'created_at')
                 ->with(['category:id,name', 'unitRelation:id,unit_name', 'warehouseStocks:product_id,quantity'])
                 ->where(function($q) {
                     if(Auth::user()->can('manage-any-product-service-item')) {
@@ -91,6 +91,10 @@ class ProductServiceItemController extends Controller
             $item->purchase_price = $validated['purchase_price'];
             $item->unit = $validated['unit'] === 'none' ? null : $validated['unit'];
             $item->type = $validated['type'];
+            $item->cone_number = $validated['cone_number'] ?? null;
+            $item->cone_weight = $validated['cone_weight'] ?? null;
+            $item->yarn_barcode = $validated['yarn_barcode'] ?? null;
+            $item->yarn_qr_code = $validated['yarn_qr_code'] ?? null;
             $item->creator_id = Auth::id();
             $item->created_by = creatorId();
 
@@ -200,6 +204,10 @@ class ProductServiceItemController extends Controller
             $item->purchase_price = $validated['purchase_price'];
             $item->unit = $validated['unit'] === 'none' ? null : $validated['unit'];
             $item->type = $validated['type'];
+            $item->cone_number = $validated['cone_number'] ?? null;
+            $item->cone_weight = $validated['cone_weight'] ?? null;
+            $item->yarn_barcode = $validated['yarn_barcode'] ?? null;
+            $item->yarn_qr_code = $validated['yarn_qr_code'] ?? null;
 
             // Handle image path from media library
             if (isset($validated['image'])) {
@@ -299,7 +307,7 @@ class ProductServiceItemController extends Controller
                 } elseif(Auth::user()->can('manage-own-product-service-item')) {
                     $query->where('creator_id', Auth::id());
                 }
-                $items = $query->get(['id', 'name', 'sku', 'sale_price', 'tax_ids', 'description']);
+                $items = $query->get(['id', 'name', 'sku', 'sale_price', 'tax_ids', 'description', 'type', 'cone_number', 'cone_weight', 'yarn_barcode', 'yarn_qr_code']);
 
                 $transformedItems = $items->map(function ($item) {
                     $taxes = [];
@@ -318,6 +326,11 @@ class ProductServiceItemController extends Controller
                         'sku' => $item->sku,
                         'sale_price' => $item->sale_price,
                         'description' => $item->description,
+                        'type' => $item->type,
+                        'cone_number' => $item->cone_number,
+                        'cone_weight' => $item->cone_weight,
+                        'yarn_barcode' => $item->yarn_barcode,
+                        'yarn_qr_code' => $item->yarn_qr_code,
                         'taxes' => $taxes
                     ];
                 });

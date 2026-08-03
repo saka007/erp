@@ -19,6 +19,9 @@ class Customer extends Model
         'contact_person_mobile',
         'tax_number',
         'payment_terms',
+        'credit_limit',
+        'currency_code',
+        'customer_category_id',
         'operating_model',
         'material_ownership',
         'billing_mode',
@@ -72,5 +75,10 @@ class Customer extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function customerCategory()
+    {
+        return $this->belongsTo(CustomerCategory::class, 'customer_category_id');
     }
 }

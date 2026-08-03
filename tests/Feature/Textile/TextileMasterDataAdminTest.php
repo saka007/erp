@@ -36,6 +36,10 @@ class TextileMasterDataAdminTest extends TestCase
         TextileReferenceMaster::create(['master_type' => 'source_type', 'master_domain' => 'sales', 'name' => 'Other source type', 'is_active' => true, 'created_by' => $otherCompany->id, 'creator_id' => $otherCompany->id]);
         TextileReferenceMaster::create(['master_type' => 'source_action', 'master_domain' => 'sales', 'name' => 'Other source action', 'is_active' => true, 'created_by' => $otherCompany->id, 'creator_id' => $otherCompany->id]);
         TextileReferenceMaster::create(['master_type' => 'machine_type', 'master_domain' => 'manufacturing', 'name' => 'Other machine type', 'is_active' => true, 'created_by' => $otherCompany->id, 'creator_id' => $otherCompany->id]);
+        TextileReferenceMaster::create(['master_type' => 'shed_type', 'master_domain' => 'manufacturing', 'name' => 'Other shed type', 'is_active' => true, 'created_by' => $otherCompany->id, 'creator_id' => $otherCompany->id]);
+        TextileReferenceMaster::create(['master_type' => 'loom_status', 'master_domain' => 'manufacturing', 'name' => 'Other loom status', 'is_active' => true, 'created_by' => $otherCompany->id, 'creator_id' => $otherCompany->id]);
+        TextileReferenceMaster::create(['master_type' => 'breakdown_reason', 'master_domain' => 'manufacturing', 'name' => 'Other breakdown reason', 'is_active' => true, 'created_by' => $otherCompany->id, 'creator_id' => $otherCompany->id]);
+        TextileReferenceMaster::create(['master_type' => 'maintenance_type', 'master_domain' => 'manufacturing', 'name' => 'Other maintenance type', 'is_active' => true, 'created_by' => $otherCompany->id, 'creator_id' => $otherCompany->id]);
 
         $this->actingAs($company)
             ->post(route('textile.quality-profiles.store'), ['name' => 'Grey Fabric QC', 'code' => 'QC-01', 'grade' => 'A', 'parameters' => 'GSM and width'])
@@ -55,6 +59,18 @@ class TextileMasterDataAdminTest extends TestCase
         $this->actingAs($company)
             ->post(route('textile.master-domains.machine-types.store', ['domain' => 'manufacturing']), ['name' => 'Rapier', 'code' => 'RAP', 'description' => 'Rapier loom'])
             ->assertRedirect();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.shed-types.store', ['domain' => 'manufacturing']), ['name' => 'Dobby', 'code' => 'DOB', 'description' => 'Dobby shed type'])
+            ->assertRedirect();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.loom-statuses.store', ['domain' => 'manufacturing']), ['name' => 'Running', 'code' => 'RUN', 'description' => 'Loom currently running'])
+            ->assertRedirect();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.breakdown-reasons.store', ['domain' => 'manufacturing']), ['name' => 'Mechanical', 'code' => 'MEC', 'description' => 'Mechanical failure'])
+            ->assertRedirect();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.maintenance-types.store', ['domain' => 'manufacturing']), ['name' => 'Preventive', 'code' => 'PRE', 'description' => 'Preventive maintenance'])
+            ->assertRedirect();
 
         $qualityId = TextileQualityProfile::query()->where('name', 'Grey Fabric QC')->value('id');
         $routeId = TextileRouteRecipe::query()->where('name', 'Weaving Route')->value('id');
@@ -62,12 +78,20 @@ class TextileMasterDataAdminTest extends TestCase
         $sourceTypeId = TextileReferenceMaster::query()->where('master_type', 'source_type')->where('master_domain', 'sales')->where('name', 'Sales Order')->value('id');
         $sourceActionId = TextileReferenceMaster::query()->where('master_type', 'source_action')->where('master_domain', 'sales')->where('name', 'Convert')->value('id');
         $machineTypeId = TextileReferenceMaster::query()->where('master_type', 'machine_type')->where('master_domain', 'manufacturing')->where('name', 'Rapier')->value('id');
+        $shedTypeId = TextileReferenceMaster::query()->where('master_type', 'shed_type')->where('master_domain', 'manufacturing')->where('name', 'Dobby')->value('id');
+        $loomStatusId = TextileReferenceMaster::query()->where('master_type', 'loom_status')->where('master_domain', 'manufacturing')->where('name', 'Running')->value('id');
+        $breakdownReasonId = TextileReferenceMaster::query()->where('master_type', 'breakdown_reason')->where('master_domain', 'manufacturing')->where('name', 'Mechanical')->value('id');
+        $maintenanceTypeId = TextileReferenceMaster::query()->where('master_type', 'maintenance_type')->where('master_domain', 'manufacturing')->where('name', 'Preventive')->value('id');
         $otherQualityId = TextileQualityProfile::query()->where('name', 'Other profile')->value('id');
         $otherRouteId = TextileRouteRecipe::query()->where('name', 'Other route')->value('id');
         $otherConversionId = TextileUnitConversion::query()->where('from_unit', 'meter')->value('id');
         $otherSourceTypeId = TextileReferenceMaster::query()->where('master_type', 'source_type')->where('master_domain', 'sales')->where('name', 'Other source type')->value('id');
         $otherSourceActionId = TextileReferenceMaster::query()->where('master_type', 'source_action')->where('master_domain', 'sales')->where('name', 'Other source action')->value('id');
         $otherMachineTypeId = TextileReferenceMaster::query()->where('master_type', 'machine_type')->where('master_domain', 'manufacturing')->where('name', 'Other machine type')->value('id');
+        $otherShedTypeId = TextileReferenceMaster::query()->where('master_type', 'shed_type')->where('master_domain', 'manufacturing')->where('name', 'Other shed type')->value('id');
+        $otherLoomStatusId = TextileReferenceMaster::query()->where('master_type', 'loom_status')->where('master_domain', 'manufacturing')->where('name', 'Other loom status')->value('id');
+        $otherBreakdownReasonId = TextileReferenceMaster::query()->where('master_type', 'breakdown_reason')->where('master_domain', 'manufacturing')->where('name', 'Other breakdown reason')->value('id');
+        $otherMaintenanceTypeId = TextileReferenceMaster::query()->where('master_type', 'maintenance_type')->where('master_domain', 'manufacturing')->where('name', 'Other maintenance type')->value('id');
 
         $this->actingAs($company)
             ->post(route('textile.quality-profiles.update'), ['record_id' => $qualityId, 'name' => 'Grey Fabric QC Updated', 'code' => 'QC-02', 'grade' => 'A+', 'parameters' => 'GSM, width, shade'])
@@ -86,6 +110,18 @@ class TextileMasterDataAdminTest extends TestCase
             ->assertRedirect();
         $this->actingAs($company)
             ->post(route('textile.master-domains.machine-types.update', ['domain' => 'manufacturing']), ['record_id' => $machineTypeId, 'name' => 'Airjet', 'code' => 'AIR', 'description' => 'Updated machine type'])
+            ->assertRedirect();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.shed-types.update', ['domain' => 'manufacturing']), ['record_id' => $shedTypeId, 'name' => 'Open', 'code' => 'OPN', 'description' => 'Updated shed type'])
+            ->assertRedirect();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.loom-statuses.update', ['domain' => 'manufacturing']), ['record_id' => $loomStatusId, 'name' => 'Idle', 'code' => 'IDL', 'description' => 'Updated loom status'])
+            ->assertRedirect();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.breakdown-reasons.update', ['domain' => 'manufacturing']), ['record_id' => $breakdownReasonId, 'name' => 'Electrical', 'code' => 'ELE', 'description' => 'Updated breakdown reason'])
+            ->assertRedirect();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.maintenance-types.update', ['domain' => 'manufacturing']), ['record_id' => $maintenanceTypeId, 'name' => 'Corrective', 'code' => 'COR', 'description' => 'Updated maintenance type'])
             ->assertRedirect();
 
         $this->actingAs($company)
@@ -106,6 +142,18 @@ class TextileMasterDataAdminTest extends TestCase
         $this->actingAs($company)
             ->post(route('textile.master-domains.machine-types.update', ['domain' => 'manufacturing']), ['record_id' => $otherMachineTypeId, 'name' => 'Should Not Update'])
             ->assertNotFound();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.shed-types.update', ['domain' => 'manufacturing']), ['record_id' => $otherShedTypeId, 'name' => 'Should Not Update'])
+            ->assertNotFound();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.loom-statuses.update', ['domain' => 'manufacturing']), ['record_id' => $otherLoomStatusId, 'name' => 'Should Not Update'])
+            ->assertNotFound();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.breakdown-reasons.update', ['domain' => 'manufacturing']), ['record_id' => $otherBreakdownReasonId, 'name' => 'Should Not Update'])
+            ->assertNotFound();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.maintenance-types.update', ['domain' => 'manufacturing']), ['record_id' => $otherMaintenanceTypeId, 'name' => 'Should Not Update'])
+            ->assertNotFound();
 
         $this->actingAs($company)
             ->post(route('textile.quality-profiles.archive'), ['record_id' => $qualityId])
@@ -124,6 +172,18 @@ class TextileMasterDataAdminTest extends TestCase
             ->assertRedirect();
         $this->actingAs($company)
             ->post(route('textile.master-domains.machine-types.archive', ['domain' => 'manufacturing']), ['record_id' => $machineTypeId])
+            ->assertRedirect();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.shed-types.archive', ['domain' => 'manufacturing']), ['record_id' => $shedTypeId])
+            ->assertRedirect();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.loom-statuses.archive', ['domain' => 'manufacturing']), ['record_id' => $loomStatusId])
+            ->assertRedirect();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.breakdown-reasons.archive', ['domain' => 'manufacturing']), ['record_id' => $breakdownReasonId])
+            ->assertRedirect();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.maintenance-types.archive', ['domain' => 'manufacturing']), ['record_id' => $maintenanceTypeId])
             ->assertRedirect();
 
         $this->actingAs($company)
@@ -144,6 +204,18 @@ class TextileMasterDataAdminTest extends TestCase
         $this->actingAs($company)
             ->post(route('textile.master-domains.machine-types.archive', ['domain' => 'manufacturing']), ['record_id' => $otherMachineTypeId])
             ->assertNotFound();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.shed-types.archive', ['domain' => 'manufacturing']), ['record_id' => $otherShedTypeId])
+            ->assertNotFound();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.loom-statuses.archive', ['domain' => 'manufacturing']), ['record_id' => $otherLoomStatusId])
+            ->assertNotFound();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.breakdown-reasons.archive', ['domain' => 'manufacturing']), ['record_id' => $otherBreakdownReasonId])
+            ->assertNotFound();
+        $this->actingAs($company)
+            ->post(route('textile.master-domains.maintenance-types.archive', ['domain' => 'manufacturing']), ['record_id' => $otherMaintenanceTypeId])
+            ->assertNotFound();
 
         $this->assertDatabaseHas('textile_quality_profiles', ['id' => $qualityId, 'name' => 'Grey Fabric QC Updated', 'is_active' => false, 'created_by' => $company->id]);
         $this->assertDatabaseHas('textile_route_recipes', ['id' => $routeId, 'name' => 'Weaving Route Updated', 'is_active' => false, 'created_by' => $company->id]);
@@ -151,6 +223,10 @@ class TextileMasterDataAdminTest extends TestCase
         $this->assertDatabaseHas('textile_reference_masters', ['id' => $sourceTypeId, 'master_type' => 'source_type', 'master_domain' => 'sales', 'name' => 'Sales Quotation', 'is_active' => false, 'created_by' => $company->id]);
         $this->assertDatabaseHas('textile_reference_masters', ['id' => $sourceActionId, 'master_type' => 'source_action', 'master_domain' => 'sales', 'name' => 'Allocate For Dispatch', 'is_active' => false, 'created_by' => $company->id]);
         $this->assertDatabaseHas('textile_reference_masters', ['id' => $machineTypeId, 'master_type' => 'machine_type', 'master_domain' => 'manufacturing', 'name' => 'Airjet', 'is_active' => false, 'created_by' => $company->id]);
+        $this->assertDatabaseHas('textile_reference_masters', ['id' => $shedTypeId, 'master_type' => 'shed_type', 'master_domain' => 'manufacturing', 'name' => 'Open', 'is_active' => false, 'created_by' => $company->id]);
+        $this->assertDatabaseHas('textile_reference_masters', ['id' => $loomStatusId, 'master_type' => 'loom_status', 'master_domain' => 'manufacturing', 'name' => 'Idle', 'is_active' => false, 'created_by' => $company->id]);
+        $this->assertDatabaseHas('textile_reference_masters', ['id' => $breakdownReasonId, 'master_type' => 'breakdown_reason', 'master_domain' => 'manufacturing', 'name' => 'Electrical', 'is_active' => false, 'created_by' => $company->id]);
+        $this->assertDatabaseHas('textile_reference_masters', ['id' => $maintenanceTypeId, 'master_type' => 'maintenance_type', 'master_domain' => 'manufacturing', 'name' => 'Corrective', 'is_active' => false, 'created_by' => $company->id]);
 
         $this->actingAs($company)
             ->get(route('textile.quality-profiles.index'))
@@ -185,6 +261,30 @@ class TextileMasterDataAdminTest extends TestCase
             ->assertOk()
             ->assertDontSee('Airjet')
             ->assertDontSee('Other machine type');
+
+        $this->actingAs($company)
+            ->get(route('textile.master-domains.shed-types.index', ['domain' => 'manufacturing']))
+            ->assertOk()
+            ->assertDontSee('Open')
+            ->assertDontSee('Other shed type');
+
+        $this->actingAs($company)
+            ->get(route('textile.master-domains.loom-statuses.index', ['domain' => 'manufacturing']))
+            ->assertOk()
+            ->assertDontSee('Idle')
+            ->assertDontSee('Other loom status');
+
+        $this->actingAs($company)
+            ->get(route('textile.master-domains.breakdown-reasons.index', ['domain' => 'manufacturing']))
+            ->assertOk()
+            ->assertDontSee('Electrical')
+            ->assertDontSee('Other breakdown reason');
+
+        $this->actingAs($company)
+            ->get(route('textile.master-domains.maintenance-types.index', ['domain' => 'manufacturing']))
+            ->assertOk()
+            ->assertDontSee('Corrective')
+            ->assertDontSee('Other maintenance type');
     }
 
     private function company(): User

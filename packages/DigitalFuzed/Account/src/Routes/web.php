@@ -12,7 +12,14 @@ use Workdo\Account\Http\Controllers\AccountTypeController;
 use Workdo\Account\Http\Controllers\DashboardController;
 use Workdo\Account\Http\Controllers\SystemSetupController;
 use Workdo\Account\Http\Controllers\VendorController;
+use Workdo\Account\Http\Controllers\VendorRatingController;
+use Workdo\Account\Http\Controllers\VendorPerformanceController;
 use Workdo\Account\Http\Controllers\CustomerController;
+use Workdo\Account\Http\Controllers\CustomerCategoryController;
+use Workdo\Account\Http\Controllers\CustomerContactController;
+use Workdo\Account\Http\Controllers\CustomerDocumentController;
+use Workdo\Account\Http\Controllers\CustomerFollowUpController;
+use Workdo\Account\Http\Controllers\CustomerPriceListController;
 use Workdo\Account\Http\Controllers\VendorPaymentController;
 use Workdo\Account\Http\Controllers\BankTransactionController;
 use Workdo\Account\Http\Controllers\BankTransferController;
@@ -27,7 +34,54 @@ use Workdo\Account\Models\AccountType;
 Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:Account'])->group(function () {
     Route::get('/dashboard/account', [DashboardController::class, 'index'])->name('account.index');
     Route::resource('account/vendors', VendorController::class, ['as' => 'account']);
+    Route::prefix('account/vendor-ratings')->name('account.vendor-ratings.')->group(function () {
+        Route::get('/', [VendorRatingController::class, 'index'])->name('index');
+        Route::post('/', [VendorRatingController::class, 'store'])->name('store');
+        Route::put('/{vendorRating}', [VendorRatingController::class, 'update'])->name('update');
+        Route::delete('/{vendorRating}', [VendorRatingController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('account/vendor-performance')->name('account.vendor-performance.')->group(function () {
+        Route::get('/', [VendorPerformanceController::class, 'index'])->name('index');
+        Route::post('/', [VendorPerformanceController::class, 'store'])->name('store');
+        Route::delete('/{vendorPerformance}', [VendorPerformanceController::class, 'destroy'])->name('destroy');
+    });
     Route::resource('account/customers', CustomerController::class, ['as' => 'account']);
+
+    Route::prefix('account/customer-categories')->name('account.customer-categories.')->group(function () {
+        Route::get('/', [CustomerCategoryController::class, 'index'])->name('index');
+        Route::post('/', [CustomerCategoryController::class, 'store'])->name('store');
+        Route::put('/{customerCategory}', [CustomerCategoryController::class, 'update'])->name('update');
+        Route::delete('/{customerCategory}', [CustomerCategoryController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('account/customer-price-lists')->name('account.customer-price-lists.')->group(function () {
+        Route::get('/', [CustomerPriceListController::class, 'index'])->name('index');
+        Route::post('/', [CustomerPriceListController::class, 'store'])->name('store');
+        Route::put('/{customerPriceList}', [CustomerPriceListController::class, 'update'])->name('update');
+        Route::delete('/{customerPriceList}', [CustomerPriceListController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('account/customer-contacts')->name('account.customer-contacts.')->group(function () {
+        Route::get('/', [CustomerContactController::class, 'index'])->name('index');
+        Route::post('/', [CustomerContactController::class, 'store'])->name('store');
+        Route::put('/{customerContact}', [CustomerContactController::class, 'update'])->name('update');
+        Route::delete('/{customerContact}', [CustomerContactController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('account/customer-follow-ups')->name('account.customer-follow-ups.')->group(function () {
+        Route::get('/', [CustomerFollowUpController::class, 'index'])->name('index');
+        Route::post('/', [CustomerFollowUpController::class, 'store'])->name('store');
+        Route::put('/{customerFollowUp}', [CustomerFollowUpController::class, 'update'])->name('update');
+        Route::delete('/{customerFollowUp}', [CustomerFollowUpController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('account/customer-documents')->name('account.customer-documents.')->group(function () {
+        Route::get('/', [CustomerDocumentController::class, 'index'])->name('index');
+        Route::post('/', [CustomerDocumentController::class, 'store'])->name('store');
+        Route::put('/{customerDocument}', [CustomerDocumentController::class, 'update'])->name('update');
+        Route::delete('/{customerDocument}', [CustomerDocumentController::class, 'destroy'])->name('destroy');
+    });
 
     Route::prefix('account/bank-accounts')->name('account.bank-accounts.')->group(function () {
         Route::get('/', [BankAccountController::class, 'index'])->name('index');

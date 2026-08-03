@@ -8,6 +8,7 @@ use Workdo\ProductService\Http\Controllers\CategoryController;
 use Workdo\ProductService\Http\Controllers\TaxController;
 use Workdo\ProductService\Http\Controllers\UnitController;
 use Workdo\ProductService\Http\Controllers\WarehouseStockController;
+use Workdo\ProductService\Http\Controllers\ProductMasterExtensionController;
 
 Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:ProductService'])->group(function () {
 
@@ -24,6 +25,23 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:ProductService'])
     Route::prefix('product-service/stock')->name('product-service.stock.')->group(function () {
         Route::get('/', [ProductServiceItemController::class, 'stockIndex'])->name('index');
         Route::post('/', [ProductServiceItemController::class, 'stockStore'])->name('store');
+    });
+
+    Route::prefix('product-service/product-master')->name('product-service.product-master.')->group(function () {
+        Route::get('/variants', [ProductMasterExtensionController::class, 'variantsIndex'])->name('variants.index');
+        Route::post('/variants', [ProductMasterExtensionController::class, 'variantsStore'])->name('variants.store');
+        Route::put('/variants/{variant}', [ProductMasterExtensionController::class, 'variantsUpdate'])->name('variants.update');
+        Route::delete('/variants/{variant}', [ProductMasterExtensionController::class, 'variantsDestroy'])->name('variants.destroy');
+
+        Route::get('/images', [ProductMasterExtensionController::class, 'imagesIndex'])->name('images.index');
+        Route::post('/images', [ProductMasterExtensionController::class, 'imagesStore'])->name('images.store');
+        Route::put('/images/{image}', [ProductMasterExtensionController::class, 'imagesUpdate'])->name('images.update');
+        Route::delete('/images/{image}', [ProductMasterExtensionController::class, 'imagesDestroy'])->name('images.destroy');
+
+        Route::get('/documents', [ProductMasterExtensionController::class, 'documentsIndex'])->name('documents.index');
+        Route::post('/documents', [ProductMasterExtensionController::class, 'documentsStore'])->name('documents.store');
+        Route::put('/documents/{document}', [ProductMasterExtensionController::class, 'documentsUpdate'])->name('documents.update');
+        Route::delete('/documents/{document}', [ProductMasterExtensionController::class, 'documentsDestroy'])->name('documents.destroy');
     });
 
     Route::prefix('product-service/item-categories')->name('product-service.item-categories.')->group(function () {

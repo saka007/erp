@@ -24,9 +24,59 @@ export const accountCompanyMenu = (t: (key: string) => string) => [
                 permission: 'manage-customers',
             },
             {
+                title: t('Customer Categories'),
+                href: route('account.customer-categories.index'),
+                permission: 'manage-customers',
+            },
+            {
+                title: t('Customer Price List'),
+                href: route('account.customer-price-lists.index'),
+                permission: 'manage-customers',
+            },
+            {
+                title: t('Customer Contacts'),
+                href: route('account.customer-contacts.index'),
+                permission: 'manage-customers',
+            },
+            {
+                title: t('Customer Follow Ups'),
+                href: route('account.customer-follow-ups.index'),
+                permission: 'manage-customers',
+            },
+            {
+                title: t('Customer Documents'),
+                href: route('account.customer-documents.index'),
+                permission: 'manage-customers',
+            },
+            {
                 title: t('Vendors'),
                 href: route('account.vendors.index'),
                 permission: 'manage-vendors',
+            },
+            {
+                title: t('Vendor Ratings'),
+                href: route('account.vendor-ratings.index'),
+                permission: 'manage-vendors',
+            },
+            {
+                title: t('Vendor Performance'),
+                href: route('account.vendor-performance.index'),
+                permission: 'manage-vendors',
+            },
+            {
+                title: t('Product Variants'),
+                href: route('product-service.product-master.variants.index'),
+                permission: 'manage-product-service-item',
+            },
+            {
+                title: t('Product Images'),
+                href: route('product-service.product-master.images.index'),
+                permission: 'manage-product-service-item',
+            },
+            {
+                title: t('Product Documents'),
+                href: route('product-service.product-master.documents.index'),
+                permission: 'manage-product-service-item',
             },
             {
                 title: t('Banking'),

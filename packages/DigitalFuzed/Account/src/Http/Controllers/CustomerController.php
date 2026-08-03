@@ -7,6 +7,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Workdo\Account\Models\Customer;
+use Workdo\Account\Models\CustomerCategory;
 use Workdo\Account\Http\Requests\StoreCustomerRequest;
 use Workdo\Account\Http\Requests\UpdateCustomerRequest;
 use Workdo\Account\Events\CreateCustomer;
@@ -19,7 +20,7 @@ class CustomerController extends Controller
     {
         if(Auth::user()->can('manage-customers')){
             $customers = Customer::query()
-                ->with('user:id,name,avatar,is_disable')
+                ->with(['user:id,name,avatar,is_disable', 'customerCategory:id,name'])
                 ->where(function($q) {
                     if(Auth::user()->can('manage-any-customers')) {
                         $q->where('created_by', creatorId());
@@ -45,6 +46,12 @@ class CustomerController extends Controller
             return Inertia::render('Account/Customers/Index', [
                 'customers' => $customers,
                 'users' => $users,
+                'customerCategories' => CustomerCategory::query()
+                    ->where('created_by', creatorId())
+                    ->where('is_active', true)
+                    ->select('id', 'name')
+                    ->orderBy('name')
+                    ->get(),
             ]);
         }
         return back()->with('error', __('Permission denied'));
@@ -63,6 +70,9 @@ class CustomerController extends Controller
             $customer->contact_person_mobile = $validated['contact_person_mobile'] ?? null;
             $customer->tax_number = $validated['tax_number'] ?? null;
             $customer->payment_terms = $validated['payment_terms'] ?? null;
+            $customer->credit_limit = isset($validated['credit_limit']) ? (float) $validated['credit_limit'] : null;
+            $customer->currency_code = isset($validated['currency_code']) ? strtoupper((string) $validated['currency_code']) : null;
+            $customer->customer_category_id = $this->resolveCustomerCategoryId($validated['customer_category_id'] ?? null);
             $customer->operating_model = $validated['operating_model'] ?? 'full_package_buyer';
             $customer->material_ownership = $validated['material_ownership'] ?? 'company_owned';
             $customer->billing_mode = $validated['billing_mode'] ?? 'sale_value';
@@ -92,6 +102,9 @@ class CustomerController extends Controller
             $customer->contact_person_mobile = $validated['contact_person_mobile'] ?? null;
             $customer->tax_number = $validated['tax_number'] ?? null;
             $customer->payment_terms = $validated['payment_terms'] ?? null;
+            $customer->credit_limit = isset($validated['credit_limit']) ? (float) $validated['credit_limit'] : null;
+            $customer->currency_code = isset($validated['currency_code']) ? strtoupper((string) $validated['currency_code']) : null;
+            $customer->customer_category_id = $this->resolveCustomerCategoryId($validated['customer_category_id'] ?? null);
             $customer->operating_model = $validated['operating_model'] ?? $customer->operating_model ?? 'full_package_buyer';
             $customer->material_ownership = $validated['material_ownership'] ?? $customer->material_ownership ?? 'company_owned';
             $customer->billing_mode = $validated['billing_mode'] ?? $customer->billing_mode ?? 'sale_value';
@@ -116,5 +129,18 @@ class CustomerController extends Controller
             return back()->with('success', __('The customer has been deleted.'));
         }
         return back()->with('error', __('Permission denied'));
+    }
+
+    private function resolveCustomerCategoryId($categoryId): ?int
+    {
+        if (!$categoryId) {
+            return null;
+        }
+
+        return CustomerCategory::query()
+            ->where('id', (int) $categoryId)
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->value('id');
     }
 }

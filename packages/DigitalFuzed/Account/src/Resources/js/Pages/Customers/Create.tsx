@@ -10,12 +10,13 @@ import InputError from "@/components/ui/input-error";
 import { PhoneInputComponent } from "@/components/ui/phone-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
-import { CustomerFormData, User } from './types';
+import { CustomerCategoryOption, CustomerFormData, User } from './types';
 import { BILLING_MODE_OPTIONS, MATERIAL_OWNERSHIP_OPTIONS, OPERATING_MODEL_OPTIONS } from './operating-profile-options';
 import { useFormFields } from '@/hooks/useFormFields';
 interface CreateCustomerProps {
     onSuccess: () => void;
     users: User[];
+    customerCategories: CustomerCategoryOption[];
     auth: {
         user: {
             permissions: string[];
@@ -23,7 +24,7 @@ interface CreateCustomerProps {
     };
 }
 
-export default function Create({ onSuccess, users = [], auth }: CreateCustomerProps) {
+export default function Create({ onSuccess, users = [], customerCategories = [], auth }: CreateCustomerProps) {
     const { t } = useTranslation();
     const { data, setData, post, processing, errors } = useForm<CustomerFormData>({
         user_id: undefined,
@@ -33,6 +34,9 @@ export default function Create({ onSuccess, users = [], auth }: CreateCustomerPr
         contact_person_mobile: '',
         tax_number: '',
         payment_terms: '',
+        credit_limit: undefined,
+        currency_code: 'USD',
+        customer_category_id: undefined,
         operating_model: 'full_package_buyer',
         material_ownership: 'company_owned',
         billing_mode: 'sale_value',
@@ -183,6 +187,36 @@ export default function Create({ onSuccess, users = [], auth }: CreateCustomerPr
                         />
                         <InputError message={errors.payment_terms} />
                     </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <Label htmlFor="credit_limit">{t('Credit Limit')}</Label>
+                        <Input
+                            id="credit_limit"
+                            type="number"
+                            value={data.credit_limit ?? ''}
+                            onChange={(e) => setData('credit_limit', e.target.value ? Number(e.target.value) : undefined)}
+                            placeholder={t('Enter credit limit')}
+                        />
+                        <InputError message={errors.credit_limit} />
+                    </div>
+                    <SelectField
+                        label={t('Credit Currency')}
+                        value={data.currency_code || 'USD'}
+                        onChange={(value) => setData('currency_code', value || 'USD')}
+                        options={['USD', 'INR', 'EUR', 'GBP', 'AED']}
+                    />
+                </div>
+                <div>
+                    <SelectField
+                        label={t('Customer Category')}
+                        value={data.customer_category_id ? String(data.customer_category_id) : ''}
+                        onChange={(value) => setData('customer_category_id', value ? Number(value) : undefined)}
+                        options={customerCategories.map((category) => ({ value: String(category.id), label: category.name }))}
+                        includeEmpty
+                        emptyLabel={t('Select category (optional)')}
+                    />
+                    <InputError message={errors.customer_category_id} />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <SelectField

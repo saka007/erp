@@ -28,9 +28,11 @@ class TextileProcurementController extends Controller
 
         return Inertia::render('DigitalFuzedTextileCore/Procurement/Index', [
             'requisitions' => $this->documents('purchase_requisition'),
+            'rfqs' => $this->documents('rfq'),
             'purchaseOrders' => $this->documents('purchase_order'),
             'grns' => $this->documents('grn'),
             'incomingQcs' => $this->documents('incoming_qc'),
+            'supplierClaims' => $this->documents('supplier_claim'),
             'unitOptions' => $this->unitOptions(),
             'partyOptions' => $this->partyOptions(),
             'lotReferenceOptions' => $this->lotReferenceOptions(),
@@ -72,7 +74,7 @@ class TextileProcurementController extends Controller
         return back()->with('success', __('Purchase requisition approved successfully.'));
     }
 
-    public function storePurchaseOrder(Request $request, TextileProcurementService $service)
+    public function storeRfq(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
         $this->authorizeCapability('procurement', 'requisition_id');
@@ -82,9 +84,67 @@ class TextileProcurementController extends Controller
         ]);
 
         try {
-            $service->createPurchaseOrder((int) $validated['requisition_id']);
+            $service->createRfq((int) $validated['requisition_id']);
         } catch (RuntimeException $exception) {
             return back()->withErrors(['requisition_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('RFQ created successfully.'));
+    }
+
+    public function sendRfq(Request $request, TextileProcurementService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement', 'rfq_id');
+
+        $validated = $request->validate([
+            'rfq_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $service->sendRfq((int) $validated['rfq_id']);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['rfq_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('RFQ sent successfully.'));
+    }
+
+    public function closeRfq(Request $request, TextileProcurementService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement', 'rfq_id');
+
+        $validated = $request->validate([
+            'rfq_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $service->closeRfq((int) $validated['rfq_id']);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['rfq_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('RFQ closed successfully.'));
+    }
+
+    public function storePurchaseOrder(Request $request, TextileProcurementService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement', 'requisition_id');
+
+        $validated = $request->validate([
+            'source_type' => ['required', 'in:requisition,rfq'],
+            'source_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $requisitionId = $validated['source_type'] === 'requisition' ? (int) $validated['source_id'] : null;
+        $rfqId = $validated['source_type'] === 'rfq' ? (int) $validated['source_id'] : null;
+
+        try {
+            $service->createPurchaseOrder($requisitionId, $rfqId);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['source_id' => __($exception->getMessage())]);
         }
 
         return back()->with('success', __('Purchase order created successfully.'));
@@ -201,6 +261,64 @@ class TextileProcurementController extends Controller
         }
 
         return back()->with('success', __('Incoming QC finalized successfully.'));
+    }
+
+    public function storeSupplierClaim(Request $request, TextileProcurementService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement', 'grn_id');
+
+        $validated = $request->validate([
+            'grn_id' => ['required', 'integer', 'min:1'],
+            'claim_type' => ['required', 'in:quality,quantity,damage,delay,rate_difference'],
+            'claim_amount' => ['required', 'numeric', 'gte:0'],
+            'resolution_type' => ['required', 'in:replacement,credit_note,debit_adjustment,return_to_vendor'],
+            'claim_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        try {
+            $service->createSupplierClaim((int) $validated['grn_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['grn_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Supplier claim created successfully.'));
+    }
+
+    public function approveSupplierClaim(Request $request, TextileProcurementService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement', 'supplier_claim_id');
+
+        $validated = $request->validate([
+            'supplier_claim_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $service->approveSupplierClaim((int) $validated['supplier_claim_id']);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['supplier_claim_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Supplier claim approved successfully.'));
+    }
+
+    public function settleSupplierClaim(Request $request, TextileProcurementService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement', 'supplier_claim_id');
+
+        $validated = $request->validate([
+            'supplier_claim_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $service->settleSupplierClaim((int) $validated['supplier_claim_id']);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['supplier_claim_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Supplier claim settled successfully.'));
     }
 
     private function documents(string $type)

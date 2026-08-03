@@ -5,6 +5,7 @@ import { SlidersHorizontal } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { CheckboxGroup } from '@/components/ui/checkbox-group';
 import { TextileFormCard } from '@/components/textile/textile-form-card';
 import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
 
@@ -23,8 +24,17 @@ interface Policy {
 interface Props {
     policy: Policy;
     capabilities: Record<string, boolean>;
+    activeProfiles: string[];
+    profileHistory: Array<{
+        id: number;
+        profile_key: string;
+        is_active: boolean;
+        effective_from: string | null;
+        effective_to: string | null;
+    }>;
     options: {
         operatingModels: string[];
+        operatingProfiles: string[];
         materialOwnership: string[];
         billingModes: string[];
     };
@@ -33,12 +43,13 @@ interface Props {
     companies: CompanyOption[];
 }
 
-export default function Index({ policy, capabilities, options, isSuperadmin, selectedCompanyId, companies }: Props) {
+export default function Index({ policy, capabilities, activeProfiles, profileHistory, options, isSuperadmin, selectedCompanyId, companies }: Props) {
     const { t } = useTranslation();
 
     const form = useForm({
         company_id: selectedCompanyId ? String(selectedCompanyId) : '',
         operating_model: policy.operating_model,
+        operating_profiles: activeProfiles,
         material_ownership: policy.material_ownership,
         billing_mode: policy.billing_mode,
     });
@@ -84,13 +95,27 @@ export default function Index({ policy, capabilities, options, isSuperadmin, sel
                             ) : null}
 
                             <SelectField
-                                label={t('Operating Model')}
+                                label={t('Primary Operating Model')}
                                 value={form.data.operating_model}
                                 onChange={(value) => form.setData('operating_model', value)}
                                 options={options.operatingModels.map((item) => ({ value: item, label: item }))}
                                 includeEmpty
                                 required
                             />
+
+                            <div className="space-y-2">
+                                <p className="text-sm font-medium text-foreground">{t('Enabled Operating Profiles')}</p>
+                                <CheckboxGroup
+                                    direction="vertical"
+                                    options={options.operatingProfiles.map((item) => ({ value: item, label: item }))}
+                                    value={form.data.operating_profiles}
+                                    onValueChange={(value) => form.setData('operating_profiles', value)}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    {t('Select one or more profiles. Capabilities are resolved across active profiles.')}
+                                </p>
+                                {form.errors.operating_profiles ? <p className="text-xs text-destructive">{form.errors.operating_profiles}</p> : null}
+                            </div>
 
                             <SelectField
                                 label={t('Material Ownership')}
@@ -116,29 +141,67 @@ export default function Index({ policy, capabilities, options, isSuperadmin, sel
                         </form>
                 </TextileFormCard>
 
-                <Card>
-                    <CardContent className="space-y-4 p-5">
-                        <h2 className="font-semibold">{t('Resolved Capabilities')}</h2>
-                        <div className="rounded-md border">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b bg-muted/40 text-left">
-                                        <th className="px-3 py-2">{t('Capability')}</th>
-                                        <th className="px-3 py-2">{t('Allowed')}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {capabilityRows.map(([key, label]) => (
-                                        <tr key={key} className="border-b last:border-b-0">
-                                            <td className="px-3 py-2">{label}</td>
-                                            <td className="px-3 py-2">{capabilities[key] ? t('Yes') : t('No')}</td>
+                <div className="space-y-6">
+                    <Card>
+                        <CardContent className="space-y-4 p-5">
+                            <h2 className="font-semibold">{t('Resolved Capabilities')}</h2>
+                            <div className="rounded-md border">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b bg-muted/40 text-left">
+                                            <th className="px-3 py-2">{t('Capability')}</th>
+                                            <th className="px-3 py-2">{t('Allowed')}</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </CardContent>
-                </Card>
+                                    </thead>
+                                    <tbody>
+                                        {capabilityRows.map(([key, label]) => (
+                                            <tr key={key} className="border-b last:border-b-0">
+                                                <td className="px-3 py-2">{label}</td>
+                                                <td className="px-3 py-2">{capabilities[key] ? t('Yes') : t('No')}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardContent className="space-y-4 p-5">
+                            <h2 className="font-semibold">{t('Profile History')}</h2>
+                            <div className="rounded-md border">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b bg-muted/40 text-left">
+                                            <th className="px-3 py-2">{t('Profile')}</th>
+                                            <th className="px-3 py-2">{t('Status')}</th>
+                                            <th className="px-3 py-2">{t('Effective From')}</th>
+                                            <th className="px-3 py-2">{t('Effective To')}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {profileHistory.length === 0 ? (
+                                            <tr>
+                                                <td className="px-3 py-3 text-muted-foreground" colSpan={4}>
+                                                    {t('No profile changes recorded yet.')}
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            profileHistory.map((item) => (
+                                                <tr key={item.id} className="border-b last:border-b-0">
+                                                    <td className="px-3 py-2">{item.profile_key}</td>
+                                                    <td className="px-3 py-2">{item.is_active ? t('Active') : t('Inactive')}</td>
+                                                    <td className="px-3 py-2">{item.effective_from || '-'}</td>
+                                                    <td className="px-3 py-2">{item.effective_to || '-'}</td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
         </AuthenticatedLayout>
     );

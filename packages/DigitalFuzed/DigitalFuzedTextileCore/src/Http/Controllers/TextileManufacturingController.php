@@ -12,9 +12,12 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use RuntimeException;
 use Workdo\Account\Models\Customer;
+use Workdo\ProductService\Models\ProductServiceItem;
+use App\Models\User;
 
 class TextileManufacturingController extends Controller
 {
@@ -33,10 +36,15 @@ class TextileManufacturingController extends Controller
             'warpSheets' => $this->documents('warp_sheet'),
             'warpProductions' => $this->documents('warp_production'),
             'sizingRecipes' => $this->documents('sizing_recipe'),
+            'chemicalConsumptions' => $this->documents('chemical_consumption'),
             'loomMasters' => $this->documents('loom_master'),
+            'loomBreakdowns' => $this->documents('loom_breakdown'),
+            'loomMaintenances' => $this->documents('loom_maintenance'),
             'beams' => $this->documents('beam'),
             'beamIssues' => $this->documents('beam_issue'),
             'beamReturns' => $this->documents('beam_return'),
+            'beamInspections' => $this->documents('beam_inspection'),
+            'beamCosts' => $this->documents('beam_cost'),
             'productionBatches' => $this->documents('production_batch'),
             'weavingOutputs' => $this->documents('weaving_output'),
             'wastes' => $this->documents('waste'),
@@ -44,7 +52,15 @@ class TextileManufacturingController extends Controller
             'sourceTypeOptions' => $this->sourceTypeOptions(),
             'sourceActionOptions' => $this->sourceActionOptions(),
             'machineTypeOptions' => $this->machineTypeOptions(),
+            'shedTypeOptions' => $this->shedTypeOptions(),
+            'loomStatusOptions' => $this->loomStatusOptions(),
+            'breakdownReasonOptions' => $this->breakdownReasonOptions(),
+            'maintenanceTypeOptions' => $this->maintenanceTypeOptions(),
             'unitOptions' => $this->unitOptions(),
+            'costTypeOptions' => $this->costTypeOptions(),
+            'inspectionResultOptions' => $this->inspectionResultOptions(),
+            'chemicalOptions' => $this->chemicalOptions(),
+            'operatorOptions' => $this->operatorOptions(),
             'partyOptions' => $this->partyOptions(),
             'lotReferenceOptions' => $this->lotReferenceOptions(),
         ]);
@@ -164,6 +180,29 @@ class TextileManufacturingController extends Controller
         return back()->with('success', __('Sizing recipe created successfully.'));
     }
 
+    public function storeChemicalConsumption(Request $request, TextileManufacturingService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('manufacturing', 'sizing_recipe_id');
+
+        $validated = $request->validate([
+            'sizing_recipe_id' => ['required', 'integer', 'min:1'],
+            'chemical_type' => ['required', 'string', 'max:100'],
+            'composition_percent' => ['required', 'numeric', 'gt:0', 'lte:100'],
+            'consumption_quantity' => ['required', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $service->createChemicalConsumption((int) $validated['sizing_recipe_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['sizing_recipe_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Chemical consumption recorded successfully.'));
+    }
+
     public function storeBeamIssue(Request $request, TextileManufacturingService $service)
     {
         $this->authorizeTextileAccess();
@@ -198,6 +237,49 @@ class TextileManufacturingController extends Controller
         }
 
         return back()->with('success', __('Beam return created successfully.'));
+    }
+
+    public function storeBeamInspection(Request $request, TextileManufacturingService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('manufacturing', 'beam_id');
+
+        $validated = $request->validate([
+            'beam_id' => ['required', 'integer', 'min:1'],
+            'inspection_result' => ['required', 'string', 'max:100', Rule::in($this->inspectionResultOptions())],
+            'remarks' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $service->createBeamInspection((int) $validated['beam_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['beam_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Beam inspection recorded successfully.'));
+    }
+
+    public function storeBeamCost(Request $request, TextileManufacturingService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('manufacturing', 'beam_id');
+
+        $validated = $request->validate([
+            'beam_id' => ['required', 'integer', 'min:1'],
+            'cost_type' => ['required', 'string', 'max:100', Rule::in($this->costTypeOptions())],
+            'cost_amount' => ['required', 'numeric', 'gt:0'],
+            'quantity' => ['nullable', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $service->createBeamCost((int) $validated['beam_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['beam_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Beam cost recorded successfully.'));
     }
 
     public function storeBeam(Request $request, TextileManufacturingService $service)
@@ -255,6 +337,12 @@ class TextileManufacturingController extends Controller
             'lot_reference' => ['required', 'string', 'max:100'],
             'quantity' => ['required', 'numeric', 'gt:0'],
             'unit' => ['nullable', 'string', 'max:50'],
+            'shed_type' => ['required', 'string', 'max:100', Rule::in($this->shedTypeOptions())],
+            'width' => ['nullable', 'numeric', 'gt:0'],
+            'loom_status' => ['required', 'string', 'max:100', Rule::in($this->loomStatusOptions())],
+            'running_hours' => ['nullable', 'numeric', 'gte:0'],
+            'idle_hours' => ['nullable', 'numeric', 'gte:0'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
         ]);
 
         try {
@@ -264,6 +352,52 @@ class TextileManufacturingController extends Controller
         }
 
         return back()->with('success', __('Loom master created successfully.'));
+    }
+
+    public function storeLoomBreakdown(Request $request, TextileManufacturingService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('manufacturing', 'loom_master_id');
+
+        $validated = $request->validate([
+            'loom_master_id' => ['required', 'integer', 'min:1'],
+            'breakdown_reason' => ['required', 'string', 'max:100', Rule::in($this->breakdownReasonOptions())],
+            'downtime_hours' => ['required', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $service->createLoomBreakdown((int) $validated['loom_master_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['loom_master_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Loom breakdown recorded successfully.'));
+    }
+
+    public function storeLoomMaintenance(Request $request, TextileManufacturingService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('manufacturing', 'loom_master_id');
+
+        $validated = $request->validate([
+            'loom_master_id' => ['required', 'integer', 'min:1'],
+            'maintenance_type' => ['required', 'string', 'max:100', Rule::in($this->maintenanceTypeOptions())],
+            'maintenance_hours' => ['required', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $service->createLoomMaintenance((int) $validated['loom_master_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['loom_master_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Loom maintenance recorded successfully.'));
     }
 
     public function approveBeam(Request $request, TextileManufacturingService $service)
@@ -403,6 +537,24 @@ class TextileManufacturingController extends Controller
             ->all();
     }
 
+    private function chemicalOptions(): array
+    {
+        if (!Schema::hasTable('product_service_items')) {
+            return [];
+        }
+
+        return ProductServiceItem::query()
+            ->where('created_by', creatorId())
+            ->where('type', 'chemical')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->pluck('name')
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
+            ->values()
+            ->all();
+    }
+
     private function sourceTypeOptions(): array
     {
         if (!Schema::hasTable('textile_reference_masters')) {
@@ -443,6 +595,86 @@ class TextileManufacturingController extends Controller
         return count($options) > 0 ? $options : $this->defaultMachineTypeOptions();
     }
 
+    private function shedTypeOptions(): array
+    {
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultShedTypeOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
+            ->type('shed_type')
+            ->where('created_by', creatorId())
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('manufacturing');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultShedTypeOptions();
+    }
+
+    private function loomStatusOptions(): array
+    {
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultLoomStatusOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
+            ->type('loom_status')
+            ->where('created_by', creatorId())
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('manufacturing');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultLoomStatusOptions();
+    }
+
+    private function breakdownReasonOptions(): array
+    {
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultBreakdownReasonOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
+            ->type('breakdown_reason')
+            ->where('created_by', creatorId())
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('manufacturing');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultBreakdownReasonOptions();
+    }
+
+    private function maintenanceTypeOptions(): array
+    {
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultMaintenanceTypeOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
+            ->type('maintenance_type')
+            ->where('created_by', creatorId())
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('manufacturing');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultMaintenanceTypeOptions();
+    }
+
     private function sourceActionOptions(): array
     {
         if (!Schema::hasTable('textile_reference_masters')) {
@@ -461,6 +693,46 @@ class TextileManufacturingController extends Controller
         $options = $query->orderBy('name')->pluck('name')->values()->all();
 
         return count($options) > 0 ? $options : $this->defaultSourceActionOptions();
+    }
+
+    private function costTypeOptions(): array
+    {
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultCostTypeOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
+            ->type('cost_type')
+            ->where('created_by', creatorId())
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('manufacturing');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultCostTypeOptions();
+    }
+
+    private function inspectionResultOptions(): array
+    {
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultInspectionResultOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
+            ->type('inspection_result')
+            ->where('created_by', creatorId())
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('manufacturing');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultInspectionResultOptions();
     }
 
     private function defaultSourceTypeOptions(): array
@@ -484,12 +756,72 @@ class TextileManufacturingController extends Controller
         ];
     }
 
+    private function defaultShedTypeOptions(): array
+    {
+        return [
+            'open',
+            'closed',
+            'dobby',
+            'jacquard',
+        ];
+    }
+
+    private function defaultLoomStatusOptions(): array
+    {
+        return [
+            'running',
+            'idle',
+        ];
+    }
+
+    private function defaultBreakdownReasonOptions(): array
+    {
+        return [
+            'mechanical',
+            'electrical',
+            'yarn_break',
+            'power_failure',
+            'other',
+        ];
+    }
+
+    private function defaultMaintenanceTypeOptions(): array
+    {
+        return [
+            'preventive',
+            'corrective',
+            'lubrication',
+            'cleaning',
+            'other',
+        ];
+    }
+
     private function defaultSourceActionOptions(): array
     {
         return [
             'warp_plan',
             'beam_prepare',
             'loom_register',
+        ];
+    }
+
+    private function defaultCostTypeOptions(): array
+    {
+        return [
+            'sizing_overhead',
+            'beam_preparation',
+            'labor',
+            'energy',
+            'other',
+        ];
+    }
+
+    private function defaultInspectionResultOptions(): array
+    {
+        return [
+            'pass',
+            'hold',
+            'rework',
         ];
     }
 
@@ -537,6 +869,23 @@ class TextileManufacturingController extends Controller
             ->map(fn ($value) => trim((string) $value))
             ->filter(fn ($value) => $value !== '')
             ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function operatorOptions(): array
+    {
+        if (!Schema::hasTable('users')) {
+            return [];
+        }
+
+        return User::query()
+            ->where('created_by', creatorId())
+            ->whereNotNull('name')
+            ->orderBy('name')
+            ->pluck('name')
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
             ->values()
             ->all();
     }

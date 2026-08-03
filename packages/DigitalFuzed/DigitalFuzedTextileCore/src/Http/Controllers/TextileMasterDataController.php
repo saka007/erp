@@ -17,6 +17,12 @@ class TextileMasterDataController extends Controller
     private const SOURCE_TYPE_MASTER = 'source_type';
     private const SOURCE_ACTION_MASTER = 'source_action';
     private const MACHINE_TYPE_MASTER = 'machine_type';
+    private const COST_TYPE_MASTER = 'cost_type';
+    private const INSPECTION_RESULT_MASTER = 'inspection_result';
+    private const SHED_TYPE_MASTER = 'shed_type';
+    private const LOOM_STATUS_MASTER = 'loom_status';
+    private const BREAKDOWN_REASON_MASTER = 'breakdown_reason';
+    private const MAINTENANCE_TYPE_MASTER = 'maintenance_type';
     private const DEFAULT_MASTER_DOMAIN = 'global';
     private const REFERENCE_DOMAINS = [
         'global',
@@ -281,6 +287,246 @@ class TextileMasterDataController extends Controller
     public function machineTypesByDomain(string $domain)
     {
         return $this->renderReferenceMasterIndex('machine-types', self::MACHINE_TYPE_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function shedTypes()
+    {
+        return $this->renderReferenceMasterIndex('shed-types', self::SHED_TYPE_MASTER, self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function shedTypesByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('shed-types', self::SHED_TYPE_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeShedType(Request $request)
+    {
+        return $this->storeReferenceMaster($request, self::SHED_TYPE_MASTER, 'Textile shed type created successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function storeShedTypeByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::SHED_TYPE_MASTER, 'Textile shed type created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateShedType(Request $request)
+    {
+        return $this->updateReferenceMaster($request, self::SHED_TYPE_MASTER, 'Textile shed type updated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function updateShedTypeByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::SHED_TYPE_MASTER, 'Textile shed type updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveShedType(Request $request)
+    {
+        return $this->archiveReferenceMaster($request, self::SHED_TYPE_MASTER, 'Textile shed type deactivated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function archiveShedTypeByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::SHED_TYPE_MASTER, 'Textile shed type deactivated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function loomStatuses()
+    {
+        return $this->renderReferenceMasterIndex('loom-statuses', self::LOOM_STATUS_MASTER, self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function loomStatusesByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('loom-statuses', self::LOOM_STATUS_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeLoomStatus(Request $request)
+    {
+        return $this->storeReferenceMaster($request, self::LOOM_STATUS_MASTER, 'Textile loom status created successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function storeLoomStatusByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::LOOM_STATUS_MASTER, 'Textile loom status created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateLoomStatus(Request $request)
+    {
+        return $this->updateReferenceMaster($request, self::LOOM_STATUS_MASTER, 'Textile loom status updated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function updateLoomStatusByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::LOOM_STATUS_MASTER, 'Textile loom status updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveLoomStatus(Request $request)
+    {
+        return $this->archiveReferenceMaster($request, self::LOOM_STATUS_MASTER, 'Textile loom status deactivated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function archiveLoomStatusByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::LOOM_STATUS_MASTER, 'Textile loom status deactivated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function breakdownReasons()
+    {
+        return $this->renderReferenceMasterIndex('breakdown-reasons', self::BREAKDOWN_REASON_MASTER, self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function breakdownReasonsByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('breakdown-reasons', self::BREAKDOWN_REASON_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeBreakdownReason(Request $request)
+    {
+        return $this->storeReferenceMaster($request, self::BREAKDOWN_REASON_MASTER, 'Textile breakdown reason created successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function storeBreakdownReasonByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::BREAKDOWN_REASON_MASTER, 'Textile breakdown reason created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateBreakdownReason(Request $request)
+    {
+        return $this->updateReferenceMaster($request, self::BREAKDOWN_REASON_MASTER, 'Textile breakdown reason updated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function updateBreakdownReasonByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::BREAKDOWN_REASON_MASTER, 'Textile breakdown reason updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveBreakdownReason(Request $request)
+    {
+        return $this->archiveReferenceMaster($request, self::BREAKDOWN_REASON_MASTER, 'Textile breakdown reason deactivated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function archiveBreakdownReasonByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::BREAKDOWN_REASON_MASTER, 'Textile breakdown reason deactivated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function maintenanceTypes()
+    {
+        return $this->renderReferenceMasterIndex('maintenance-types', self::MAINTENANCE_TYPE_MASTER, self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function maintenanceTypesByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('maintenance-types', self::MAINTENANCE_TYPE_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeMaintenanceType(Request $request)
+    {
+        return $this->storeReferenceMaster($request, self::MAINTENANCE_TYPE_MASTER, 'Textile maintenance type created successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function storeMaintenanceTypeByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::MAINTENANCE_TYPE_MASTER, 'Textile maintenance type created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateMaintenanceType(Request $request)
+    {
+        return $this->updateReferenceMaster($request, self::MAINTENANCE_TYPE_MASTER, 'Textile maintenance type updated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function updateMaintenanceTypeByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::MAINTENANCE_TYPE_MASTER, 'Textile maintenance type updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveMaintenanceType(Request $request)
+    {
+        return $this->archiveReferenceMaster($request, self::MAINTENANCE_TYPE_MASTER, 'Textile maintenance type deactivated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function archiveMaintenanceTypeByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::MAINTENANCE_TYPE_MASTER, 'Textile maintenance type deactivated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function costTypes()
+    {
+        return $this->renderReferenceMasterIndex('cost-types', self::COST_TYPE_MASTER, self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function costTypesByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('cost-types', self::COST_TYPE_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeCostType(Request $request)
+    {
+        return $this->storeReferenceMaster($request, self::COST_TYPE_MASTER, 'Textile cost type created successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function storeCostTypeByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::COST_TYPE_MASTER, 'Textile cost type created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateCostType(Request $request)
+    {
+        return $this->updateReferenceMaster($request, self::COST_TYPE_MASTER, 'Textile cost type updated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function updateCostTypeByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::COST_TYPE_MASTER, 'Textile cost type updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveCostType(Request $request)
+    {
+        return $this->archiveReferenceMaster($request, self::COST_TYPE_MASTER, 'Textile cost type deactivated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function archiveCostTypeByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::COST_TYPE_MASTER, 'Textile cost type deactivated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function inspectionResults()
+    {
+        return $this->renderReferenceMasterIndex('inspection-results', self::INSPECTION_RESULT_MASTER, self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function inspectionResultsByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('inspection-results', self::INSPECTION_RESULT_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeInspectionResult(Request $request)
+    {
+        return $this->storeReferenceMaster($request, self::INSPECTION_RESULT_MASTER, 'Textile inspection result created successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function storeInspectionResultByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::INSPECTION_RESULT_MASTER, 'Textile inspection result created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateInspectionResult(Request $request)
+    {
+        return $this->updateReferenceMaster($request, self::INSPECTION_RESULT_MASTER, 'Textile inspection result updated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function updateInspectionResultByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::INSPECTION_RESULT_MASTER, 'Textile inspection result updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveInspectionResult(Request $request)
+    {
+        return $this->archiveReferenceMaster($request, self::INSPECTION_RESULT_MASTER, 'Textile inspection result deactivated successfully.', self::DEFAULT_MASTER_DOMAIN);
+    }
+
+    public function archiveInspectionResultByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::INSPECTION_RESULT_MASTER, 'Textile inspection result deactivated successfully.', $this->resolveDomain($domain));
     }
 
     public function storeMachineType(Request $request)

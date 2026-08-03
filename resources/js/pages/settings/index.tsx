@@ -10,7 +10,7 @@ import { getSettingsComponent } from '@/utils/settings-components';
 
 export default function Settings() {
   const { t } = useTranslation();
-  const { auth, globalSettings = {}, emailProviders = {}, cacheSize = '0.00' } = usePage().props as any;
+  const { auth, globalSettings = {}, emailProviders = {}, cacheSize = '0.00', moduleGovernance = null } = usePage().props as any;
   const isTextileCompany =
     auth?.user?.industry_type === 'textile' ||
     (auth?.user?.type !== 'superadmin' && (auth?.user?.activatedPackages || []).some((module: string) => module.toLowerCase().includes('textile')));
@@ -102,6 +102,7 @@ export default function Settings() {
                     auth={auth}
                     emailProviders={emailProviders}
                     cacheSize={cacheSize}
+                    moduleGovernance={moduleGovernance}
                   />
                 </Suspense>
               </section>

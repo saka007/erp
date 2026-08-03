@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Setting;
+use App\Services\TenantModuleGovernanceService;
 use App\Mail\TestMail;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -15,6 +16,10 @@ use Illuminate\Support\Facades\Cookie;
 
 class SettingController extends Controller
 {
+    public function __construct(protected TenantModuleGovernanceService $governanceService)
+    {
+    }
+
     public function index()
     {
         if ($this->canAccessSettings('manage-settings'))
@@ -37,7 +42,8 @@ class SettingController extends Controller
                 'globalSettings' => $globalSettings,
                 'emailProviders' => $emailProviders,
                 'notifications' => $notifications,
-                'cacheSize' => $this->getCacheSize()
+                'cacheSize' => $this->getCacheSize(),
+                'moduleGovernance' => $this->governanceService->settingsPayload(Auth::user(), request()->integer('tenant_id') ?: null),
             ]);
         }
         else

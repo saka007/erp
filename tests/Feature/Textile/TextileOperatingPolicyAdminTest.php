@@ -6,6 +6,7 @@ use App\Models\AddOn;
 use App\Models\Plan;
 use App\Models\User;
 use App\Models\UserActiveModule;
+use DigitalFuzed\TextileCore\Models\TextileOperatingProfile;
 use DigitalFuzed\TextileCore\Models\TextileOperatingPolicy;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -62,6 +63,68 @@ class TextileOperatingPolicyAdminTest extends TestCase
                 'unit' => 'kg',
             ])
             ->assertSessionHasErrors('party_name');
+    }
+
+    public function test_company_can_manage_multiple_operating_profiles_with_history(): void
+    {
+        AddOn::create([
+            'module' => 'TextileCore',
+            'name' => 'Textile Core',
+            'package_name' => 'textile-core',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        $company = $this->company();
+
+        $this->actingAs($company)
+            ->post(route('textile.operating-policy.update'), [
+                'operating_model' => TextileOperatingPolicyService::MODEL_TRADER_BULK,
+                'operating_profiles' => [
+                    TextileOperatingPolicyService::MODEL_TRADER_BULK,
+                    TextileOperatingPolicyService::MODEL_EXPORT_COMPLIANCE,
+                ],
+                'material_ownership' => 'mixed',
+                'billing_mode' => 'hybrid',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $activeProfiles = TextileOperatingProfile::query()
+            ->where('created_by', $company->id)
+            ->where('is_active', true)
+            ->whereNull('effective_to')
+            ->pluck('profile_key')
+            ->toArray();
+
+        $this->assertEqualsCanonicalizing([
+            TextileOperatingPolicyService::MODEL_TRADER_BULK,
+            TextileOperatingPolicyService::MODEL_EXPORT_COMPLIANCE,
+        ], $activeProfiles);
+
+        $this->actingAs($company)
+            ->post(route('textile.operating-policy.update'), [
+                'operating_model' => TextileOperatingPolicyService::MODEL_EXPORT_COMPLIANCE,
+                'operating_profiles' => [
+                    TextileOperatingPolicyService::MODEL_EXPORT_COMPLIANCE,
+                ],
+                'material_ownership' => 'mixed',
+                'billing_mode' => 'hybrid',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('textile_operating_profiles', [
+            'created_by' => $company->id,
+            'profile_key' => TextileOperatingPolicyService::MODEL_TRADER_BULK,
+            'is_active' => false,
+        ]);
+
+        $this->assertDatabaseHas('textile_operating_profiles', [
+            'created_by' => $company->id,
+            'profile_key' => TextileOperatingPolicyService::MODEL_EXPORT_COMPLIANCE,
+            'is_active' => true,
+            'effective_to' => null,
+        ]);
     }
 
     private function company(): User

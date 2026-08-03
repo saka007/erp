@@ -9,15 +9,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import InputError from "@/components/ui/input-error";
 import { PhoneInputComponent } from "@/components/ui/phone-input";
 import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
-import { Customer, CustomerFormData } from './types';
+import { Customer, CustomerCategoryOption, CustomerFormData } from './types';
 import { BILLING_MODE_OPTIONS, MATERIAL_OWNERSHIP_OPTIONS, OPERATING_MODEL_OPTIONS } from './operating-profile-options';
 import { useFormFields } from '@/hooks/useFormFields';
 interface EditCustomerProps {
     customer: Customer;
+    customerCategories: CustomerCategoryOption[];
     onSuccess: () => void;
 }
 
-export default function Edit({ customer, onSuccess }: EditCustomerProps) {
+export default function Edit({ customer, customerCategories = [], onSuccess }: EditCustomerProps) {
     const { t } = useTranslation();
     const { data, setData, put, processing, errors } = useForm<CustomerFormData>(customer);
 
@@ -101,6 +102,36 @@ export default function Edit({ customer, onSuccess }: EditCustomerProps) {
                         />
                         <InputError message={errors.payment_terms} />
                     </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <Label htmlFor="credit_limit">{t('Credit Limit')}</Label>
+                        <Input
+                            id="credit_limit"
+                            type="number"
+                            value={data.credit_limit ?? ''}
+                            onChange={(e) => setData('credit_limit', e.target.value ? Number(e.target.value) : undefined)}
+                            placeholder={t('Enter credit limit')}
+                        />
+                        <InputError message={errors.credit_limit} />
+                    </div>
+                    <SelectField
+                        label={t('Credit Currency')}
+                        value={data.currency_code || 'USD'}
+                        onChange={(value) => setData('currency_code', value || 'USD')}
+                        options={['USD', 'INR', 'EUR', 'GBP', 'AED']}
+                    />
+                </div>
+                <div>
+                    <SelectField
+                        label={t('Customer Category')}
+                        value={data.customer_category_id ? String(data.customer_category_id) : ''}
+                        onChange={(value) => setData('customer_category_id', value ? Number(value) : undefined)}
+                        options={customerCategories.map((category) => ({ value: String(category.id), label: category.name }))}
+                        includeEmpty
+                        emptyLabel={t('Select category (optional)')}
+                    />
+                    <InputError message={errors.customer_category_id} />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <SelectField

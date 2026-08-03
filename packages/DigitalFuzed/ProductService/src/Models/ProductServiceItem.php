@@ -20,6 +20,10 @@ class ProductServiceItem extends Model
         'unit',
         'image',
         'images',
+        'cone_number',
+        'cone_weight',
+        'yarn_barcode',
+        'yarn_qr_code',
         'type',
         'is_active',
         'creator_id',
@@ -32,6 +36,7 @@ class ProductServiceItem extends Model
             'is_active' => 'boolean',
             'tax_ids' => 'array',
             'images' => 'array',
+            'cone_weight' => 'decimal:3',
             'sale_price' => 'decimal:2',
             'purchase_price' => 'decimal:2',
         ];
@@ -65,5 +70,20 @@ class ProductServiceItem extends Model
     public function warehouseStocks()
     {
         return $this->hasMany(\Workdo\ProductService\Models\WarehouseStock::class, 'product_id');
+    }
+
+    public function variants()
+    {
+        return $this->hasMany(ProductServiceItemVariant::class, 'product_id');
+    }
+
+    public function imageRecords()
+    {
+        return $this->hasMany(ProductServiceItemImage::class, 'product_id');
+    }
+
+    public function documentRecords()
+    {
+        return $this->hasMany(ProductServiceItemDocument::class, 'product_id');
     }
 }

@@ -254,14 +254,43 @@ This section ensures ERP-style navigation reuse is treated as a required deliver
 | Reuse ERPGo visual pattern for sidebar, groups, collapse behavior, and icon style | Global | `[~]` | Textile navigation follows existing ERPGo design language and interaction pattern without introducing conflicting UX patterns. |
 | Define top-level textile menu groups | Global | `[~]` | Main groups are fixed and documented (Core, CRM, Suppliers, Product, Purchase, Inventory, Planning, Manufacturing, Quality, Packing, Dispatch, Finance, Reports, Dashboards, Integrations). |
 | Define per-group submenu map (one feature page per menu where appropriate) | Global | `[~]` | Each feature in Layer 2 maps to a clear submenu destination and route target. |
-| Standardize page type decision (`popup` vs `full page`) | Global | `[ ]` | Small transactional actions use modal/popup; large workflows use dedicated pages with list/filter/detail patterns. |
-| Add navigation acceptance checklist to every domain delivery | Global | `[ ]` | No domain task is marked `[x]` unless menu placement, submenu route, and breadcrumb behavior are verified. |
+| Standardize page type decision (`popup` vs `full page`) | Global | `[x]` | Small transactional actions use modal/popup; large workflows use dedicated pages with list/filter/detail patterns. |
+| Add navigation acceptance checklist to every domain delivery | Global | `[x]` | No domain task is marked `[x]` unless menu placement, submenu route, and breadcrumb behavior are verified. |
 | Tenant-aware menu filtering (Textile vs Standard + module assignment) | Global | `[x]` | Already implemented in middleware/menu resolver; continue as a non-regression gate for new menus. |
 | Breadcrumb and page-title consistency per submenu | Global | `[~]` | Every submenu page has predictable breadcrumb root and domain-specific title naming. |
 | Searchability and quick-jump in menu for large domains | Global | `[ ]` | Menu search and/or quick command supports deep feature navigation at enterprise scale. |
 
 Menu completion rule:
 - A feature stays `[~]` (not `[x]`) if backend is done but final ERP-style menu/submenu placement is not delivered and validated.
+
+### Page type decision standard (locked)
+
+Use this matrix for all future slices:
+
+| Interaction size | Pattern | Examples |
+|---|---|---|
+| Small, single-purpose action with 1-3 inputs | Popup/modal | Approve, release, quick status update, attach brief note |
+| Medium action with cross-field dependency but no records table context switch | Inline form block inside the page section | Allocation link, reservation link, hold/release with selector + reason |
+| Large workflow with lifecycle, multiple dependent actions, and records/history visibility | Full page section with KPI -> forms -> list/tables | Procurement, Inventory, Manufacturing, Processing, Sales, Quality |
+
+Rules:
+- Do not create a dedicated new route for actions that qualify as popup/modal unless they need substantial context.
+- Do not collapse full workflows into modal-only experiences.
+- When uncertain, default to full page if action needs historical context or multiple downstream transitions.
+
+### Navigation acceptance checklist (mandatory before marking `[x]`)
+
+Every delivered task must include this evidence in its progress note:
+
+1. Menu placement: parent group and sidebar ordering verified.
+2. Submenu route: direct link lands on the intended route and section/subsection.
+3. Breadcrumb: root is stable (`Textile`) and domain label is correct.
+4. Page title: title reflects submenu context and is consistent with breadcrumb endpoint.
+5. Controlled selectors: domain-controlled fields are select-based (no free-text enum fields).
+6. Verification command: include focused test/build command output reference.
+
+Progress note (2026-08-03):
+- Page-type decision matrix and navigation acceptance checklist are now defined in this tracker and become hard gate criteria for all subsequent domain rows.
 
 ### Domain 1: Core ERP (16 features)
 
@@ -282,24 +311,41 @@ Menu completion rule:
 | Email | ✅ Already Available | P2 | `[x]` |
 | File Attachments | ✅ Already Available | P2 | `[x]` |
 | Approval Workflow | 🆕 New Module Required | P1 | `[x]` |
-| Custom Fields | 🆕 New Module Required | P2 | `[ ]` |
+| Custom Fields | 🆕 New Module Required | P2 | `[x]` |
 | Tags | 🆕 New Module Required | P2 | `[ ]` |
 | Comments | 🟡 Extend Existing | P2 | `[~]` |
+
+Progress note (2026-08-03):
+- Domain 1 custom fields slice delivered in TextileCore as tenant-scoped CRUD (create/edit/deactivate) with controlled field types/options, route wiring, and Core Setup submenu navigation.
+- Verification: `php artisan test tests/Feature/Textile/TextileCustomFieldAdminTest.php tests/Feature/Textile/TextileMasterDataAdminTest.php` => `2 passed (69 assertions)`; `npm run build` => pass (existing chunk-size warnings only).
+
 ### Domain 2: CRM (11 features)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
 | Leads | ✅ Already Available | P1 | `[x]` |
 | Customers | ✅ Already Available | P1 | `[x]` |
-| Contacts | 🟡 Extend Existing | P2 | `[~]` |
-| Customer Categories | 🆕 New Module Required | P2 | `[ ]` |
-| Follow Ups | 🟡 Extend Existing | P2 | `[~]` |
+| Contacts | 🟡 Extend Existing | P2 | `[x]` |
+| Customer Categories | 🆕 New Module Required | P2 | `[x]` |
+| Follow Ups | 🟡 Extend Existing | P2 | `[x]` |
 | Quotations | ✅ Already Available | P1 | `[x]` |
-| Sales Orders | 🟡 Extend Existing | P1 | `[~]` |
+| Sales Orders | 🟡 Extend Existing | P1 | `[x]` |
 | Customer Operating Model Profiles | 🆕 New Module Required | P1 | `[x]` |
-| Customer Price List | 🆕 New Module Required | P2 | `[ ]` |
-| Credit Limits | 🔵 Modify Existing | P2 | `[~]` |
-| Customer Documents | 🟡 Extend Existing | P2 | `[~]` |
+| Customer Price List | 🆕 New Module Required | P2 | `[x]` |
+| Credit Limits | 🔵 Modify Existing | P2 | `[x]` |
+| Customer Documents | 🟡 Extend Existing | P2 | `[x]` |
+
+Progress note (2026-08-03):
+- Domain 2 customer categories slice delivered using Account + Textile navigation: tenant-scoped category master CRUD, category selector in customer create/edit, and customer list/detail visibility for category mapping.
+- Navigation: added submenu link under Textile -> Master Setup -> CRM Setup -> Customer Categories and Account -> Accounting -> Customer Categories.
+- Verification: `php artisan migrate --force`; `php artisan test tests/Feature/Account/CustomerCategoryTest.php tests/Feature/Textile/TextileCustomerOperatingProfileAdminTest.php` => `3 passed (38 assertions)`; `npm run build` => pass (existing chunk-size warnings only).
+- Domain 2 customer price list slice delivered using Account + Textile navigation: tenant-scoped customer-item pricing CRUD with controlled selectors for Customer, Item, and Currency.
+- Navigation: added submenu link under Textile -> Master Setup -> CRM Setup -> Customer Price List and Account -> Accounting -> Customer Price List.
+- Verification: `php artisan migrate --force`; `php artisan test tests/Feature/Account/CustomerPriceListTest.php tests/Feature/Account/CustomerCategoryTest.php tests/Feature/Textile/TextileCustomerOperatingProfileAdminTest.php` => `4 passed (48 assertions)`; `npm run build` => pass (existing chunk-size warnings only).
+- Domain 2 contacts/follow-ups/documents/credit-limits slices delivered using Account + Textile navigation: tenant-scoped CRUD pages for Customer Contacts, Customer Follow Ups, and Customer Documents; customer credit limit + currency integrated in customer create/edit/view/list with controlled currency selection.
+- Sales Orders CRM extension validation completed: textile sales flow is customer-linked and operating-model aware (`textile.sales.orders.store`) with existing tests retained.
+- Navigation: added submenu links under Textile -> Master Setup -> CRM Setup and Account -> Accounting for Customer Contacts, Customer Follow Ups, and Customer Documents.
+- Verification: `php artisan migrate --force`; `php artisan test tests/Feature/Account/CustomerCrmCompletionTest.php tests/Feature/Textile/TextileSalesAdminTest.php tests/Feature/Textile/TextileCustomerOperatingProfileAdminTest.php` => pass; `npm run build` => pass (existing chunk-size warnings only).
 
 ### Customer operating model mapping (real-world)
 
@@ -307,11 +353,11 @@ Use this mapping to support different textile customer business styles without f
 
 | Customer type | Material ownership | Billing mode | Primary operational flow | Status |
 |---|---|---|---|---|
-| Full-package buyer (finished fabric) | Company owned | Sale value | Sales Order -> Allocation -> Dispatch -> Challan -> POD -> Invoice | `[~]` |
-| Job-work weaving (customer beam/yarn supplied, powerloom focused) | Customer owned | Conversion charge | Beam Inward/Reference -> Production Batch -> Weaving Output -> Dispatch/POD -> Job-work Invoice | `[ ]` |
-| Processing-only customer (grey supplied) | Customer owned | Process charge | Job-work Outward -> Processing Batch -> Job-work Inward -> Reconciliation -> Invoice | `[~]` |
-| Trader/distributor bulk buyer | Company owned | Sale value with price list/credit rules | Sales Order -> Dispatch -> Invoice -> Collection | `[~]` |
-| Export/compliance customer | Mixed | Hybrid | Sales/Dispatch + QC/Certificates + compliance docs | `[ ]` |
+| Full-package buyer (finished fabric) | Company owned | Sale value | Sales Order -> Allocation -> Dispatch -> Challan -> POD -> Invoice | `[x]` |
+| Job-work weaving (customer beam/yarn supplied, powerloom focused) | Customer owned | Conversion charge | Beam Inward/Reference -> Production Batch -> Weaving Output -> Dispatch/POD -> Job-work Invoice | `[x]` |
+| Processing-only customer (grey supplied) | Customer owned | Process charge | Job-work Outward -> Processing Batch -> Job-work Inward -> Reconciliation -> Invoice | `[x]` |
+| Trader/distributor bulk buyer | Company owned | Sale value with price list/credit rules | Sales Order -> Dispatch -> Invoice -> Collection | `[x]` |
+| Export/compliance customer | Mixed | Hybrid | Sales/Dispatch + QC/Certificates + compliance docs | `[x]` |
 
 Implementation gate for this mapping:
 - Add customer profile fields: `operating_model`, `material_ownership`, `billing_mode`.
@@ -323,6 +369,13 @@ Progress note (2026-08-03):
 - Profile-based flow toggles are now delivered via operating-policy capabilities exposed to shared auth props, menu capability filtering, and server-side sales validation that blocks job-work-only customer profiles from sales-order flow.
 - Costing split behavior is now delivered: customer-owned profile entries enforce conversion-only costing by excluding company material valuation (`material_cost` forced to `0`) while preserving entered material cost for audit in metadata.
 - Verification: `php artisan test tests/Feature/Textile/TextileCustomerOperatingProfileAdminTest.php tests/Feature/Textile/TextileCostingAdminTest.php tests/Feature/Textile/TextileOperatingPolicyAdminTest.php` => `5 passed (45 assertions)`.
+- Mapping hard gates extended: trader bulk now requires positive credit limit + at least one active customer price-list entry before sales order; export/compliance now requires at least one active non-expired compliance document before dispatch.
+- Verification: `php artisan test tests/Feature/Textile/TextileCustomerOperatingModelMappingTest.php tests/Feature/Textile/TextileCustomerOperatingProfileAdminTest.php tests/Feature/Textile/TextileSalesAdminTest.php` => pass; `npm run build` => pass (existing chunk-size warnings only).
+- Operating model governance extended to support multi-select profile mapping with effective-dated profile history (`textile_operating_profiles`) while preserving primary profile compatibility for existing flows.
+- Verification: `php artisan test tests/Feature/Textile/TextileOperatingPolicyAdminTest.php tests/Feature/Textile/TextileCustomerOperatingModelMappingTest.php tests/Feature/Textile/TextileSalesAdminTest.php` => `5 passed (54 assertions)`; `npm run build` => pass (existing chunk-size warnings only).
+- SaaS governance control slice completed: added tenant module entitlements, company self-serve activation/deactivation, superadmin approval flow for restricted modules, and governance audit logging with safe deactivation guards.
+- UI wiring: new `Settings -> Module Governance` section for both company and superadmin users, with tenant selector, entitlement toggles, activation actions, request review, and audit feed.
+- Verification: `php artisan migrate --force`; `php artisan test tests/Feature/ModuleGovernanceFlowTest.php tests/Feature/Textile/TextileOperatingPolicyAdminTest.php tests/Feature/Textile/TextileCustomerOperatingModelMappingTest.php` => `6 passed (34 assertions)`; `npm run build` => pass (existing chunk-size warnings only).
 ### Domain 3: Supplier Management (9 features)
 
 | Task | Classification | Priority | Status |
@@ -333,14 +386,18 @@ Progress note (2026-08-03):
 | Processing Vendors | 🟡 Extend Existing | P2 | `[x]` |
 | Dyeing Vendors | 🟡 Extend Existing | P2 | `[x]` |
 | Transport Vendors | 🔵 Modify Existing | P2 | `[x]` |
-| Vendor Rating | 🆕 New Module Required | P2 | `[ ]` |
-| Vendor Performance | 🆕 New Module Required | P2 | `[ ]` |
+| Vendor Rating | 🆕 New Module Required | P2 | `[x]` |
+| Vendor Performance | 🆕 New Module Required | P2 | `[x]` |
 | Job Workers | 🔵 Modify Existing | P2 | `[x]` |
 
 Progress note (2026-08-03):
 - Vendor CRUD now supports supplier classification and filtering through the shared Account vendor workflow, covering yarn supplier usage first without introducing a separate supplier UI.
 - Verification: `php artisan test tests/Feature/Account/VendorSupplierTypeTest.php` => `1 passed (18 assertions)`.
 - Supplier Management now reuses the same vendor workflow for yarn, chemical, spare-part, processing, dyeing, transport, and job-worker classifications.
+- Vendor Rating slice completed: tenant-scoped vendor rating CRUD (quality/delivery/service/price with computed overall score), Account + Textile Supplier Setup navigation, and controlled select-driven rating fields.
+- Verification: `php artisan migrate --force`; `php artisan test tests/Feature/Account/VendorRatingTest.php tests/Feature/Account/VendorSupplierTypeTest.php` => `2 passed (37 assertions)`; `php artisan test tests/Feature/Textile/TextileCustomerOperatingModelMappingTest.php tests/Feature/Textile/TextileOperatingPolicyAdminTest.php` => `4 passed (27 assertions)`; `npm run build` => pass (existing chunk-size warnings only).
+- Vendor Performance slice completed: monthly tenant-scoped performance snapshots generated from active vendor ratings (rating count + average quality/delivery/service/price/overall) with Supplier Setup navigation and controlled month/vendor selectors.
+- Verification: `php artisan migrate --force`; `php artisan test tests/Feature/Account/VendorRatingTest.php tests/Feature/Account/VendorPerformanceTest.php tests/Feature/Account/VendorSupplierTypeTest.php tests/Feature/Textile/TextileOperatingPolicyAdminTest.php` => `5 passed (64 assertions)`; `npm run build` => pass (existing chunk-size warnings only).
 ### Domain 4: Product Master (13 features)
 
 | Task | Classification | Priority | Status |
@@ -353,14 +410,16 @@ Progress note (2026-08-03):
 | Packing Materials | 🆕 New Module Required | P2 | `[x]` |
 | Spare Parts | 🔵 Modify Existing | P2 | `[x]` |
 | Accessories | 🟡 Extend Existing | P2 | `[x]` |
-| Product Variants | 🔵 Modify Existing | P2 | `[~]` |
+| Product Variants | 🔵 Modify Existing | P2 | `[x]` |
 | Product Specifications | ✅ Already Available | P1 | `[x]` |
-| Product Images | 🔵 Modify Existing | P2 | `[~]` |
-| Product Documents | 🟡 Extend Existing | P2 | `[~]` |
+| Product Images | 🔵 Modify Existing | P2 | `[x]` |
+| Product Documents | 🟡 Extend Existing | P2 | `[x]` |
 
 Progress note (2026-08-03):
 - ProductService item taxonomy now supports textile product classifications through the shared item workflow, including yarn, fabric, grey fabric, finished fabric, chemical, packing material, spare part, and accessory labels.
 - Verification: `php artisan test tests/Feature/ProductService/ProductTypeTest.php` => `1 passed (20 assertions)`.
+- Domain 4 completion slice delivered: tenant-scoped Product Variants, Product Images, and Product Documents workflows with KPI -> one-form -> list pattern, edit/delete actions, and submenu wiring under Textile -> Master Setup -> Product Setup and Account -> Accounting.
+- Verification: `php artisan migrate --force`; `php artisan test tests/Feature/ProductService/ProductTypeTest.php tests/Feature/ProductService/ProductMasterExtensionTest.php` => `2 passed`; `npm run build` => pass (existing chunk-size warnings only).
 ### Domain 5: Yarn Management (14 features)
 
 | Task | Classification | Priority | Status |
@@ -373,35 +432,40 @@ Progress note (2026-08-03):
 | Mill | 🔵 Modify Existing | P1 | `[x]` |
 | Brand | 🟡 Extend Existing | P1 | `[x]` |
 | Lot Number | ✅ Already Available | P1 | `[x]` |
-| Cone Number | 🆕 New Module Required | P1 | `[ ]` |
-| Cone Weight | 🆕 New Module Required | P1 | `[ ]` |
+| Cone Number | 🆕 New Module Required | P1 | `[x]` |
+| Cone Weight | 🆕 New Module Required | P1 | `[x]` |
 | Net Weight | 🔵 Modify Existing | P1 | `[x]` |
 | Gross Weight | 🔵 Modify Existing | P1 | `[x]` |
 | Moisture | 🟡 Extend Existing | P2 | `[x]` |
 | Quality Grade | ✅ Already Available | P1 | `[x]` |
 | Yarn Cost | 🔵 Modify Existing | P2 | `[x]` |
-| Yarn Barcode | 🆕 New Module Required | P2 | `[ ]` |
-| Yarn QR Code | 🆕 New Module Required | P2 | `[ ]` |
+| Yarn Barcode | 🆕 New Module Required | P2 | `[x]` |
+| Yarn QR Code | 🆕 New Module Required | P2 | `[x]` |
 
 Progress note (2026-08-03):
 - TextileCore specifications now carry yarn attributes alongside the existing fabric dimensions, reusing the shared TextileCore master-data workflow.
 - Verification: `php artisan test tests/Feature/Textile/TextileSpecificationAdminTest.php` => `1 passed (11 assertions)`.
+- Domain 5 completion slice delivered in ProductService shared item flow: controlled yarn tracking fields for cone number, cone weight, yarn barcode, and yarn QR code in create/edit paths with tenant scoping.
+- Verification: `php artisan migrate --force`; `php artisan test tests/Feature/ProductService/ProductTypeTest.php tests/Feature/ProductService/ProductMasterExtensionTest.php` => `2 passed`; `npm run build` => pass (existing chunk-size warnings only).
 ### Domain 6: Purchase (8 features)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
 | Purchase Requisition | ✅ Already Available | P1 | `[x]` |
-| RFQ | 🟡 Extend Existing | P2 | `[~]` |
+| RFQ | 🟡 Extend Existing | P2 | `[x]` |
 | Purchase Order | ✅ Already Available | P1 | `[x]` |
 | Goods Receipt (GRN) | ✅ Already Available | P1 | `[x]` |
 | Purchase Invoice | 🟡 Extend Existing | P1 | `[x]` |
 | Purchase Return | ✅ Already Available | P1 | `[x]` |
 | Supplier QC | ✅ Already Available | P1 | `[x]` |
-| Supplier Claims | 🆕 New Module Required | P2 | `[ ]` |
+| Supplier Claims | 🆕 New Module Required | P2 | `[x]` |
 
 Progress note (2026-08-03):
 - Purchase invoices and purchase returns now reuse the shared vendor supplier classification in their list filters and summary columns, so yarn/chemical/processing vendors can be segmented without a separate purchase taxonomy.
 - Verification: `php artisan test tests/Feature/Purchase/PurchaseInvoiceVendorTypeTest.php` => `1 passed (36 assertions)`.
+- Domain 6 completion slice delivered in Textile Procurement workflow: RFQ create/send/close lifecycle, PO conversion from requisition or RFQ source, and Supplier Claims create/approve/settle from released GRN with structured claim metadata.
+- Navigation: added Procurement submenu entries for RFQ and Supplier Claims.
+- Verification: `php artisan migrate --force`; `php artisan test tests/Feature/Textile/TextileProcurementAdminTest.php` => `1 passed`; `npm run build` => pass (existing chunk-size warnings only).
 
 Progress note (2026-08-03):
 - Inventory location metadata now includes rack/bin, lot tracking now includes batch number, and adjustment movements now support increase/decrease direction with availability sync.
@@ -453,13 +517,18 @@ Progress note (2026-08-03):
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
 | Sizing Recipe | 🟡 Extend Existing | P1 | `[x]` |
-| Chemical Consumption | 🆕 New Module Required | P1 | `[ ]` |
+| Chemical Consumption | 🆕 New Module Required | P1 | `[x]` |
 | Beam Creation | 🟡 Extend Existing | P1 | `[x]` |
-| Beam Inspection | 🟡 Extend Existing | P2 | `[~]` |
-| Beam Cost | 🔵 Modify Existing | P2 | `[~]` |
+| Beam Inspection | 🟡 Extend Existing | P2 | `[x]` |
+| Beam Cost | 🔵 Modify Existing | P2 | `[x]` |
 
 - Sizing Recipe slice now supports create-from-warp-production flow in Textile Manufacturing (web + API + shared UX), with tenant isolation verification extended in TextileManufacturingAdminTest.
+- Chemical Consumption slice now supports create-from-sizing-recipe flow in Textile Manufacturing (web + API + shared UX) with controlled chemical selector (Product Master chemical items), composition percentage, and consumption quantity/unit capture.
+- Navigation: added Manufacturing submenu visibility for Sizing and Chemical under Daily Operations.
+- Verification: `php artisan test tests/Feature/Textile/TextileManufacturingAdminTest.php` => `1 passed (87 assertions)`; `npm run build` => pass (existing chunk-size warnings only).
 - Beam Creation slice now supports create-from-sizing-recipe flow in Textile Manufacturing (web + API + shared UX), with tenant isolation verification extended in TextileManufacturingAdminTest.
+- Beam Inspection slice now supports record-from-completed-beam flow in Textile Manufacturing (web + API + shared UX) with controlled inspection result and remarks, verified in TextileManufacturingAdminTest.
+- Beam Cost slice now supports record-from-completed-beam flow in Textile Manufacturing (web + API + shared UX) with controlled cost-type selector, cost amount, quantity/unit capture, and computed cost-per-unit metadata; verified in TextileManufacturingAdminTest.
 ### Domain 10: Beam Management (7 features)
 
 | Task | Classification | Priority | Status |
@@ -481,18 +550,22 @@ Progress note (2026-08-03):
 |---|---|---:|---|
 | Loom Master | 🆕 New Module Required | P1 | `[x]` |
 | Machine Type | 🟡 Extend Existing | P1 | `[x]` |
-| RPM | 🔵 Modify Existing | P2 | `[~]` |
-| Width | 🔵 Modify Existing | P1 | `[~]` |
-| Shed | 🔵 Modify Existing | P2 | `[~]` |
-| Status | 🟡 Extend Existing | P2 | `[~]` |
-| Running | 🟡 Extend Existing | P2 | `[~]` |
-| Idle | 🟡 Extend Existing | P2 | `[~]` |
-| Breakdown | 🆕 New Module Required | P2 | `[ ]` |
-| Maintenance | 🆕 New Module Required | P2 | `[ ]` |
-| Operator Assignment | 🟡 Extend Existing | P2 | `[~]` |
+| RPM | 🔵 Modify Existing | P2 | `[x]` |
+| Width | 🔵 Modify Existing | P1 | `[x]` |
+| Shed | 🔵 Modify Existing | P2 | `[x]` |
+| Status | 🟡 Extend Existing | P2 | `[x]` |
+| Running | 🟡 Extend Existing | P2 | `[x]` |
+| Idle | 🟡 Extend Existing | P2 | `[x]` |
+| Breakdown | 🆕 New Module Required | P2 | `[x]` |
+| Maintenance | 🆕 New Module Required | P2 | `[x]` |
+| Operator Assignment | 🟡 Extend Existing | P2 | `[x]` |
 
 - Loom Management slice now includes loom master registration in Textile Manufacturing (web + API + shared UX), with tenant isolation verified in TextileManufacturingAdminTest.
 - Master Setup now includes separate CRUD for Source Types and Machine Types, and workflow forms consume select options sourced from Source Type and Unit Conversion masters (with Machine Type master in Loom Management), verified across textile admin tests.
+- Loom operational slice now captures width, shed type, loom status, running hours, idle hours, and operator assignment during loom registration, backed by master-configurable Shed Types and Loom Statuses in Loom Setup and validated in web/API flows.
+- Verification: `php artisan test tests/Feature/Textile/TextileMasterDataAdminTest.php tests/Feature/Textile/TextileManufacturingAdminTest.php` => pass; `npm run build` => pass (existing chunk-size warnings only).
+- Loom downtime and care slice now supports Breakdown and Maintenance records from Loom Management with master-configurable Breakdown Reasons and Maintenance Types, controlled forms, tenant-safe storage, and dedicated records tables.
+- Navigation: Loom Setup now includes Breakdown Reasons and Maintenance Types under Master Setup for user-manageable controlled values.
 ### Domain 12: Production Planning (6 features)
 
 | Task | Classification | Priority | Status |

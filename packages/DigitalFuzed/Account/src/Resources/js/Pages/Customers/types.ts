@@ -11,6 +11,7 @@ export interface Address {
 export interface Customer {
   id: number;
   user_id?: number;
+  customer_category_id?: number;
   customer_code: string;
   company_name: string;
   contact_person_name: string;
@@ -18,6 +19,8 @@ export interface Customer {
   contact_person_mobile?: string;
   tax_number?: string;
   payment_terms?: string;
+  credit_limit?: number;
+  currency_code?: string;
   operating_model?: string;
   material_ownership?: string;
   billing_mode?: string;
@@ -33,6 +36,11 @@ export interface Customer {
     id: number;
     name: string;
     avatar?: string;
+    is_disable?: number;
+  };
+  customerCategory?: {
+    id: number;
+    name: string;
   };
   creator?: {
     id: number;
@@ -46,12 +54,15 @@ export interface Customer {
 
 export interface CustomerFormData {
   user_id?: number;
+  customer_category_id?: number;
   company_name: string;
   contact_person_name: string;
   contact_person_email: string;
   contact_person_mobile?: string;
   tax_number?: string;
   payment_terms?: string;
+  credit_limit?: number;
+  currency_code?: string;
   operating_model?: string;
   material_ownership?: string;
   billing_mode?: string;
@@ -59,6 +70,11 @@ export interface CustomerFormData {
   shipping_address: Address;
   same_as_billing: boolean;
   notes?: string;
+}
+
+export interface CustomerCategoryOption {
+  id: number;
+  name: string;
 }
 
 export interface User {

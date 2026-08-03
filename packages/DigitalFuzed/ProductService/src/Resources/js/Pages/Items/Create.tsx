@@ -39,6 +39,10 @@ export default function Create() {
         images: [],
         warehouse_id: '',
         type: 'product',
+        cone_number: '',
+        cone_weight: '',
+        yarn_barcode: '',
+        yarn_qr_code: '',
         custom_fields: {},
         has_warranty: 0,
         warranty_type: '',
@@ -338,6 +342,33 @@ export default function Create() {
                                         )}
                                     </div>
 
+                                    {data.type === 'yarn' && (
+                                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                                            <div>
+                                                <Label htmlFor="cone_number">{t('Cone Number')}</Label>
+                                                <Input
+                                                    id="cone_number"
+                                                    value={data.cone_number || ''}
+                                                    onChange={(e) => setData('cone_number', e.target.value)}
+                                                    placeholder={t('Enter Cone Number')}
+                                                />
+                                                <InputError message={errors.cone_number} />
+                                            </div>
+                                            <div>
+                                                <Label htmlFor="cone_weight">{t('Cone Weight')}</Label>
+                                                <Input
+                                                    id="cone_weight"
+                                                    type="number"
+                                                    step="0.001"
+                                                    value={data.cone_weight || ''}
+                                                    onChange={(e) => setData('cone_weight', e.target.value)}
+                                                    placeholder={t('Enter Cone Weight')}
+                                                />
+                                                <InputError message={errors.cone_weight} />
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="flex justify-between">
                                         <Button type="button" variant="outline" onClick={prevTab}>
                                             {t('Previous')}
@@ -376,6 +407,49 @@ export default function Create() {
                                             <InputError message={errors.images} />
                                         </div>
                                     </div>
+
+                                    {data.type === 'yarn' && (
+                                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                                            <div>
+                                                <Label htmlFor="yarn_barcode">{t('Yarn Barcode')}</Label>
+                                                <div className="flex gap-2">
+                                                    <Input
+                                                        id="yarn_barcode"
+                                                        value={data.yarn_barcode || ''}
+                                                        onChange={(e) => setData('yarn_barcode', e.target.value)}
+                                                        placeholder={t('Enter Yarn Barcode')}
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        onClick={() => setData('yarn_barcode', `YRN-BC-${Date.now()}`)}
+                                                    >
+                                                        {t('Generate')}
+                                                    </Button>
+                                                </div>
+                                                <InputError message={errors.yarn_barcode} />
+                                            </div>
+                                            <div>
+                                                <Label htmlFor="yarn_qr_code">{t('Yarn QR Code')}</Label>
+                                                <div className="flex gap-2">
+                                                    <Input
+                                                        id="yarn_qr_code"
+                                                        value={data.yarn_qr_code || ''}
+                                                        onChange={(e) => setData('yarn_qr_code', e.target.value)}
+                                                        placeholder={t('Enter Yarn QR payload')}
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        onClick={() => setData('yarn_qr_code', `YRN-QR-${Date.now()}`)}
+                                                    >
+                                                        {t('Generate')}
+                                                    </Button>
+                                                </div>
+                                                <InputError message={errors.yarn_qr_code} />
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between">
                                         <Button type="button" variant="outline" onClick={prevTab}>
                                             {t('Previous')}

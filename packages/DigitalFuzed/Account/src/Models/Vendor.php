@@ -49,6 +49,16 @@ class Vendor extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function ratings()
+    {
+        return $this->hasMany(VendorRating::class);
+    }
+
+    public function performanceSnapshots()
+    {
+        return $this->hasMany(VendorPerformanceSnapshot::class);
+    }
+
     protected static function boot()
     {
         parent::boot();

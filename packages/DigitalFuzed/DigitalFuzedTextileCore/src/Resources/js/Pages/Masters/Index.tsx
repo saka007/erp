@@ -11,7 +11,7 @@ import { TextileField as Field } from '@/components/textile/textile-field';
 import { TextileFormCard } from '@/components/textile/textile-form-card';
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 
-type Master = 'quality-profiles' | 'route-recipes' | 'unit-conversions' | 'source-types' | 'source-actions' | 'machine-types';
+type Master = 'quality-profiles' | 'route-recipes' | 'unit-conversions' | 'source-types' | 'source-actions' | 'machine-types' | 'cost-types' | 'inspection-results' | 'shed-types' | 'loom-statuses' | 'breakdown-reasons' | 'maintenance-types';
 type RecordItem = Record<string, string | number | string[] | null> & { id: number };
 
 const metadata = {
@@ -51,6 +51,42 @@ const metadata = {
         updateRoute: 'textile.machine-types.update',
         archiveRoute: 'textile.machine-types.archive',
     },
+    'cost-types': {
+        title: 'Cost Types',
+        createRoute: 'textile.cost-types.store',
+        updateRoute: 'textile.cost-types.update',
+        archiveRoute: 'textile.cost-types.archive',
+    },
+    'inspection-results': {
+        title: 'Inspection Results',
+        createRoute: 'textile.inspection-results.store',
+        updateRoute: 'textile.inspection-results.update',
+        archiveRoute: 'textile.inspection-results.archive',
+    },
+    'shed-types': {
+        title: 'Shed Types',
+        createRoute: 'textile.shed-types.store',
+        updateRoute: 'textile.shed-types.update',
+        archiveRoute: 'textile.shed-types.archive',
+    },
+    'loom-statuses': {
+        title: 'Loom Statuses',
+        createRoute: 'textile.loom-statuses.store',
+        updateRoute: 'textile.loom-statuses.update',
+        archiveRoute: 'textile.loom-statuses.archive',
+    },
+    'breakdown-reasons': {
+        title: 'Breakdown Reasons',
+        createRoute: 'textile.breakdown-reasons.store',
+        updateRoute: 'textile.breakdown-reasons.update',
+        archiveRoute: 'textile.breakdown-reasons.archive',
+    },
+    'maintenance-types': {
+        title: 'Maintenance Types',
+        createRoute: 'textile.maintenance-types.store',
+        updateRoute: 'textile.maintenance-types.update',
+        archiveRoute: 'textile.maintenance-types.archive',
+    },
 } as const;
 
 type IndexProps = {
@@ -63,7 +99,15 @@ type IndexProps = {
 export default function Index({ master, records, masterDomain = null, masterDomainLabel = null }: IndexProps) {
     const { t } = useTranslation();
     const config = metadata[master];
-    const domainAwareMaster = master === 'source-types' || master === 'source-actions' || master === 'machine-types';
+    const domainAwareMaster = master === 'source-types'
+        || master === 'source-actions'
+        || master === 'machine-types'
+        || master === 'cost-types'
+        || master === 'inspection-results'
+        || master === 'shed-types'
+        || master === 'loom-statuses'
+        || master === 'breakdown-reasons'
+        || master === 'maintenance-types';
     const title = masterDomainLabel ? `${masterDomainLabel} ${config.title}` : config.title;
     const [editingId, setEditingId] = useState<number | null>(null);
     const { data, setData, post, processing, reset } = useForm({ name: '', code: '', description: '', grade: '', parameters: '', steps: '', from_unit: '', to_unit: '', factor: '' });

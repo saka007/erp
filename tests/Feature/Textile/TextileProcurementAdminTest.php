@@ -67,8 +67,42 @@ class TextileProcurementAdminTest extends TestCase
         $this->assertSame('approved', $requisitionA->status);
 
         $this->actingAs($companyA)
-            ->post(route('textile.procurement.purchase-orders.store'), [
+            ->post(route('textile.procurement.rfqs.store'), [
                 'requisition_id' => $requisitionA->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $rfqA = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'rfq')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($rfqA);
+        $this->assertSame('draft', $rfqA->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.rfqs.send'), [
+                'rfq_id' => $rfqA->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $rfqA->refresh();
+        $this->assertSame('approved', $rfqA->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.rfqs.close'), [
+                'rfq_id' => $rfqA->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $rfqA->refresh();
+        $this->assertSame('released', $rfqA->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.purchase-orders.store'), [
+                'source_type' => 'rfq',
+                'source_id' => $rfqA->id,
             ])
             ->assertSessionHasNoErrors();
 
@@ -130,6 +164,44 @@ class TextileProcurementAdminTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertSame(1, PurchaseInvoice::query()->where('created_by', $companyA->id)->count());
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.supplier-claims.store'), [
+                'grn_id' => $grnA->id,
+                'claim_type' => 'quality',
+                'claim_amount' => 250,
+                'resolution_type' => 'credit_note',
+                'claim_note' => 'Shade mismatch in received lot',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $claimA = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'supplier_claim')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($claimA);
+        $this->assertSame('draft', $claimA->status);
+        $this->assertSame('quality', $claimA->metadata['claim_type']);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.supplier-claims.approve'), [
+                'supplier_claim_id' => $claimA->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $claimA->refresh();
+        $this->assertSame('approved', $claimA->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.procurement.supplier-claims.settle'), [
+                'supplier_claim_id' => $claimA->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $claimA->refresh();
+        $this->assertSame('released', $claimA->status);
 
         $this->actingAs($companyA)
             ->post(route('textile.procurement.incoming-qc.store'), [

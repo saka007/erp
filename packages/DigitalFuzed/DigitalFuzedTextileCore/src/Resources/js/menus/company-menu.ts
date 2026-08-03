@@ -1,7 +1,7 @@
 import { Factory } from 'lucide-react';
 
 declare global {
-    function route(name: string): string;
+    function route(name: string, params?: Record<string, unknown>): string;
 }
 
 export const textileCoreCompanyMenu = (t: (key: string) => string) => [
@@ -25,12 +25,20 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                         href: route('textile.procurement.index', { section: 'purchase-orders' }),
                     },
                     {
+                        title: t('RFQ'),
+                        href: route('textile.procurement.index', { section: 'rfqs' }),
+                    },
+                    {
                         title: t('GRN'),
                         href: route('textile.procurement.index', { section: 'grns' }),
                     },
                     {
                         title: t('Incoming QC'),
                         href: route('textile.procurement.index', { section: 'incoming-qc' }),
+                    },
+                    {
+                        title: t('Supplier Claims'),
+                        href: route('textile.procurement.index', { section: 'supplier-claims' }),
                     },
                 ],
             },
@@ -59,6 +67,10 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                 children: [
                     {
                         title: t('Warp Planning'),
+                        href: route('textile.manufacturing.index', { section: 'warp-planning' }),
+                    },
+                    {
+                        title: t('Sizing and Chemical'),
                         href: route('textile.manufacturing.index', { section: 'warp-planning' }),
                     },
                     {
@@ -156,13 +168,17 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                                 href: route('textile.cost-centers.index'),
                             },
                             {
+                                title: t('Custom Fields'),
+                                href: route('textile.custom-fields.index'),
+                            },
+                            {
                                 title: t('Operating Model'),
                                 href: route('textile.operating-policy.index'),
                             },
                         ],
                     },
                     {
-                        title: t('Manufacturing Setup'),
+                        title: t('Manufacturing Source Setup'),
                         children: [
                             {
                                 title: t('Source Types'),
@@ -172,9 +188,43 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                                 title: t('Source Actions'),
                                 href: route('textile.master-domains.source-actions.index', { domain: 'manufacturing' }),
                             },
+                        ],
+                    },
+                    {
+                        title: t('Loom Setup'),
+                        children: [
                             {
                                 title: t('Machine Types'),
                                 href: route('textile.master-domains.machine-types.index', { domain: 'manufacturing' }),
+                            },
+                            {
+                                title: t('Shed Types'),
+                                href: route('textile.master-domains.shed-types.index', { domain: 'manufacturing' }),
+                            },
+                            {
+                                title: t('Loom Statuses'),
+                                href: route('textile.master-domains.loom-statuses.index', { domain: 'manufacturing' }),
+                            },
+                            {
+                                title: t('Breakdown Reasons'),
+                                href: route('textile.master-domains.breakdown-reasons.index', { domain: 'manufacturing' }),
+                            },
+                            {
+                                title: t('Maintenance Types'),
+                                href: route('textile.master-domains.maintenance-types.index', { domain: 'manufacturing' }),
+                            },
+                        ],
+                    },
+                    {
+                        title: t('Beam and Cost Setup'),
+                        children: [
+                            {
+                                title: t('Cost Types'),
+                                href: route('textile.master-domains.cost-types.index', { domain: 'manufacturing' }),
+                            },
+                            {
+                                title: t('Inspection Results'),
+                                href: route('textile.master-domains.inspection-results.index', { domain: 'manufacturing' }),
                             },
                         ],
                     },
@@ -227,6 +277,61 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                             {
                                 title: t('Source Actions'),
                                 href: route('textile.master-domains.source-actions.index', { domain: 'quality' }),
+                            },
+                        ],
+                    },
+                    {
+                        title: t('CRM Setup'),
+                        children: [
+                            {
+                                title: t('Customer Categories'),
+                                href: route('account.customer-categories.index'),
+                            },
+                            {
+                                title: t('Customer Price List'),
+                                href: route('account.customer-price-lists.index'),
+                            },
+                            {
+                                title: t('Customer Contacts'),
+                                href: route('account.customer-contacts.index'),
+                            },
+                            {
+                                title: t('Customer Follow Ups'),
+                                href: route('account.customer-follow-ups.index'),
+                            },
+                            {
+                                title: t('Customer Documents'),
+                                href: route('account.customer-documents.index'),
+                            },
+                        ],
+                    },
+                    {
+                        title: t('Supplier Setup'),
+                        children: [
+                            {
+                                title: t('Vendor Ratings'),
+                                href: route('account.vendor-ratings.index'),
+                            },
+                            {
+                                title: t('Vendor Performance'),
+                                href: route('account.vendor-performance.index'),
+                            },
+                        ],
+                    },
+                    {
+                        title: t('Product Setup'),
+                        children: [
+                            {
+                                title: t('Product Variants'),
+                                href: route('product-service.product-master.variants.index'),
+                            },
+                            {
+                                title: t('Product Images'),
+                                href: route('product-service.product-master.images.index'),
+                            },
+                            {
+                                title: t('Product Documents'),
+                                href: route('product-service.product-master.documents.index'),
                             },
                         ],
                     },

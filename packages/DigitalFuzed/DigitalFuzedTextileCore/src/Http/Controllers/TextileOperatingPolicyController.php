@@ -7,6 +7,7 @@ use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use RuntimeException;
 
@@ -25,6 +26,8 @@ class TextileOperatingPolicyController extends Controller
         $targetTenantId = $selectedCompanyId ?? creatorId();
 
         $policy = $this->policyService->resolveForTenant($targetTenantId);
+        $activeProfiles = $this->policyService->resolveActiveProfilesForTenant($targetTenantId);
+        $resolvedProfiles = $activeProfiles !== [] ? $activeProfiles : [$policy->operating_model];
 
         $companies = [];
         if ($user?->type === 'superadmin') {
@@ -37,11 +40,14 @@ class TextileOperatingPolicyController extends Controller
         return Inertia::render('DigitalFuzedTextileCore/OperatingPolicy/Index', [
             'policy' => $policy,
             'capabilities' => $this->policyService->capabilities($policy),
+            'activeProfiles' => $resolvedProfiles,
+            'profileHistory' => $this->policyService->profileHistoryForTenant($targetTenantId),
             'isSuperadmin' => $user?->type === 'superadmin',
             'selectedCompanyId' => $selectedCompanyId,
             'companies' => $companies,
             'options' => [
                 'operatingModels' => $this->policyService->options(),
+                'operatingProfiles' => $this->policyService->options(),
                 'materialOwnership' => $this->policyService->materialOwnershipOptions(),
                 'billingModes' => $this->policyService->billingModeOptions(),
             ],
@@ -55,9 +61,15 @@ class TextileOperatingPolicyController extends Controller
         $validated = $request->validate([
             'company_id' => ['nullable', 'integer', 'exists:users,id'],
             'operating_model' => ['required', 'string', 'max:80'],
+            'operating_profiles' => ['nullable', 'array', 'min:1'],
+            'operating_profiles.*' => ['required', 'string', Rule::in($this->policyService->options())],
             'material_ownership' => ['required', 'string', 'max:30'],
             'billing_mode' => ['required', 'string', 'max:30'],
         ]);
+
+        if (!empty($validated['operating_profiles']) && !in_array($validated['operating_model'], $validated['operating_profiles'], true)) {
+            return back()->withErrors(['operating_model' => __('Primary operating model must be one of the selected operating profiles.')]);
+        }
 
         $user = Auth::user();
         $isSuperadmin = $user?->type === 'superadmin';

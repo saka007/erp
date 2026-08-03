@@ -148,6 +148,31 @@ class TextileManufacturingService
         ]);
     }
 
+    public function createChemicalConsumption(int $sizingRecipeId, array $payload = []): TextileWorkflowDocument
+    {
+        $sizingRecipe = $this->findTenantDocument($sizingRecipeId, 'sizing_recipe');
+        if (! in_array($sizingRecipe->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Sizing recipe must be completed before recording chemical consumption.');
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'chemical_consumption',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $sizingRecipe->id,
+            'party_name' => $payload['party_name'] ?? $sizingRecipe->party_name,
+            'lot_reference' => $payload['lot_reference'] ?? $sizingRecipe->lot_reference,
+            'quantity' => $payload['consumption_quantity'] ?? $payload['quantity'] ?? 0,
+            'unit' => $payload['unit'] ?? $sizingRecipe->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'chemical_type' => $payload['chemical_type'] ?? null,
+                'composition_percent' => $payload['composition_percent'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
     public function createBeamIssue(int $beamId, array $payload = []): TextileWorkflowDocument
     {
         $beam = $this->findTenantDocument($beamId, 'beam');
@@ -192,11 +217,75 @@ class TextileManufacturingService
         ]);
     }
 
+    public function createBeamInspection(int $beamId, array $payload = []): TextileWorkflowDocument
+    {
+        $beam = $this->findTenantDocument($beamId, 'beam');
+        if (! in_array($beam->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Beam must be completed before beam inspection.');
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'beam_inspection',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $beam->id,
+            'source_action' => 'beam_inspection',
+            'party_name' => $payload['party_name'] ?? $beam->party_name,
+            'lot_reference' => $payload['lot_reference'] ?? $beam->lot_reference,
+            'quantity' => $payload['quantity'] ?? $beam->quantity,
+            'unit' => $payload['unit'] ?? $beam->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'inspection_result' => $payload['inspection_result'] ?? null,
+                'remarks' => $payload['remarks'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createBeamCost(int $beamId, array $payload = []): TextileWorkflowDocument
+    {
+        $beam = $this->findTenantDocument($beamId, 'beam');
+        if (! in_array($beam->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Beam must be completed before beam cost capture.');
+        }
+
+        $quantity = (float) ($payload['quantity'] ?? $beam->quantity ?? 0);
+        $costAmount = (float) ($payload['cost_amount'] ?? 0);
+        $costPerUnit = $quantity > 0 ? round($costAmount / $quantity, 4) : null;
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'beam_cost',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $beam->id,
+            'source_action' => 'beam_cost_capture',
+            'party_name' => $payload['party_name'] ?? $beam->party_name,
+            'lot_reference' => $payload['lot_reference'] ?? $beam->lot_reference,
+            'quantity' => $quantity,
+            'unit' => $payload['unit'] ?? $beam->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'cost_type' => $payload['cost_type'] ?? null,
+                'cost_amount' => $costAmount,
+                'cost_per_unit' => $costPerUnit,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
     public function createLoomMaster(array $payload): TextileWorkflowDocument
     {
         if (empty($payload['source_reference_type']) || empty($payload['source_reference_id'])) {
             throw new RuntimeException('Loom master requires a source reference.');
         }
+
+        $metadata = is_array($payload['metadata'] ?? null) ? $payload['metadata'] : [];
+        $metadata['shed_type'] = $payload['shed_type'] ?? ($metadata['shed_type'] ?? null);
+        $metadata['width'] = $payload['width'] ?? ($metadata['width'] ?? null);
+        $metadata['loom_status'] = $payload['loom_status'] ?? ($metadata['loom_status'] ?? null);
+        $metadata['running_hours'] = $payload['running_hours'] ?? ($metadata['running_hours'] ?? null);
+        $metadata['idle_hours'] = $payload['idle_hours'] ?? ($metadata['idle_hours'] ?? null);
+        $metadata['operator_name'] = $payload['operator_name'] ?? ($metadata['operator_name'] ?? null);
 
         return $this->workflowService->createDocument([
             'document_type' => 'loom_master',
@@ -208,7 +297,63 @@ class TextileManufacturingService
             'quantity' => $payload['quantity'] ?? 0,
             'unit' => $payload['unit'] ?? 'rpm',
             'status' => 'approved',
-            'metadata' => $payload['metadata'] ?? null,
+            'metadata' => $metadata,
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createLoomBreakdown(int $loomMasterId, array $payload = []): TextileWorkflowDocument
+    {
+        $loomMaster = $this->findTenantDocument($loomMasterId, 'loom_master');
+
+        if (! in_array($loomMaster->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Loom master must be completed before recording breakdown.');
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'loom_breakdown',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $loomMaster->id,
+            'source_action' => 'loom_breakdown',
+            'party_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? $loomMaster->party_name),
+            'lot_reference' => $loomMaster->lot_reference,
+            'quantity' => $payload['downtime_hours'] ?? 0,
+            'unit' => $payload['unit'] ?? 'hour',
+            'status' => 'approved',
+            'metadata' => [
+                'breakdown_reason' => $payload['breakdown_reason'] ?? null,
+                'downtime_hours' => $payload['downtime_hours'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+                'operator_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? null),
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createLoomMaintenance(int $loomMasterId, array $payload = []): TextileWorkflowDocument
+    {
+        $loomMaster = $this->findTenantDocument($loomMasterId, 'loom_master');
+
+        if (! in_array($loomMaster->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Loom master must be completed before recording maintenance.');
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'loom_maintenance',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $loomMaster->id,
+            'source_action' => 'loom_maintenance',
+            'party_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? $loomMaster->party_name),
+            'lot_reference' => $loomMaster->lot_reference,
+            'quantity' => $payload['maintenance_hours'] ?? 0,
+            'unit' => $payload['unit'] ?? 'hour',
+            'status' => 'approved',
+            'metadata' => [
+                'maintenance_type' => $payload['maintenance_type'] ?? null,
+                'maintenance_hours' => $payload['maintenance_hours'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+                'operator_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? null),
+            ],
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
     }

@@ -9,6 +9,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\ModuleGovernanceController;
 use App\Http\Controllers\TranslationController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\BankTransferPaymentController;
@@ -130,6 +131,10 @@ Route::middleware(['auth', 'verified', 'PlanModuleCheck'])->group(function () {
     Route::post('settings/email/test', [SettingController::class, 'testEmail'])->name('settings.email.test');
     Route::post('settings/pusher', [SettingController::class, 'updatePusherSettings'])->name('settings.pusher.update');
     Route::post('settings/bank-transfer', [SettingController::class, 'updateBankTransferSettings'])->name('settings.bank-transfer.update');
+    Route::post('settings/module-governance/entitlement', [ModuleGovernanceController::class, 'updateEntitlement'])->name('settings.module-governance.entitlement.update');
+    Route::post('settings/module-governance/activate', [ModuleGovernanceController::class, 'activate'])->name('settings.module-governance.activate');
+    Route::post('settings/module-governance/deactivate', [ModuleGovernanceController::class, 'deactivate'])->name('settings.module-governance.deactivate');
+    Route::post('settings/module-governance/requests/{id}/review', [ModuleGovernanceController::class, 'reviewRequest'])->name('settings.module-governance.requests.review');
     Route::post('email-notification-settings-save', [SettingController::class, 'mailNotificationStore'])->name('email.notification.setting.store');
 
     // Bank Transfer Payment routes

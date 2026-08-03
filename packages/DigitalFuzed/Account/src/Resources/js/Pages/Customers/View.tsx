@@ -56,6 +56,14 @@ export default function View({ customer }: ViewProps) {
                         <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">{customer.payment_terms || '-'}</p>
                     </div>
                     <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">{t('Customer Category')}</label>
+                        <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">{customer.customerCategory?.name || '-'}</p>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">{t('Credit Limit')}</label>
+                        <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">{customer.credit_limit ? `${customer.currency_code || 'USD'} ${Number(customer.credit_limit).toFixed(2)}` : '-'}</p>
+                    </div>
+                    <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">{t('Operating Model')}</label>
                         <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">{resolveOperatingModelLabel(customer.operating_model)}</p>
                     </div>

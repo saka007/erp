@@ -6,6 +6,8 @@ use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Workdo\Account\Models\Customer;
+use Workdo\Account\Models\CustomerDocument;
+use Workdo\Account\Models\CustomerPriceList;
 
 class TextileSalesService
 {
@@ -23,6 +25,8 @@ class TextileSalesService
         if ($this->isJobWorkOnlyProfile($profile['operating_model'] ?? null)) {
             throw new RuntimeException('Selected customer profile is job-work only. Use Manufacturing or Processing workflows instead of Sales Order.');
         }
+
+        $this->enforceSalesOrderProfileRules($profile);
 
         $metadata = array_merge($payload['metadata'] ?? [], $profile);
 
@@ -98,6 +102,7 @@ class TextileSalesService
         }
 
         $allocationMetadata = is_array($allocation->metadata) ? $allocation->metadata : [];
+        $this->enforceDispatchProfileRules($allocationMetadata, $allocation->party_name);
 
         return $this->workflowService->createDocument([
             'document_type' => 'dispatch',
@@ -225,6 +230,84 @@ class TextileSalesService
             TextileOperatingPolicyService::MODEL_JOBWORK_WEAVING,
             TextileOperatingPolicyService::MODEL_JOBWORK_PROCESSING,
         ], true);
+    }
+
+    protected function enforceSalesOrderProfileRules(array $profile): void
+    {
+        if (($profile['operating_model'] ?? null) !== TextileOperatingPolicyService::MODEL_TRADER_BULK) {
+            return;
+        }
+
+        if (($profile['billing_mode'] ?? null) !== 'sale_value') {
+            throw new RuntimeException('Trader/distributor customer profile must use sale-value billing mode for sales order flow.');
+        }
+
+        $customerId = isset($profile['customer_id']) ? (int) $profile['customer_id'] : null;
+        if (!$customerId || !Schema::hasTable('customers')) {
+            throw new RuntimeException('Trader/distributor customer profile requires credit limit and price list setup before sales order.');
+        }
+
+        $customer = Customer::query()
+            ->where('id', $customerId)
+            ->where('created_by', creatorId())
+            ->first();
+
+        if (!$customer || (float) ($customer->credit_limit ?? 0) <= 0) {
+            throw new RuntimeException('Trader/distributor customer profile requires a positive credit limit before sales order.');
+        }
+
+        if (!Schema::hasTable('account_customer_price_lists')) {
+            throw new RuntimeException('Trader/distributor customer profile requires customer price list setup before sales order.');
+        }
+
+        $hasActivePrice = CustomerPriceList::query()
+            ->where('created_by', creatorId())
+            ->where('customer_id', $customerId)
+            ->where('is_active', true)
+            ->exists();
+
+        if (!$hasActivePrice) {
+            throw new RuntimeException('Trader/distributor customer profile requires at least one active customer price list entry before sales order.');
+        }
+    }
+
+    protected function enforceDispatchProfileRules(array $metadata, ?string $partyName): void
+    {
+        if (($metadata['operating_model'] ?? null) !== TextileOperatingPolicyService::MODEL_EXPORT_COMPLIANCE) {
+            return;
+        }
+
+        if (!Schema::hasTable('account_customer_documents')) {
+            throw new RuntimeException('Export/compliance customer profile requires active compliance document before dispatch.');
+        }
+
+        $customerId = isset($metadata['customer_id']) ? (int) $metadata['customer_id'] : null;
+
+        $query = CustomerDocument::query()
+            ->where('created_by', creatorId())
+            ->where('document_type', 'compliance')
+            ->where('status', 'active')
+            ->where(function ($q) {
+                $q->whereNull('expiry_date')
+                    ->orWhereDate('expiry_date', '>=', now()->toDateString());
+            });
+
+        if ($customerId) {
+            $query->where('customer_id', $customerId);
+        } elseif (!empty($partyName) && Schema::hasTable('customers')) {
+            $resolvedCustomerId = Customer::query()
+                ->where('created_by', creatorId())
+                ->where('company_name', trim((string) $partyName))
+                ->value('id');
+
+            if ($resolvedCustomerId) {
+                $query->where('customer_id', (int) $resolvedCustomerId);
+            }
+        }
+
+        if (!$query->exists()) {
+            throw new RuntimeException('Export/compliance customer profile requires at least one active compliance document before dispatch.');
+        }
     }
 
     protected function findTenantDocument(int $documentId, string $documentType): TextileWorkflowDocument
