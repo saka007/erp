@@ -41,6 +41,8 @@ class TextileOperatingPolicyService
     public const SETTING_HAS_INVENTORY_FREEZE = 'has_inventory_freeze';
     public const SETTING_HAS_INVENTORY_VERIFICATION = 'has_inventory_verification';
     public const SETTING_HAS_INVENTORY_CYCLE_COUNT = 'has_inventory_cycle_count';
+    public const SETTING_HAS_TRANSPORT_OWN = 'has_transport_own';
+    public const SETTING_HAS_TRANSPORT_VENDOR = 'has_transport_vendor';
 
     public function options(): array
     {
@@ -91,6 +93,8 @@ class TextileOperatingPolicyService
             self::SETTING_HAS_INVENTORY_FREEZE,
             self::SETTING_HAS_INVENTORY_VERIFICATION,
             self::SETTING_HAS_INVENTORY_CYCLE_COUNT,
+            self::SETTING_HAS_TRANSPORT_OWN,
+            self::SETTING_HAS_TRANSPORT_VENDOR,
         ];
     }
 
@@ -199,6 +203,7 @@ class TextileOperatingPolicyService
             'manufacturing_waste' => false,
             'manufacturing_rework' => false,
             'manufacturing_maintenance' => false,
+            'transport_operations' => false,
         ];
 
         foreach ($activeProfiles as $profile) {
@@ -249,6 +254,7 @@ class TextileOperatingPolicyService
         $capabilities['inventory_freeze'] = $capabilities['inventory'] && ($settings[self::SETTING_HAS_INVENTORY_FREEZE] ?? false);
         $capabilities['inventory_verification'] = $capabilities['inventory'] && ($settings[self::SETTING_HAS_INVENTORY_VERIFICATION] ?? false);
         $capabilities['inventory_cycle_count'] = $capabilities['inventory'] && ($settings[self::SETTING_HAS_INVENTORY_CYCLE_COUNT] ?? false);
+        $capabilities['transport_operations'] = (($settings[self::SETTING_HAS_TRANSPORT_OWN] ?? false) || ($settings[self::SETTING_HAS_TRANSPORT_VENDOR] ?? false));
 
         return $capabilities;
     }
@@ -508,6 +514,8 @@ class TextileOperatingPolicyService
                     $defaults[self::SETTING_HAS_INVENTORY_FREEZE] = true;
                     $defaults[self::SETTING_HAS_INVENTORY_VERIFICATION] = true;
                     $defaults[self::SETTING_HAS_INVENTORY_CYCLE_COUNT] = true;
+                    $defaults[self::SETTING_HAS_TRANSPORT_OWN] = true;
+                    $defaults[self::SETTING_HAS_TRANSPORT_VENDOR] = true;
                     break;
                 case self::MODEL_JOBWORK_PROCESSING:
                     $defaults[self::SETTING_HAS_JOBWORK_PROCESSING] = true;
@@ -520,6 +528,8 @@ class TextileOperatingPolicyService
                     $defaults[self::SETTING_HAS_INVENTORY_RESERVATIONS] = true;
                     $defaults[self::SETTING_HAS_INVENTORY_VERIFICATION] = true;
                     $defaults[self::SETTING_HAS_INVENTORY_CYCLE_COUNT] = true;
+                    $defaults[self::SETTING_HAS_TRANSPORT_OWN] = true;
+                    $defaults[self::SETTING_HAS_TRANSPORT_VENDOR] = true;
                     break;
                 case self::MODEL_TRADER_BULK:
                     $defaults[self::SETTING_HAS_PROCUREMENT] = true;
@@ -532,6 +542,8 @@ class TextileOperatingPolicyService
                     $defaults[self::SETTING_HAS_INVENTORY_LOCATIONS] = true;
                     $defaults[self::SETTING_HAS_INVENTORY_MOVEMENTS] = true;
                     $defaults[self::SETTING_HAS_INVENTORY_RESERVATIONS] = true;
+                    $defaults[self::SETTING_HAS_TRANSPORT_OWN] = true;
+                    $defaults[self::SETTING_HAS_TRANSPORT_VENDOR] = true;
                     break;
                 default:
                     $defaults[self::SETTING_HAS_PROCUREMENT] = true;
@@ -557,6 +569,8 @@ class TextileOperatingPolicyService
                     $defaults[self::SETTING_HAS_WEAVING_PRODUCTION] = true;
                     $defaults[self::SETTING_HAS_SHIFT_PLANNING] = true;
                     $defaults[self::SETTING_HAS_MAINTENANCE] = true;
+                    $defaults[self::SETTING_HAS_TRANSPORT_OWN] = true;
+                    $defaults[self::SETTING_HAS_TRANSPORT_VENDOR] = true;
                     break;
             }
         }

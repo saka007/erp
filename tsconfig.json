@@ -16,5 +16,15 @@
             "ziggy-js": ["./vendor/tightenco/ziggy"]
         }
     },
-    "include": ["resources/js/**/*.ts", "resources/js/**/*.tsx", "resources/js/**/*.d.ts"]
+    "include": [
+        "resources/js/**/*.ts",
+        "resources/js/**/*.tsx",
+        "resources/js/**/*.d.ts",
+        "packages/DigitalFuzed/DigitalFuzedTextileCore/src/Resources/js/**/*.ts",
+        "packages/DigitalFuzed/DigitalFuzedTextileCore/src/Resources/js/**/*.tsx",
+        "packages/DigitalFuzed/DigitalFuzedTextileCore/src/Resources/js/**/*.d.ts",
+        "packages/DigitalFuzed/DigitalFuzedTextileInventory/src/Resources/js/**/*.ts",
+        "packages/DigitalFuzed/DigitalFuzedTextileInventory/src/Resources/js/**/*.tsx",
+        "packages/DigitalFuzed/DigitalFuzedTextileInventory/src/Resources/js/**/*.d.ts"
+    ]
 }

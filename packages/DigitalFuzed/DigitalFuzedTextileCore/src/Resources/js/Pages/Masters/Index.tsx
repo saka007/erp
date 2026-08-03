@@ -11,7 +11,7 @@ import { TextileField as Field } from '@/components/textile/textile-field';
 import { TextileFormCard } from '@/components/textile/textile-form-card';
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 
-type Master = 'quality-profiles' | 'route-recipes' | 'unit-conversions' | 'source-types' | 'source-actions' | 'machine-types' | 'cost-types' | 'inspection-results' | 'shed-types' | 'loom-statuses' | 'breakdown-reasons' | 'maintenance-types';
+type Master = 'quality-profiles' | 'route-recipes' | 'unit-conversions' | 'source-types' | 'source-actions' | 'machine-types' | 'cost-types' | 'inspection-results' | 'shed-types' | 'loom-statuses' | 'breakdown-reasons' | 'maintenance-types' | 'dispatch-truck-numbers' | 'dispatch-container-numbers' | 'dispatch-drivers' | 'dispatch-vehicles' | 'dispatch-lr-numbers' | 'dispatch-eway-bills' | 'fuel-types' | 'freight-types';
 type RecordItem = Record<string, string | number | string[] | null> & { id: number };
 
 const metadata = {
@@ -87,6 +87,54 @@ const metadata = {
         updateRoute: 'textile.maintenance-types.update',
         archiveRoute: 'textile.maintenance-types.archive',
     },
+    'dispatch-truck-numbers': {
+        title: 'Dispatch Truck Numbers',
+        createRoute: 'textile.source-types.store',
+        updateRoute: 'textile.source-types.update',
+        archiveRoute: 'textile.source-types.archive',
+    },
+    'dispatch-container-numbers': {
+        title: 'Dispatch Container Numbers',
+        createRoute: 'textile.source-types.store',
+        updateRoute: 'textile.source-types.update',
+        archiveRoute: 'textile.source-types.archive',
+    },
+    'dispatch-drivers': {
+        title: 'Dispatch Drivers',
+        createRoute: 'textile.source-types.store',
+        updateRoute: 'textile.source-types.update',
+        archiveRoute: 'textile.source-types.archive',
+    },
+    'dispatch-vehicles': {
+        title: 'Dispatch Vehicles',
+        createRoute: 'textile.source-types.store',
+        updateRoute: 'textile.source-types.update',
+        archiveRoute: 'textile.source-types.archive',
+    },
+    'dispatch-lr-numbers': {
+        title: 'Dispatch LR Numbers',
+        createRoute: 'textile.source-types.store',
+        updateRoute: 'textile.source-types.update',
+        archiveRoute: 'textile.source-types.archive',
+    },
+    'dispatch-eway-bills': {
+        title: 'Dispatch E-Way Bills',
+        createRoute: 'textile.source-types.store',
+        updateRoute: 'textile.source-types.update',
+        archiveRoute: 'textile.source-types.archive',
+    },
+    'fuel-types': {
+        title: 'Fuel Types',
+        createRoute: 'textile.source-types.store',
+        updateRoute: 'textile.source-types.update',
+        archiveRoute: 'textile.source-types.archive',
+    },
+    'freight-types': {
+        title: 'Freight Types',
+        createRoute: 'textile.source-types.store',
+        updateRoute: 'textile.source-types.update',
+        archiveRoute: 'textile.source-types.archive',
+    },
 } as const;
 
 type IndexProps = {
@@ -107,7 +155,15 @@ export default function Index({ master, records, masterDomain = null, masterDoma
         || master === 'shed-types'
         || master === 'loom-statuses'
         || master === 'breakdown-reasons'
-        || master === 'maintenance-types';
+        || master === 'maintenance-types'
+        || master === 'dispatch-truck-numbers'
+        || master === 'dispatch-container-numbers'
+        || master === 'dispatch-drivers'
+        || master === 'dispatch-vehicles'
+        || master === 'dispatch-lr-numbers'
+        || master === 'dispatch-eway-bills'
+        || master === 'fuel-types'
+        || master === 'freight-types';
     const title = masterDomainLabel ? `${masterDomainLabel} ${config.title}` : config.title;
     const [editingId, setEditingId] = useState<number | null>(null);
     const { data, setData, post, processing, reset } = useForm({ name: '', code: '', description: '', grade: '', parameters: '', steps: '', from_unit: '', to_unit: '', factor: '' });

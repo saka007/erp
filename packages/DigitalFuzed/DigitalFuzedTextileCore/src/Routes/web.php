@@ -17,6 +17,10 @@ use DigitalFuzed\TextileCore\Http\Controllers\TextileCostCenterController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileCustomFieldController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileOperatingPolicyController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileLogController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextileDispatchDriverController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextileDispatchVehicleController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextileDispatchRouteController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextileTransportController;
 
 Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->group(function () {
     Route::get('/textile/specifications', [TextileSpecificationController::class, 'index'])->name('textile.specifications.index');
@@ -99,6 +103,14 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/master-setup/{domain}/maintenance-types', [TextileMasterDataController::class, 'storeMaintenanceTypeByDomain'])->name('textile.master-domains.maintenance-types.store');
     Route::post('/textile/master-setup/{domain}/maintenance-types/update', [TextileMasterDataController::class, 'updateMaintenanceTypeByDomain'])->name('textile.master-domains.maintenance-types.update');
     Route::post('/textile/master-setup/{domain}/maintenance-types/archive', [TextileMasterDataController::class, 'archiveMaintenanceTypeByDomain'])->name('textile.master-domains.maintenance-types.archive');
+    Route::get('/textile/master-setup/{domain}/fuel-types', [TextileMasterDataController::class, 'fuelTypesByDomain'])->name('textile.master-domains.fuel-types.index');
+    Route::post('/textile/master-setup/{domain}/fuel-types', [TextileMasterDataController::class, 'storeFuelTypeByDomain'])->name('textile.master-domains.fuel-types.store');
+    Route::post('/textile/master-setup/{domain}/fuel-types/update', [TextileMasterDataController::class, 'updateFuelTypeByDomain'])->name('textile.master-domains.fuel-types.update');
+    Route::post('/textile/master-setup/{domain}/fuel-types/archive', [TextileMasterDataController::class, 'archiveFuelTypeByDomain'])->name('textile.master-domains.fuel-types.archive');
+    Route::get('/textile/master-setup/{domain}/freight-types', [TextileMasterDataController::class, 'freightTypesByDomain'])->name('textile.master-domains.freight-types.index');
+    Route::post('/textile/master-setup/{domain}/freight-types', [TextileMasterDataController::class, 'storeFreightTypeByDomain'])->name('textile.master-domains.freight-types.store');
+    Route::post('/textile/master-setup/{domain}/freight-types/update', [TextileMasterDataController::class, 'updateFreightTypeByDomain'])->name('textile.master-domains.freight-types.update');
+    Route::post('/textile/master-setup/{domain}/freight-types/archive', [TextileMasterDataController::class, 'archiveFreightTypeByDomain'])->name('textile.master-domains.freight-types.archive');
     Route::get('/textile/master-setup/{domain}/cost-types', [TextileMasterDataController::class, 'costTypesByDomain'])->name('textile.master-domains.cost-types.index');
     Route::post('/textile/master-setup/{domain}/cost-types', [TextileMasterDataController::class, 'storeCostTypeByDomain'])->name('textile.master-domains.cost-types.store');
     Route::post('/textile/master-setup/{domain}/cost-types/update', [TextileMasterDataController::class, 'updateCostTypeByDomain'])->name('textile.master-domains.cost-types.update');
@@ -115,6 +127,22 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/master-setup/{domain}/fabric-grades', [TextileMasterDataController::class, 'storeFabricGradeByDomain'])->name('textile.master-domains.fabric-grades.store');
     Route::post('/textile/master-setup/{domain}/fabric-grades/update', [TextileMasterDataController::class, 'updateFabricGradeByDomain'])->name('textile.master-domains.fabric-grades.update');
     Route::post('/textile/master-setup/{domain}/fabric-grades/archive', [TextileMasterDataController::class, 'archiveFabricGradeByDomain'])->name('textile.master-domains.fabric-grades.archive');
+    Route::get('/textile/master-setup/{domain}/dispatch-truck-numbers', [TextileMasterDataController::class, 'dispatchTruckNumbersByDomain'])->name('textile.master-domains.dispatch-truck-numbers.index');
+    Route::post('/textile/master-setup/{domain}/dispatch-truck-numbers', [TextileMasterDataController::class, 'storeDispatchTruckNumberByDomain'])->name('textile.master-domains.dispatch-truck-numbers.store');
+    Route::post('/textile/master-setup/{domain}/dispatch-truck-numbers/update', [TextileMasterDataController::class, 'updateDispatchTruckNumberByDomain'])->name('textile.master-domains.dispatch-truck-numbers.update');
+    Route::post('/textile/master-setup/{domain}/dispatch-truck-numbers/archive', [TextileMasterDataController::class, 'archiveDispatchTruckNumberByDomain'])->name('textile.master-domains.dispatch-truck-numbers.archive');
+    Route::get('/textile/master-setup/{domain}/dispatch-container-numbers', [TextileMasterDataController::class, 'dispatchContainerNumbersByDomain'])->name('textile.master-domains.dispatch-container-numbers.index');
+    Route::post('/textile/master-setup/{domain}/dispatch-container-numbers', [TextileMasterDataController::class, 'storeDispatchContainerNumberByDomain'])->name('textile.master-domains.dispatch-container-numbers.store');
+    Route::post('/textile/master-setup/{domain}/dispatch-container-numbers/update', [TextileMasterDataController::class, 'updateDispatchContainerNumberByDomain'])->name('textile.master-domains.dispatch-container-numbers.update');
+    Route::post('/textile/master-setup/{domain}/dispatch-container-numbers/archive', [TextileMasterDataController::class, 'archiveDispatchContainerNumberByDomain'])->name('textile.master-domains.dispatch-container-numbers.archive');
+    Route::get('/textile/master-setup/{domain}/dispatch-lr-numbers', [TextileMasterDataController::class, 'dispatchLrNumbersByDomain'])->name('textile.master-domains.dispatch-lr-numbers.index');
+    Route::post('/textile/master-setup/{domain}/dispatch-lr-numbers', [TextileMasterDataController::class, 'storeDispatchLrNumberByDomain'])->name('textile.master-domains.dispatch-lr-numbers.store');
+    Route::post('/textile/master-setup/{domain}/dispatch-lr-numbers/update', [TextileMasterDataController::class, 'updateDispatchLrNumberByDomain'])->name('textile.master-domains.dispatch-lr-numbers.update');
+    Route::post('/textile/master-setup/{domain}/dispatch-lr-numbers/archive', [TextileMasterDataController::class, 'archiveDispatchLrNumberByDomain'])->name('textile.master-domains.dispatch-lr-numbers.archive');
+    Route::get('/textile/master-setup/{domain}/dispatch-eway-bills', [TextileMasterDataController::class, 'dispatchEwayBillsByDomain'])->name('textile.master-domains.dispatch-eway-bills.index');
+    Route::post('/textile/master-setup/{domain}/dispatch-eway-bills', [TextileMasterDataController::class, 'storeDispatchEwayBillByDomain'])->name('textile.master-domains.dispatch-eway-bills.store');
+    Route::post('/textile/master-setup/{domain}/dispatch-eway-bills/update', [TextileMasterDataController::class, 'updateDispatchEwayBillByDomain'])->name('textile.master-domains.dispatch-eway-bills.update');
+    Route::post('/textile/master-setup/{domain}/dispatch-eway-bills/archive', [TextileMasterDataController::class, 'archiveDispatchEwayBillByDomain'])->name('textile.master-domains.dispatch-eway-bills.archive');
 
     Route::get('/textile/procurement', [TextileProcurementController::class, 'index'])->name('textile.procurement.index');
     Route::post('/textile/procurement/requisitions', [TextileProcurementController::class, 'storeRequisition'])->name('textile.procurement.requisitions.store');
@@ -155,6 +183,22 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/dispatch/plans/approve', [TextileDispatchController::class, 'approveDispatchPlan'])->name('textile.dispatch.plans.approve');
     Route::post('/textile/dispatch/trackings', [TextileDispatchController::class, 'storeDispatchTracking'])->name('textile.dispatch.trackings.store');
     Route::post('/textile/dispatch/trackings/finalize', [TextileDispatchController::class, 'finalizeDispatchTracking'])->name('textile.dispatch.trackings.finalize');
+    Route::get('/textile/dispatch-drivers', [TextileDispatchDriverController::class, 'index'])->name('textile.dispatch-drivers.index');
+    Route::post('/textile/dispatch-drivers', [TextileDispatchDriverController::class, 'store'])->name('textile.dispatch-drivers.store');
+    Route::post('/textile/dispatch-drivers/update', [TextileDispatchDriverController::class, 'update'])->name('textile.dispatch-drivers.update');
+    Route::post('/textile/dispatch-drivers/archive', [TextileDispatchDriverController::class, 'archive'])->name('textile.dispatch-drivers.archive');
+    Route::get('/textile/dispatch-vehicles', [TextileDispatchVehicleController::class, 'index'])->name('textile.dispatch-vehicles.index');
+    Route::post('/textile/dispatch-vehicles', [TextileDispatchVehicleController::class, 'store'])->name('textile.dispatch-vehicles.store');
+    Route::post('/textile/dispatch-vehicles/update', [TextileDispatchVehicleController::class, 'update'])->name('textile.dispatch-vehicles.update');
+    Route::post('/textile/dispatch-vehicles/archive', [TextileDispatchVehicleController::class, 'archive'])->name('textile.dispatch-vehicles.archive');
+    Route::get('/textile/dispatch-routes', [TextileDispatchRouteController::class, 'index'])->name('textile.dispatch-routes.index');
+    Route::post('/textile/dispatch-routes', [TextileDispatchRouteController::class, 'store'])->name('textile.dispatch-routes.store');
+    Route::post('/textile/dispatch-routes/update', [TextileDispatchRouteController::class, 'update'])->name('textile.dispatch-routes.update');
+    Route::post('/textile/dispatch-routes/archive', [TextileDispatchRouteController::class, 'archive'])->name('textile.dispatch-routes.archive');
+    Route::get('/textile/transport', [TextileTransportController::class, 'index'])->name('textile.transport.index');
+    Route::post('/textile/transport/fuel-entries', [TextileTransportController::class, 'storeFuelEntry'])->name('textile.transport.fuel-entries.store');
+    Route::post('/textile/transport/freight-costs', [TextileTransportController::class, 'storeFreightCost'])->name('textile.transport.freight-costs.store');
+    Route::post('/textile/transport/vehicle-maintenances', [TextileTransportController::class, 'storeVehicleMaintenance'])->name('textile.transport.vehicle-maintenances.store');
 
     Route::get('/textile/manufacturing', [TextileManufacturingController::class, 'index'])->name('textile.manufacturing.index');
     Route::post('/textile/manufacturing/warp-plans', [TextileManufacturingController::class, 'storeWarpPlan'])->name('textile.manufacturing.warp-plans.store');

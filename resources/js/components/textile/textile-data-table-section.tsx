@@ -4,18 +4,18 @@ import { TextileDataTableCard } from '@/components/textile/textile-data-table-ca
 
 interface TextileDataTableSectionProps {
     title: string;
-    count?: number;
-    data: unknown[];
-    columns: Array<{ key: string; header: string; render?: (...args: any[]) => any }>;
+    data?: unknown[];
+    columns?: Array<{ key: string; header: string; render?: (...args: any[]) => any }>;
     emptyState?: ReactNode;
     className?: string;
+    children?: ReactNode;
 }
 
-export function TextileDataTableSection({ title, data, columns, emptyState, className }: TextileDataTableSectionProps) {
+export function TextileDataTableSection({ title, data, columns, emptyState, className, children }: TextileDataTableSectionProps) {
     return (
         <div className={cn('space-y-2', className)}>
             <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-            <TextileDataTableCard data={data} columns={columns} emptyState={emptyState} />
+            {children ?? <TextileDataTableCard data={data!} columns={columns!} emptyState={emptyState} />}
         </div>
     );
 }

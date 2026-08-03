@@ -29,12 +29,19 @@ interface WorkflowDocument {
         container_number?: string | null;
         driver_name?: string | null;
         vehicle_number?: string | null;
+        route_name?: string | null;
+        transport_vendor_name?: string | null;
         lr_number?: string | null;
         eway_bill_number?: string | null;
         freight_amount?: number | null;
         tracking_status?: string | null;
         current_location?: string | null;
     } | null;
+}
+
+interface EntityOption {
+    id: number;
+    label: string;
 }
 
 const DISPATCH_SECTIONS = ['planning', 'tracking'] as const;
@@ -53,8 +60,14 @@ export default function Index({
     sourceActionOptions,
     dispatchModeOptions,
     trackingStatusOptions,
+    truckNumberOptions,
+    containerNumberOptions,
     vehicleOptions,
     driverOptions,
+    routeOptions,
+    transportVendorOptions,
+    lrNumberOptions,
+    ewayBillOptions,
 }: {
     dispatchPlans: WorkflowDocument[];
     dispatchTrackings: WorkflowDocument[];
@@ -64,8 +77,14 @@ export default function Index({
     sourceActionOptions: string[];
     dispatchModeOptions: string[];
     trackingStatusOptions: string[];
-    vehicleOptions: string[];
-    driverOptions: string[];
+    truckNumberOptions: string[];
+    containerNumberOptions: string[];
+    vehicleOptions: EntityOption[];
+    driverOptions: EntityOption[];
+    routeOptions: EntityOption[];
+    transportVendorOptions: EntityOption[];
+    lrNumberOptions: string[];
+    ewayBillOptions: string[];
 }) {
     const { t } = useTranslation();
     const { auth } = usePage<PageProps>().props;
@@ -83,8 +102,14 @@ export default function Index({
     const resolvedSourceActionOptions = sourceActionOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedDispatchModeOptions = dispatchModeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedTrackingStatusOptions = trackingStatusOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
-    const resolvedVehicleOptions = vehicleOptions.map((value) => ({ value, label: value }));
-    const resolvedDriverOptions = driverOptions.map((value) => ({ value, label: value }));
+    const resolvedTruckNumberOptions = truckNumberOptions.map((value) => ({ value, label: value }));
+    const resolvedContainerNumberOptions = containerNumberOptions.map((value) => ({ value, label: value }));
+    const resolvedVehicleOptions = vehicleOptions.map((value) => ({ value: String(value.id), label: value.label }));
+    const resolvedDriverOptions = driverOptions.map((value) => ({ value: String(value.id), label: value.label }));
+    const resolvedRouteOptions = routeOptions.map((value) => ({ value: String(value.id), label: value.label }));
+    const resolvedTransportVendorOptions = transportVendorOptions.map((value) => ({ value: String(value.id), label: value.label }));
+    const resolvedLrNumberOptions = lrNumberOptions.map((value) => ({ value, label: value }));
+    const resolvedEwayBillOptions = ewayBillOptions.map((value) => ({ value, label: value }));
 
     const challanOptions = createTextileWorkflowSelectOptions(challans);
     const approvedPlans = dispatchPlans.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
@@ -96,8 +121,10 @@ export default function Index({
         dispatch_mode: resolvedDispatchModeOptions[0]?.value ?? 'truck',
         truck_number: '',
         container_number: '',
-        driver_name: '',
-        vehicle_number: '',
+        driver_id: '',
+        vehicle_id: '',
+        route_id: '',
+        transport_vendor_id: '',
         lr_number: '',
         eway_bill_number: '',
         freight_amount: '',
@@ -109,8 +136,10 @@ export default function Index({
         source_action: resolvedSourceActionOptions[0]?.value ?? 'tracking_update',
         tracking_status: resolvedTrackingStatusOptions[0]?.value ?? 'planned',
         current_location: '',
-        vehicle_number: '',
-        driver_name: '',
+        vehicle_id: '',
+        driver_id: '',
+        route_id: '',
+        transport_vendor_id: '',
         lr_number: '',
         eway_bill_number: '',
         notes: '',
@@ -161,7 +190,7 @@ export default function Index({
                                     onSubmit={(event) => {
                                         event.preventDefault();
                                         planningForm.post(route('textile.dispatch.plans.store'), {
-                                            onSuccess: () => planningForm.reset('challan_id', 'truck_number', 'container_number', 'driver_name', 'vehicle_number', 'lr_number', 'eway_bill_number', 'freight_amount', 'notes'),
+                                            onSuccess: () => planningForm.reset('challan_id', 'truck_number', 'container_number', 'driver_id', 'vehicle_id', 'route_id', 'transport_vendor_id', 'lr_number', 'eway_bill_number', 'freight_amount', 'notes'),
                                         });
                                     }}
                                 >
@@ -170,16 +199,18 @@ export default function Index({
                                     <SelectField label={t('Released Challan')} value={planningForm.data.challan_id} onChange={(value: string) => planningForm.setData('challan_id', value)} options={challanOptions} includeEmpty emptyLabel={t('Select released challan')} helperText={t('Delivery challan is mandatory for dispatch planning.')} disabled={challanOptions.length === 0} disabledReason={t('No released challan found. Release challan from Sales first.')} required />
                                     <SelectField label={t('Dispatch Mode')} value={planningForm.data.dispatch_mode} onChange={(value: string) => planningForm.setData('dispatch_mode', value)} options={resolvedDispatchModeOptions} includeEmpty emptyLabel={t('Select mode')} helperText={t('Truck and container dispatch are both supported.')} required />
                                     <div className="grid grid-cols-2 gap-3">
-                                        <Field label={t('Truck Number')} value={planningForm.data.truck_number} onChange={(value: string) => planningForm.setData('truck_number', value)} />
-                                        <Field label={t('Container Number')} value={planningForm.data.container_number} onChange={(value: string) => planningForm.setData('container_number', value)} />
+                                        <SelectField label={t('Truck Number')} value={planningForm.data.truck_number} onChange={(value: string) => planningForm.setData('truck_number', value)} options={resolvedTruckNumberOptions} includeEmpty emptyLabel={t('Select truck number')} helperText={t('Managed from Master Setup > Dispatch Setup > Truck Numbers.')} disabled={resolvedTruckNumberOptions.length === 0} disabledReason={t('No truck number master found. Create dispatch truck numbers first.')} />
+                                        <SelectField label={t('Container Number')} value={planningForm.data.container_number} onChange={(value: string) => planningForm.setData('container_number', value)} options={resolvedContainerNumberOptions} includeEmpty emptyLabel={t('Select container number')} helperText={t('Managed from Master Setup > Dispatch Setup > Container Numbers.')} disabled={resolvedContainerNumberOptions.length === 0} disabledReason={t('No container number master found. Create dispatch container numbers first.')} />
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <Field label={t('Driver')} value={planningForm.data.driver_name} onChange={(value: string) => planningForm.setData('driver_name', value)} />
-                                        <Field label={t('Vehicle')} value={planningForm.data.vehicle_number} onChange={(value: string) => planningForm.setData('vehicle_number', value)} />
+                                        <SelectField label={t('Driver')} value={planningForm.data.driver_id} onChange={(value: string) => planningForm.setData('driver_id', value)} options={resolvedDriverOptions} includeEmpty emptyLabel={t('Select driver')} helperText={t('Managed from Master Setup > Dispatch Setup > Drivers.')} disabled={resolvedDriverOptions.length === 0} disabledReason={t('No driver record found. Create dispatch drivers first.')} />
+                                        <SelectField label={t('Vehicle')} value={planningForm.data.vehicle_id} onChange={(value: string) => planningForm.setData('vehicle_id', value)} options={resolvedVehicleOptions} includeEmpty emptyLabel={t('Select vehicle')} helperText={t('Managed from Master Setup > Dispatch Setup > Vehicles.')} disabled={resolvedVehicleOptions.length === 0} disabledReason={t('No vehicle record found. Create dispatch vehicles first.')} />
                                     </div>
+                                    <SelectField label={t('Route')} value={planningForm.data.route_id} onChange={(value: string) => planningForm.setData('route_id', value)} options={resolvedRouteOptions} includeEmpty emptyLabel={t('Select route')} helperText={t('Managed from Master Setup > Dispatch Setup > Routes.')} disabled={resolvedRouteOptions.length === 0} disabledReason={t('No route record found. Create dispatch routes first.')} />
+                                    <SelectField label={t('Transport Vendor')} value={planningForm.data.transport_vendor_id} onChange={(value: string) => planningForm.setData('transport_vendor_id', value)} options={resolvedTransportVendorOptions} includeEmpty emptyLabel={t('Select transport vendor')} helperText={t('Use Account > Vendors with supplier type Transport Vendor.')} disabled={resolvedTransportVendorOptions.length === 0} disabledReason={t('No transport vendor found. Create one under Supplier Setup first.')} />
                                     <div className="grid grid-cols-2 gap-3">
-                                        <Field label={t('LR Number')} value={planningForm.data.lr_number} onChange={(value: string) => planningForm.setData('lr_number', value)} />
-                                        <Field label={t('E-Way Bill')} value={planningForm.data.eway_bill_number} onChange={(value: string) => planningForm.setData('eway_bill_number', value)} />
+                                        <SelectField label={t('LR Number')} value={planningForm.data.lr_number} onChange={(value: string) => planningForm.setData('lr_number', value)} options={resolvedLrNumberOptions} includeEmpty emptyLabel={t('Select LR number')} helperText={t('Managed from Master Setup > Dispatch Setup > LR Numbers.')} disabled={resolvedLrNumberOptions.length === 0} disabledReason={t('No LR master found. Create dispatch LR numbers first.')} />
+                                        <SelectField label={t('E-Way Bill')} value={planningForm.data.eway_bill_number} onChange={(value: string) => planningForm.setData('eway_bill_number', value)} options={resolvedEwayBillOptions} includeEmpty emptyLabel={t('Select E-Way bill')} helperText={t('Managed from Master Setup > Dispatch Setup > E-Way Bills.')} disabled={resolvedEwayBillOptions.length === 0} disabledReason={t('No E-Way master found. Create dispatch E-Way bills first.')} />
                                     </div>
                                     <Field label={t('Freight Amount')} type="number" value={planningForm.data.freight_amount} onChange={(value: string) => planningForm.setData('freight_amount', value)} />
                                     <Field label={t('Notes')} value={planningForm.data.notes} onChange={(value: string) => planningForm.setData('notes', value)} />
@@ -203,6 +234,8 @@ export default function Index({
                                     { key: 'container_number', header: t('Container'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.container_number || '-' },
                                     { key: 'driver_name', header: t('Driver'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.driver_name || '-' },
                                     { key: 'vehicle_number', header: t('Vehicle'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.vehicle_number || '-' },
+                                    { key: 'route_name', header: t('Route'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.route_name || '-' },
+                                    { key: 'transport_vendor_name', header: t('Transport Vendor'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.transport_vendor_name || '-' },
                                     { key: 'lr_number', header: t('LR No'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.lr_number || '-' },
                                     { key: 'eway_bill_number', header: t('E-Way'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.eway_bill_number || '-' },
                                     { key: 'freight_amount', header: t('Freight'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.freight_amount ?? '-' },
@@ -220,7 +253,7 @@ export default function Index({
                                     onSubmit={(event) => {
                                         event.preventDefault();
                                         trackingForm.post(route('textile.dispatch.trackings.store'), {
-                                            onSuccess: () => trackingForm.reset('dispatch_plan_id', 'current_location', 'vehicle_number', 'driver_name', 'lr_number', 'eway_bill_number', 'notes'),
+                                            onSuccess: () => trackingForm.reset('dispatch_plan_id', 'current_location', 'vehicle_id', 'driver_id', 'route_id', 'transport_vendor_id', 'lr_number', 'eway_bill_number', 'notes'),
                                         });
                                     }}
                                 >
@@ -228,11 +261,13 @@ export default function Index({
                                     <SelectField label={t('Source Action')} value={trackingForm.data.source_action} onChange={(value: string) => trackingForm.setData('source_action', value)} options={resolvedSourceActionOptions} includeEmpty emptyLabel={t('Select source action')} helperText={t('Source actions are managed from Master Setup > Dispatch Setup > Source Actions.')} required />
                                     <SelectField label={t('Tracking Status')} value={trackingForm.data.tracking_status} onChange={(value: string) => trackingForm.setData('tracking_status', value)} options={resolvedTrackingStatusOptions} includeEmpty emptyLabel={t('Select tracking status')} required />
                                     <Field label={t('Current Location')} value={trackingForm.data.current_location} onChange={(value: string) => trackingForm.setData('current_location', value)} />
-                                    <SelectField label={t('Vehicle')} value={trackingForm.data.vehicle_number} onChange={(value: string) => trackingForm.setData('vehicle_number', value)} options={resolvedVehicleOptions} includeEmpty emptyLabel={t('Select vehicle')} helperText={t('Vehicle options are derived from existing dispatch plans.')} />
-                                    <SelectField label={t('Driver')} value={trackingForm.data.driver_name} onChange={(value: string) => trackingForm.setData('driver_name', value)} options={resolvedDriverOptions} includeEmpty emptyLabel={t('Select driver')} helperText={t('Driver options are derived from existing dispatch plans.')} />
+                                    <SelectField label={t('Vehicle')} value={trackingForm.data.vehicle_id} onChange={(value: string) => trackingForm.setData('vehicle_id', value)} options={resolvedVehicleOptions} includeEmpty emptyLabel={t('Select vehicle')} helperText={t('Managed from Master Setup > Dispatch Setup > Vehicles.')} disabled={resolvedVehicleOptions.length === 0} disabledReason={t('No vehicle record found. Create dispatch vehicles first.')} />
+                                    <SelectField label={t('Driver')} value={trackingForm.data.driver_id} onChange={(value: string) => trackingForm.setData('driver_id', value)} options={resolvedDriverOptions} includeEmpty emptyLabel={t('Select driver')} helperText={t('Managed from Master Setup > Dispatch Setup > Drivers.')} disabled={resolvedDriverOptions.length === 0} disabledReason={t('No driver record found. Create dispatch drivers first.')} />
+                                    <SelectField label={t('Route')} value={trackingForm.data.route_id} onChange={(value: string) => trackingForm.setData('route_id', value)} options={resolvedRouteOptions} includeEmpty emptyLabel={t('Select route')} helperText={t('Managed from Master Setup > Dispatch Setup > Routes.')} disabled={resolvedRouteOptions.length === 0} disabledReason={t('No route record found. Create dispatch routes first.')} />
+                                    <SelectField label={t('Transport Vendor')} value={trackingForm.data.transport_vendor_id} onChange={(value: string) => trackingForm.setData('transport_vendor_id', value)} options={resolvedTransportVendorOptions} includeEmpty emptyLabel={t('Select transport vendor')} helperText={t('Use Account > Vendors with supplier type Transport Vendor.')} disabled={resolvedTransportVendorOptions.length === 0} disabledReason={t('No transport vendor found. Create one under Supplier Setup first.')} />
                                     <div className="grid grid-cols-2 gap-3">
-                                        <Field label={t('LR Number')} value={trackingForm.data.lr_number} onChange={(value: string) => trackingForm.setData('lr_number', value)} />
-                                        <Field label={t('E-Way Bill')} value={trackingForm.data.eway_bill_number} onChange={(value: string) => trackingForm.setData('eway_bill_number', value)} />
+                                        <SelectField label={t('LR Number')} value={trackingForm.data.lr_number} onChange={(value: string) => trackingForm.setData('lr_number', value)} options={resolvedLrNumberOptions} includeEmpty emptyLabel={t('Select LR number')} helperText={t('Managed from Master Setup > Dispatch Setup > LR Numbers.')} disabled={resolvedLrNumberOptions.length === 0} disabledReason={t('No LR master found. Create dispatch LR numbers first.')} />
+                                        <SelectField label={t('E-Way Bill')} value={trackingForm.data.eway_bill_number} onChange={(value: string) => trackingForm.setData('eway_bill_number', value)} options={resolvedEwayBillOptions} includeEmpty emptyLabel={t('Select E-Way bill')} helperText={t('Managed from Master Setup > Dispatch Setup > E-Way Bills.')} disabled={resolvedEwayBillOptions.length === 0} disabledReason={t('No E-Way master found. Create dispatch E-Way bills first.')} />
                                     </div>
                                     <Field label={t('Notes')} value={trackingForm.data.notes} onChange={(value: string) => trackingForm.setData('notes', value)} />
                                     <Button type="submit" disabled={trackingForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Post Tracking Update')}</Button>
@@ -255,6 +290,8 @@ export default function Index({
                                     { key: 'current_location', header: t('Location'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.current_location || '-' },
                                     { key: 'vehicle_number', header: t('Vehicle'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.vehicle_number || '-' },
                                     { key: 'driver_name', header: t('Driver'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.driver_name || '-' },
+                                    { key: 'route_name', header: t('Route'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.route_name || '-' },
+                                    { key: 'transport_vendor_name', header: t('Transport Vendor'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.transport_vendor_name || '-' },
                                     { key: 'lr_number', header: t('LR No'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.lr_number || '-' },
                                     { key: 'eway_bill_number', header: t('E-Way'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.eway_bill_number || '-' },
                                 ]}

@@ -6,10 +6,15 @@ use App\Models\AddOn;
 use App\Models\Plan;
 use App\Models\User;
 use App\Models\UserActiveModule;
+use DigitalFuzed\TextileCore\Models\TextileDispatchDriver;
+use DigitalFuzed\TextileCore\Models\TextileDispatchRoute;
+use DigitalFuzed\TextileCore\Models\TextileDispatchVehicle;
+use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
+use Workdo\Account\Models\Vendor;
 
 class TextileDispatchAdminTest extends TestCase
 {
@@ -28,6 +33,61 @@ class TextileDispatchAdminTest extends TestCase
 
         $companyA = $this->company();
         $companyB = $this->company();
+
+        $this->seedDispatchMasters($companyA->id);
+
+        $transportVendor = Vendor::create([
+            'company_name' => 'Metro Transport Co',
+            'contact_person_name' => 'Manish',
+            'supplier_type' => 'transport',
+            'created_by' => $companyA->id,
+            'creator_id' => $companyA->id,
+        ]);
+
+        $driverA = TextileDispatchDriver::create([
+            'name' => 'Ramesh Driver',
+            'driver_source' => 'vendor',
+            'phone' => '9000000001',
+            'license_number' => 'DL-001',
+            'is_active' => true,
+            'created_by' => $companyA->id,
+            'creator_id' => $companyA->id,
+        ]);
+
+        $driverB = TextileDispatchDriver::create([
+            'name' => 'Suresh Driver',
+            'driver_source' => 'vendor',
+            'phone' => '9000000002',
+            'license_number' => 'DL-002',
+            'is_active' => true,
+            'created_by' => $companyA->id,
+            'creator_id' => $companyA->id,
+        ]);
+
+        $vehicleA = TextileDispatchVehicle::create([
+            'vehicle_number' => 'GJ01-VH-7788',
+            'vehicle_type' => 'truck',
+            'is_active' => true,
+            'created_by' => $companyA->id,
+            'creator_id' => $companyA->id,
+        ]);
+
+        $vehicleB = TextileDispatchVehicle::create([
+            'vehicle_number' => 'MH12-VH-9988',
+            'vehicle_type' => 'container',
+            'is_active' => true,
+            'created_by' => $companyA->id,
+            'creator_id' => $companyA->id,
+        ]);
+
+        $routeA = TextileDispatchRoute::create([
+            'route_name' => 'Surat to Ahmedabad',
+            'origin_location' => 'Surat',
+            'destination_location' => 'Ahmedabad',
+            'is_active' => true,
+            'created_by' => $companyA->id,
+            'creator_id' => $companyA->id,
+        ]);
 
         $challanA = TextileWorkflowDocument::create([
             'document_type' => 'challan',
@@ -60,8 +120,10 @@ class TextileDispatchAdminTest extends TestCase
                 'challan_id' => $challanA->id,
                 'dispatch_mode' => 'truck',
                 'truck_number' => 'GJ01-TR-5555',
-                'driver_name' => 'Ramesh Driver',
-                'vehicle_number' => 'GJ01-VH-7788',
+                'driver_id' => $driverA->id,
+                'vehicle_id' => $vehicleA->id,
+                'route_id' => $routeA->id,
+                'transport_vendor_id' => $transportVendor->id,
                 'lr_number' => 'LR-1001',
                 'eway_bill_number' => 'EWB-9001',
                 'freight_amount' => 8500,
@@ -75,8 +137,10 @@ class TextileDispatchAdminTest extends TestCase
                 'challan_id' => $challanA->id,
                 'dispatch_mode' => 'container',
                 'container_number' => 'CONT-4455',
-                'driver_name' => 'Suresh Driver',
-                'vehicle_number' => 'MH12-VH-9988',
+                'driver_id' => $driverB->id,
+                'vehicle_id' => $vehicleB->id,
+                'route_id' => $routeA->id,
+                'transport_vendor_id' => $transportVendor->id,
                 'lr_number' => 'LR-1002',
                 'eway_bill_number' => 'EWB-9002',
                 'freight_amount' => 9200,
@@ -93,6 +157,10 @@ class TextileDispatchAdminTest extends TestCase
         $this->assertNotNull($truckPlan);
         $this->assertSame('draft', $truckPlan->status);
         $this->assertSame('GJ01-TR-5555', $truckPlan->metadata['truck_number'] ?? null);
+        $this->assertSame($routeA->id, $truckPlan->metadata['route_id'] ?? null);
+        $this->assertSame('Surat to Ahmedabad', $truckPlan->metadata['route_name'] ?? null);
+        $this->assertSame($transportVendor->id, $truckPlan->metadata['transport_vendor_id'] ?? null);
+        $this->assertSame('Metro Transport Co', $truckPlan->metadata['transport_vendor_name'] ?? null);
         $this->assertSame('LR-1001', $truckPlan->metadata['lr_number'] ?? null);
         $this->assertSame('EWB-9001', $truckPlan->metadata['eway_bill_number'] ?? null);
 
@@ -111,8 +179,10 @@ class TextileDispatchAdminTest extends TestCase
                 'source_action' => 'tracking_update',
                 'tracking_status' => 'in_transit',
                 'current_location' => 'Surat Hub',
-                'vehicle_number' => 'GJ01-VH-7788',
-                'driver_name' => 'Ramesh Driver',
+                'vehicle_id' => $vehicleA->id,
+                'driver_id' => $driverA->id,
+                'route_id' => $routeA->id,
+                'transport_vendor_id' => $transportVendor->id,
                 'lr_number' => 'LR-1001',
                 'eway_bill_number' => 'EWB-9001',
             ])
@@ -128,6 +198,10 @@ class TextileDispatchAdminTest extends TestCase
         $this->assertSame('draft', $tracking->status);
         $this->assertSame('in_transit', $tracking->metadata['tracking_status'] ?? null);
         $this->assertSame('Surat Hub', $tracking->metadata['current_location'] ?? null);
+        $this->assertSame($routeA->id, $tracking->metadata['route_id'] ?? null);
+        $this->assertSame('Surat to Ahmedabad', $tracking->metadata['route_name'] ?? null);
+        $this->assertSame($transportVendor->id, $tracking->metadata['transport_vendor_id'] ?? null);
+        $this->assertSame('Metro Transport Co', $tracking->metadata['transport_vendor_name'] ?? null);
 
         $this->actingAs($companyA)
             ->post(route('textile.dispatch.trackings.finalize'), [
@@ -189,5 +263,37 @@ class TextileDispatchAdminTest extends TestCase
         ]);
 
         return $company;
+    }
+
+    private function seedDispatchMasters(int $companyId): void
+    {
+        $records = [
+            ['master_type' => 'source_type', 'name' => 'dispatch_plan'],
+            ['master_type' => 'source_action', 'name' => 'vehicle_assign'],
+            ['master_type' => 'source_action', 'name' => 'tracking_update'],
+            ['master_type' => 'dispatch_truck_number', 'name' => 'GJ01-TR-5555'],
+            ['master_type' => 'dispatch_container_number', 'name' => 'CONT-4455'],
+            ['master_type' => 'dispatch_driver', 'name' => 'Ramesh Driver'],
+            ['master_type' => 'dispatch_driver', 'name' => 'Suresh Driver'],
+            ['master_type' => 'dispatch_vehicle', 'name' => 'GJ01-VH-7788'],
+            ['master_type' => 'dispatch_vehicle', 'name' => 'MH12-VH-9988'],
+            ['master_type' => 'dispatch_lr_number', 'name' => 'LR-1001'],
+            ['master_type' => 'dispatch_lr_number', 'name' => 'LR-1002'],
+            ['master_type' => 'dispatch_eway_bill', 'name' => 'EWB-9001'],
+            ['master_type' => 'dispatch_eway_bill', 'name' => 'EWB-9002'],
+        ];
+
+        foreach ($records as $record) {
+            TextileReferenceMaster::create([
+                'master_type' => $record['master_type'],
+                'name' => $record['name'],
+                'code' => null,
+                'description' => null,
+                'is_active' => true,
+                'master_domain' => 'dispatch',
+                'created_by' => $companyId,
+                'creator_id' => $companyId,
+            ]);
+        }
     }
 }

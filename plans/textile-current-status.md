@@ -789,8 +789,9 @@ Progress note (2026-08-03):
 
 - Domain 18 completion slice now supports a dedicated Dispatch workspace with section-aware Dispatch Planning and Dispatch Tracking flows, linked to released challans and POD visibility.
 - Dispatch planning captures Truck, Container, Driver, Vehicle, LR Number, E-Way Bill, and Freight metadata with tenant-safe workflows.
-- Dispatch controlled values are master-driven for this domain: Source Types and Source Actions are wired under Master Setup > Dispatch Setup and consumed as select controls in Dispatch planning/tracking forms.
-- Verification: `php artisan test tests/Feature/Textile/TextileDispatchAdminTest.php` => pass; `npm run build` => pass (existing chunk-size warnings only).
+- Dispatch controlled values are master-driven for this domain: Source Types, Source Actions, Truck Numbers, Container Numbers, Drivers, Vehicles, LR Numbers, and E-Way Bills are wired under Master Setup > Dispatch Setup and consumed as select controls in Dispatch planning/tracking forms.
+- Enterprise entity uplift (2026-08-03): Driver and Vehicle are now implemented as first-class tenant-scoped modules (not generic text fields), with CRUD setup screens and dispatch workflow selection by entity IDs.
+- Verification: `php artisan test tests/Feature/Textile/TextileDispatchSetupAdminTest.php tests/Feature/Textile/TextileDispatchAdminTest.php` => pass (2 tests, 44 assertions); `npm run build` => pass (existing chunk-size warnings only).
 
 UI Verification (Domain 18)
 
@@ -804,18 +805,49 @@ UI Verification (Domain 18)
 | POD | Daily Operations > Dispatch > POD | `/textile/sales?section=challan-pod` |
 | Dispatch Source Types | Master Setup > Dispatch Setup > Source Types | `/textile/master-setup/dispatch/source-types` |
 | Dispatch Source Actions | Master Setup > Dispatch Setup > Source Actions | `/textile/master-setup/dispatch/source-actions` |
+| Dispatch Truck Numbers | Master Setup > Dispatch Setup > Truck Numbers | `/textile/master-setup/dispatch/dispatch-truck-numbers` |
+| Dispatch Container Numbers | Master Setup > Dispatch Setup > Container Numbers | `/textile/master-setup/dispatch/dispatch-container-numbers` |
+| Dispatch Drivers (Entity) | Master Setup > Dispatch Setup > Drivers | `/textile/dispatch-drivers` |
+| Dispatch Vehicles (Entity) | Master Setup > Dispatch Setup > Vehicles | `/textile/dispatch-vehicles` |
+| Dispatch Routes (Entity) | Master Setup > Dispatch Setup > Routes | `/textile/dispatch-routes` |
+| Dispatch LR Numbers | Master Setup > Dispatch Setup > LR Numbers | `/textile/master-setup/dispatch/dispatch-lr-numbers` |
+| Dispatch E-Way Bills | Master Setup > Dispatch Setup > E-Way Bills | `/textile/master-setup/dispatch/dispatch-eway-bills` |
 
 ### Domain 19: Transport (5 features)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| Own Vehicles | 🔵 Modify Existing | P2 | `[~]` |
-| Transport Vendors | 🟡 Extend Existing | P2 | `[~]` |
-| Drivers | 🟡 Extend Existing | P2 | `[~]` |
-| Routes | 🆕 New Module Required | P2 | `[ ]` |
-| Fuel | 🆕 New Module Required | P3 | `[ ]` |
-| Freight Cost | 🔵 Modify Existing | P2 | `[~]` |
-| Vehicle Maintenance | 🆕 New Module Required | P3 | `[ ]` |
+| Own Vehicles | 🔵 Modify Existing | P2 | `[x]` |
+| Transport Vendors | 🟡 Extend Existing | P2 | `[x]` |
+| Drivers | 🟡 Extend Existing | P2 | `[x]` |
+| Routes | 🆕 New Module Required | P2 | `[x]` |
+| Fuel | 🆕 New Module Required | P3 | `[x]` |
+| Freight Cost | 🔵 Modify Existing | P2 | `[x]` |
+| Vehicle Maintenance | 🆕 New Module Required | P3 | `[x]` |
+
+Progress note (2026-08-03):
+
+- Domain 19 transport progression: Route Registry is now implemented as a first-class tenant-scoped entity (CRUD setup screen + menu route), aligned with dispatch Driver/Vehicle architecture.
+- Dispatch planning and tracking now select Route via entity ID and persist `route_id`/`route_name` metadata for downstream reuse.
+- Domain 19 transport vendor progression: transport vendor selection is now linked to Account Vendor master (`supplier_type=transport`) across Driver, Vehicle, Route setup modules and Dispatch planning/tracking (`transport_vendor_id` + `transport_vendor_name` metadata), with Supplier Setup navigation entry for Transport Vendors.
+- Own vs vendor handling is explicit: Driver now has `driver_source` (`own`/`vendor`) and Vehicle ownership (`owned`/`hired`/`vendor`) is enforced; transport vendor is required only when source/ownership is vendor.
+- Transport operating policy: Operating Model settings grid now exposes `Own Transport` and `Vendor Transport` toggles (`has_transport_own`/`has_transport_vendor`, default both on); Driver and Vehicle setup reject vendor mode when vendor transport is disabled and own mode when own transport is disabled (`assertTransportModeAllowed`).
+- Transport workspace (Domain 19): new `Daily Operations > Dispatch > Transport` workspace with Fuel, Freight Cost and Vehicle Maintenance tabs; each tab follows KPI cards -> form -> table layout; all records are tenant-scoped with denormalized vehicle/driver/route/vendor snapshots.
+- Transport masters: `Master Setup > Transport Setup` added with Fuel Types, Freight Types and Maintenance Types (domain `transport`) consumed via select controls in the workspace forms (no free-text).
+- Verification: `php artisan test tests/Feature/Textile/TextileTransportAdminTest.php` => pass (1 test, 20 assertions: fuel/freight/maintenance store, denormalized names, tenant isolation); `php artisan test tests/Feature/Textile/TextileDispatchSetupAdminTest.php tests/Feature/Textile/TextileDispatchAdminTest.php` => pass (2 tests, 62 assertions); `npm run build` => pass (existing chunk-size warnings only).
+
+UI Verification (Domain 19)
+
+| Feature | Menu/Submenu | Direct URL |
+|---|---|---|
+| Transport Workspace | Daily Operations > Dispatch > Transport | `/textile/transport` |
+| Fuel | Daily Operations > Dispatch > Transport > Fuel | `/textile/transport?section=fuel` |
+| Freight Cost | Daily Operations > Dispatch > Transport > Freight Cost | `/textile/transport?section=freight-cost` |
+| Vehicle Maintenance | Daily Operations > Dispatch > Transport > Vehicle Maintenance | `/textile/transport?section=vehicle-maintenance` |
+| Fuel Types | Master Setup > Transport Setup > Fuel Types | `/textile/master-setup/transport/fuel-types` |
+| Freight Types | Master Setup > Transport Setup > Freight Types | `/textile/master-setup/transport/freight-types` |
+| Maintenance Types | Master Setup > Transport Setup > Maintenance Types | `/textile/master-setup/transport/maintenance-types` |
+| Own/Vendor Transport Policy | Master Setup > Core Setup > Operating Model | `/textile/operating-policy` |
 ### Domain 20: Maintenance (6 features)
 
 | Task | Classification | Priority | Status |

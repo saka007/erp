@@ -1,9 +1,5 @@
 import { Factory } from 'lucide-react';
 
-declare global {
-    function route(name: string, params?: Record<string, unknown>): string;
-}
-
 export const textileCoreCompanyMenu = (t: (key: string) => string) => [
     {
         name: 'textile-operations',
@@ -237,6 +233,28 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                         title: t('POD'),
                         href: route('textile.sales.index', { section: 'challan-pod' }),
                         capability: 'sales_challan_pod',
+                    },
+                    {
+                        title: t('Transport'),
+                        href: route('textile.transport.index'),
+                        capability: 'transport_operations',
+                        children: [
+                            {
+                                title: t('Fuel'),
+                                href: route('textile.transport.index', { section: 'fuel' }),
+                                capability: 'transport_operations',
+                            },
+                            {
+                                title: t('Freight Cost'),
+                                href: route('textile.transport.index', { section: 'freight-cost' }),
+                                capability: 'transport_operations',
+                            },
+                            {
+                                title: t('Vehicle Maintenance'),
+                                href: route('textile.transport.index', { section: 'vehicle-maintenance' }),
+                                capability: 'transport_operations',
+                            },
+                        ],
                     },
                 ],
             },
@@ -500,6 +518,51 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                                 title: t('Source Actions'),
                                 href: route('textile.master-domains.source-actions.index', { domain: 'dispatch' }),
                             },
+                            {
+                                title: t('Truck Numbers'),
+                                href: route('textile.master-domains.dispatch-truck-numbers.index', { domain: 'dispatch' }),
+                            },
+                            {
+                                title: t('Container Numbers'),
+                                href: route('textile.master-domains.dispatch-container-numbers.index', { domain: 'dispatch' }),
+                            },
+                            {
+                                title: t('Drivers'),
+                                href: route('textile.dispatch-drivers.index'),
+                            },
+                            {
+                                title: t('Vehicles'),
+                                href: route('textile.dispatch-vehicles.index'),
+                            },
+                            {
+                                title: t('Routes'),
+                                href: route('textile.dispatch-routes.index'),
+                            },
+                            {
+                                title: t('LR Numbers'),
+                                href: route('textile.master-domains.dispatch-lr-numbers.index', { domain: 'dispatch' }),
+                            },
+                            {
+                                title: t('E-Way Bills'),
+                                href: route('textile.master-domains.dispatch-eway-bills.index', { domain: 'dispatch' }),
+                            },
+                        ],
+                    },
+                    {
+                        title: t('Transport Setup'),
+                        children: [
+                            {
+                                title: t('Fuel Types'),
+                                href: route('textile.master-domains.fuel-types.index', { domain: 'transport' }),
+                            },
+                            {
+                                title: t('Freight Types'),
+                                href: route('textile.master-domains.freight-types.index', { domain: 'transport' }),
+                            },
+                            {
+                                title: t('Maintenance Types'),
+                                href: route('textile.master-domains.maintenance-types.index', { domain: 'transport' }),
+                            },
                         ],
                     },
                     {
@@ -530,6 +593,10 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                     {
                         title: t('Supplier Setup'),
                         children: [
+                            {
+                                title: t('Transport Vendors'),
+                                href: route('account.vendors.index', { supplier_type: 'transport' }),
+                            },
                             {
                                 title: t('Vendor Ratings'),
                                 href: route('account.vendor-ratings.index'),

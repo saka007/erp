@@ -22,6 +22,11 @@ interface WorkflowDocument {
     quantity: string;
     unit?: string | null;
     status: string;
+    metadata?: {
+        process_stage?: string | null;
+        cost_amount?: string | null;
+        cost_per_unit?: string | null;
+    };
 }
 
 export default function Index({

@@ -3,6 +3,9 @@
 namespace DigitalFuzed\TextileCore\Http\Controllers;
 
 use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
+use DigitalFuzed\TextileCore\Models\TextileDispatchDriver;
+use DigitalFuzed\TextileCore\Models\TextileDispatchRoute;
+use DigitalFuzed\TextileCore\Models\TextileDispatchVehicle;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Services\TextileDispatchService;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
@@ -13,6 +16,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use RuntimeException;
+use Workdo\Account\Models\Vendor;
 
 class TextileDispatchController extends Controller
 {
@@ -34,8 +38,14 @@ class TextileDispatchController extends Controller
             'sourceActionOptions' => $this->sourceActionOptions(),
             'dispatchModeOptions' => $this->dispatchModeOptions(),
             'trackingStatusOptions' => $this->trackingStatusOptions(),
+            'truckNumberOptions' => $this->truckNumberOptions(),
+            'containerNumberOptions' => $this->containerNumberOptions(),
             'vehicleOptions' => $this->vehicleOptions(),
             'driverOptions' => $this->driverOptions(),
+            'routeOptions' => $this->routeOptions(),
+            'transportVendorOptions' => $this->transportVendorOptions(),
+            'lrNumberOptions' => $this->lrNumberOptions(),
+            'ewayBillOptions' => $this->ewayBillOptions(),
         ]);
     }
 
@@ -49,15 +59,37 @@ class TextileDispatchController extends Controller
             'source_action' => ['required', 'string', Rule::in($this->sourceActionOptions())],
             'challan_id' => ['required', 'integer', 'min:1'],
             'dispatch_mode' => ['required', 'string', Rule::in($this->dispatchModeOptions())],
-            'truck_number' => ['nullable', 'string', 'max:100'],
-            'container_number' => ['nullable', 'string', 'max:100'],
-            'driver_name' => ['nullable', 'string', 'max:100'],
-            'vehicle_number' => ['nullable', 'string', 'max:100'],
-            'lr_number' => ['nullable', 'string', 'max:100'],
-            'eway_bill_number' => ['nullable', 'string', 'max:100'],
+            'truck_number' => ['nullable', 'string', Rule::in($this->truckNumberOptions())],
+            'container_number' => ['nullable', 'string', Rule::in($this->containerNumberOptions())],
+            'driver_id' => ['nullable', 'integer', Rule::in($this->driverIds())],
+            'vehicle_id' => ['nullable', 'integer', Rule::in($this->vehicleIds())],
+            'route_id' => ['nullable', 'integer', Rule::in($this->routeIds())],
+            'transport_vendor_id' => ['nullable', 'integer', Rule::in($this->transportVendorIds())],
+            'lr_number' => ['nullable', 'string', Rule::in($this->lrNumberOptions())],
+            'eway_bill_number' => ['nullable', 'string', Rule::in($this->ewayBillOptions())],
             'freight_amount' => ['nullable', 'numeric', 'gte:0'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
+
+        if (!empty($validated['driver_id'])) {
+            $driver = TextileDispatchDriver::query()->where('created_by', creatorId())->where('is_active', true)->findOrFail((int) $validated['driver_id']);
+            $validated['driver_name'] = $driver->name;
+        }
+
+        if (!empty($validated['vehicle_id'])) {
+            $vehicle = TextileDispatchVehicle::query()->where('created_by', creatorId())->where('is_active', true)->findOrFail((int) $validated['vehicle_id']);
+            $validated['vehicle_number'] = $vehicle->vehicle_number;
+        }
+
+        if (!empty($validated['route_id'])) {
+            $route = TextileDispatchRoute::query()->where('created_by', creatorId())->where('is_active', true)->findOrFail((int) $validated['route_id']);
+            $validated['route_name'] = $route->route_name;
+        }
+
+        if (!empty($validated['transport_vendor_id'])) {
+            $vendor = Vendor::query()->where('created_by', creatorId())->where('supplier_type', 'transport')->findOrFail((int) $validated['transport_vendor_id']);
+            $validated['transport_vendor_name'] = $vendor->company_name;
+        }
 
         try {
             $service->createDispatchPlan($validated);
@@ -96,12 +128,34 @@ class TextileDispatchController extends Controller
             'source_action' => ['required', 'string', Rule::in($this->sourceActionOptions())],
             'tracking_status' => ['required', 'string', Rule::in($this->trackingStatusOptions())],
             'current_location' => ['nullable', 'string', 'max:150'],
-            'vehicle_number' => ['nullable', 'string', 'max:100'],
-            'driver_name' => ['nullable', 'string', 'max:100'],
-            'lr_number' => ['nullable', 'string', 'max:100'],
-            'eway_bill_number' => ['nullable', 'string', 'max:100'],
+            'vehicle_id' => ['nullable', 'integer', Rule::in($this->vehicleIds())],
+            'driver_id' => ['nullable', 'integer', Rule::in($this->driverIds())],
+            'route_id' => ['nullable', 'integer', Rule::in($this->routeIds())],
+            'transport_vendor_id' => ['nullable', 'integer', Rule::in($this->transportVendorIds())],
+            'lr_number' => ['nullable', 'string', Rule::in($this->lrNumberOptions())],
+            'eway_bill_number' => ['nullable', 'string', Rule::in($this->ewayBillOptions())],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
+
+        if (!empty($validated['driver_id'])) {
+            $driver = TextileDispatchDriver::query()->where('created_by', creatorId())->where('is_active', true)->findOrFail((int) $validated['driver_id']);
+            $validated['driver_name'] = $driver->name;
+        }
+
+        if (!empty($validated['vehicle_id'])) {
+            $vehicle = TextileDispatchVehicle::query()->where('created_by', creatorId())->where('is_active', true)->findOrFail((int) $validated['vehicle_id']);
+            $validated['vehicle_number'] = $vehicle->vehicle_number;
+        }
+
+        if (!empty($validated['route_id'])) {
+            $route = TextileDispatchRoute::query()->where('created_by', creatorId())->where('is_active', true)->findOrFail((int) $validated['route_id']);
+            $validated['route_name'] = $route->route_name;
+        }
+
+        if (!empty($validated['transport_vendor_id'])) {
+            $vendor = Vendor::query()->where('created_by', creatorId())->where('supplier_type', 'transport')->findOrFail((int) $validated['transport_vendor_id']);
+            $validated['transport_vendor_name'] = $vendor->company_name;
+        }
 
         try {
             $service->createDispatchTracking($validated);
@@ -141,42 +195,12 @@ class TextileDispatchController extends Controller
 
     private function sourceTypeOptions(): array
     {
-        if (!Schema::hasTable('textile_reference_masters')) {
-            return ['dispatch_plan', 'challan_reference', 'transport_manifest'];
-        }
-
-        $query = TextileReferenceMaster::query()
-            ->type('source_type')
-            ->where('created_by', creatorId())
-            ->where('is_active', true);
-
-        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
-            $query->domain('dispatch');
-        }
-
-        $options = $query->orderBy('name')->pluck('name')->values()->all();
-
-        return count($options) > 0 ? $options : ['dispatch_plan', 'challan_reference', 'transport_manifest'];
+        return $this->referenceOptions('source_type', ['dispatch_plan', 'challan_reference', 'transport_manifest']);
     }
 
     private function sourceActionOptions(): array
     {
-        if (!Schema::hasTable('textile_reference_masters')) {
-            return ['dispatch_plan', 'vehicle_assign', 'tracking_update'];
-        }
-
-        $query = TextileReferenceMaster::query()
-            ->type('source_action')
-            ->where('created_by', creatorId())
-            ->where('is_active', true);
-
-        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
-            $query->domain('dispatch');
-        }
-
-        $options = $query->orderBy('name')->pluck('name')->values()->all();
-
-        return count($options) > 0 ? $options : ['dispatch_plan', 'vehicle_assign', 'tracking_update'];
+        return $this->referenceOptions('source_action', ['dispatch_plan', 'vehicle_assign', 'tracking_update']);
     }
 
     private function dispatchModeOptions(): array
@@ -189,32 +213,156 @@ class TextileDispatchController extends Controller
         return ['planned', 'in_transit', 'delayed', 'delivered'];
     }
 
+    private function truckNumberOptions(): array
+    {
+        return $this->referenceOptions('dispatch_truck_number');
+    }
+
+    private function containerNumberOptions(): array
+    {
+        return $this->referenceOptions('dispatch_container_number');
+    }
+
     private function vehicleOptions(): array
     {
-        return TextileWorkflowDocument::query()
+        return TextileDispatchVehicle::query()
             ->where('created_by', creatorId())
-            ->where('document_type', 'dispatch_plan')
-            ->pluck('metadata')
-            ->map(fn ($metadata) => is_array($metadata) ? ($metadata['vehicle_number'] ?? null) : null)
-            ->filter(fn ($value) => is_string($value) && trim($value) !== '')
-            ->map(fn ($value) => trim((string) $value))
-            ->unique()
+            ->where('is_active', true)
+            ->orderBy('vehicle_number')
+            ->get(['id', 'vehicle_number', 'vehicle_type'])
+            ->map(fn (TextileDispatchVehicle $row) => [
+                'id' => (int) $row->id,
+                'label' => trim($row->vehicle_number . ($row->vehicle_type ? ' | ' . $row->vehicle_type : '')),
+            ])
             ->values()
             ->all();
     }
 
     private function driverOptions(): array
     {
-        return TextileWorkflowDocument::query()
+        return TextileDispatchDriver::query()
             ->where('created_by', creatorId())
-            ->where('document_type', 'dispatch_plan')
-            ->pluck('metadata')
-            ->map(fn ($metadata) => is_array($metadata) ? ($metadata['driver_name'] ?? null) : null)
-            ->filter(fn ($value) => is_string($value) && trim($value) !== '')
-            ->map(fn ($value) => trim((string) $value))
-            ->unique()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'phone'])
+            ->map(fn (TextileDispatchDriver $row) => [
+                'id' => (int) $row->id,
+                'label' => trim($row->name . ($row->phone ? ' | ' . $row->phone : '')),
+            ])
             ->values()
             ->all();
+    }
+
+    private function routeOptions(): array
+    {
+        return TextileDispatchRoute::query()
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->orderBy('route_name')
+            ->get(['id', 'route_name', 'origin_location', 'destination_location'])
+            ->map(fn (TextileDispatchRoute $row) => [
+                'id' => (int) $row->id,
+                'label' => trim($row->route_name . (($row->origin_location || $row->destination_location) ? ' | ' . trim(($row->origin_location ?? '-') . ' -> ' . ($row->destination_location ?? '-')) : '')),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function driverIds(): array
+    {
+        return TextileDispatchDriver::query()
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    private function vehicleIds(): array
+    {
+        return TextileDispatchVehicle::query()
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    private function routeIds(): array
+    {
+        return TextileDispatchRoute::query()
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    private function transportVendorOptions(): array
+    {
+        if (!Schema::hasTable('vendors')) {
+            return [];
+        }
+
+        return Vendor::query()
+            ->where('created_by', creatorId())
+            ->where('supplier_type', 'transport')
+            ->orderBy('company_name')
+            ->get(['id', 'vendor_code', 'company_name'])
+            ->map(fn (Vendor $vendor) => [
+                'id' => (int) $vendor->id,
+                'label' => trim(($vendor->vendor_code ? $vendor->vendor_code . ' | ' : '') . $vendor->company_name),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function transportVendorIds(): array
+    {
+        if (!Schema::hasTable('vendors')) {
+            return [];
+        }
+
+        return Vendor::query()
+            ->where('created_by', creatorId())
+            ->where('supplier_type', 'transport')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    private function lrNumberOptions(): array
+    {
+        return $this->referenceOptions('dispatch_lr_number');
+    }
+
+    private function ewayBillOptions(): array
+    {
+        return $this->referenceOptions('dispatch_eway_bill');
+    }
+
+    private function referenceOptions(string $masterType, array $fallback = []): array
+    {
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $fallback;
+        }
+
+        $query = TextileReferenceMaster::query()
+            ->type($masterType)
+            ->where('created_by', creatorId())
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('dispatch');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $fallback;
     }
 
     private function authorizeTextileAccess(): void

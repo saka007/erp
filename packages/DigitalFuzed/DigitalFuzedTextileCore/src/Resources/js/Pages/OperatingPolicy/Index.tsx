@@ -105,7 +105,14 @@ export default function Index({ policy, capabilities, settings, activeProfiles, 
     );
 
     const settingRows = useMemo(
-        () => options.settings.map((key) => ({ value: key, label: key.replaceAll('_', ' ') })),
+        () => options.settings.map((key) => ({
+            value: key,
+            label: key === 'has_transport_own'
+                ? t('Own Transport')
+                : key === 'has_transport_vendor'
+                    ? t('Vendor Transport')
+                    : key.replaceAll('_', ' '),
+        })),
         [options.settings]
     );
 

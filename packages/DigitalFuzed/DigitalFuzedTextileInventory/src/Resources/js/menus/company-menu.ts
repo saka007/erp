@@ -1,9 +1,5 @@
 import { Boxes } from 'lucide-react';
 
-declare global {
-    function route(name: string): string;
-}
-
 export const textileInventoryCompanyMenu = (t: (key: string) => string) => [
     {
         title: t('Inventory'),

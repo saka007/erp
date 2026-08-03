@@ -7,9 +7,12 @@ use App\Models\Plan;
 use App\Models\User;
 use App\Models\UserActiveModule;
 use DigitalFuzed\TextileCore\Models\TextileApprovalRule;
+use DigitalFuzed\TextileCore\Models\TextileOperatingPolicy;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextileWorkflowService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -30,6 +33,17 @@ class TextileApprovalAdminTest extends TestCase
 
         $companyA = $this->company();
         $companyB = $this->company();
+
+        // Company A runs a jobwork operating model with sales disabled, so its
+        // textile capabilities must not surface sales_order anywhere on page.
+        TextileOperatingPolicy::create([
+            'created_by' => $companyA->id,
+            'creator_id' => $companyA->id,
+            'operating_model' => TextileOperatingPolicyService::MODEL_JOBWORK_WEAVING,
+            'material_ownership' => 'customer_owned',
+            'billing_mode' => 'process_charge',
+            'settings' => [],
+        ]);
 
         $this->actingAs($companyA)
             ->post(route('textile.approvals.rules.store'), [
@@ -115,7 +129,8 @@ class TextileApprovalAdminTest extends TestCase
             ->get(route('textile.approvals.index'))
             ->assertOk()
             ->assertSee('purchase_requisition')
-            ->assertDontSee('sales_order');
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('auth.user.textile_capabilities.sales_order', false));
     }
 
     private function company(): User

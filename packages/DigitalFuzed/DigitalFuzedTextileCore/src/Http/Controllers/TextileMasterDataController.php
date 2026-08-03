@@ -25,6 +25,14 @@ class TextileMasterDataController extends Controller
     private const LOOM_STATUS_MASTER = 'loom_status';
     private const BREAKDOWN_REASON_MASTER = 'breakdown_reason';
     private const MAINTENANCE_TYPE_MASTER = 'maintenance_type';
+    private const DISPATCH_TRUCK_NUMBER_MASTER = 'dispatch_truck_number';
+    private const DISPATCH_CONTAINER_NUMBER_MASTER = 'dispatch_container_number';
+    private const DISPATCH_DRIVER_MASTER = 'dispatch_driver';
+    private const DISPATCH_VEHICLE_MASTER = 'dispatch_vehicle';
+    private const DISPATCH_LR_NUMBER_MASTER = 'dispatch_lr_number';
+    private const DISPATCH_EWAY_BILL_MASTER = 'dispatch_eway_bill';
+    private const FUEL_TYPE_MASTER = 'fuel_type';
+    private const FREIGHT_TYPE_MASTER = 'freight_type';
     private const DEFAULT_MASTER_DOMAIN = 'global';
     private const REFERENCE_DOMAINS = [
         'global',
@@ -34,6 +42,9 @@ class TextileMasterDataController extends Controller
         'sales',
         'processing',
         'quality',
+        'dispatch',
+        'packing',
+        'transport',
     ];
 
     public function qualityProfiles()
@@ -449,6 +460,126 @@ class TextileMasterDataController extends Controller
     public function archiveMaintenanceTypeByDomain(Request $request, string $domain)
     {
         return $this->archiveReferenceMaster($request, self::MAINTENANCE_TYPE_MASTER, 'Textile maintenance type deactivated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function dispatchTruckNumbersByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('dispatch-truck-numbers', self::DISPATCH_TRUCK_NUMBER_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeDispatchTruckNumberByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::DISPATCH_TRUCK_NUMBER_MASTER, 'Dispatch truck number created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateDispatchTruckNumberByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::DISPATCH_TRUCK_NUMBER_MASTER, 'Dispatch truck number updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveDispatchTruckNumberByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::DISPATCH_TRUCK_NUMBER_MASTER, 'Dispatch truck number deactivated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function dispatchContainerNumbersByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('dispatch-container-numbers', self::DISPATCH_CONTAINER_NUMBER_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeDispatchContainerNumberByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::DISPATCH_CONTAINER_NUMBER_MASTER, 'Dispatch container number created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateDispatchContainerNumberByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::DISPATCH_CONTAINER_NUMBER_MASTER, 'Dispatch container number updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveDispatchContainerNumberByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::DISPATCH_CONTAINER_NUMBER_MASTER, 'Dispatch container number deactivated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function dispatchDriversByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('dispatch-drivers', self::DISPATCH_DRIVER_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeDispatchDriverByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::DISPATCH_DRIVER_MASTER, 'Dispatch driver created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateDispatchDriverByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::DISPATCH_DRIVER_MASTER, 'Dispatch driver updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveDispatchDriverByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::DISPATCH_DRIVER_MASTER, 'Dispatch driver deactivated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function dispatchVehiclesByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('dispatch-vehicles', self::DISPATCH_VEHICLE_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeDispatchVehicleByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::DISPATCH_VEHICLE_MASTER, 'Dispatch vehicle created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateDispatchVehicleByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::DISPATCH_VEHICLE_MASTER, 'Dispatch vehicle updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveDispatchVehicleByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::DISPATCH_VEHICLE_MASTER, 'Dispatch vehicle deactivated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function dispatchLrNumbersByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('dispatch-lr-numbers', self::DISPATCH_LR_NUMBER_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeDispatchLrNumberByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::DISPATCH_LR_NUMBER_MASTER, 'Dispatch LR number created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateDispatchLrNumberByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::DISPATCH_LR_NUMBER_MASTER, 'Dispatch LR number updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveDispatchLrNumberByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::DISPATCH_LR_NUMBER_MASTER, 'Dispatch LR number deactivated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function dispatchEwayBillsByDomain(string $domain)
+    {
+        return $this->renderReferenceMasterIndex('dispatch-eway-bills', self::DISPATCH_EWAY_BILL_MASTER, $this->resolveDomain($domain));
+    }
+
+    public function storeDispatchEwayBillByDomain(Request $request, string $domain)
+    {
+        return $this->storeReferenceMaster($request, self::DISPATCH_EWAY_BILL_MASTER, 'Dispatch E-Way bill created successfully.', $this->resolveDomain($domain));
+    }
+
+    public function updateDispatchEwayBillByDomain(Request $request, string $domain)
+    {
+        return $this->updateReferenceMaster($request, self::DISPATCH_EWAY_BILL_MASTER, 'Dispatch E-Way bill updated successfully.', $this->resolveDomain($domain));
+    }
+
+    public function archiveDispatchEwayBillByDomain(Request $request, string $domain)
+    {
+        return $this->archiveReferenceMaster($request, self::DISPATCH_EWAY_BILL_MASTER, 'Dispatch E-Way bill deactivated successfully.', $this->resolveDomain($domain));
     }
 
     public function costTypes()

@@ -36,7 +36,7 @@ export interface TextileWorkflowAction {
 }
 
 export interface TextileWorkflowActionRule {
-    statuses: string[];
+    statuses: readonly string[];
     actions: TextileWorkflowAction[];
     noVisibleActionContent?: string | ((row: TextileWorkflowRow) => ReactNode);
 }

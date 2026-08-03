@@ -125,7 +125,7 @@ export interface EditEmployeeFormData {
 
 export interface EmployeeFilters {
     employee_id: string;
-    user.name: string;
+    user_name: string;
     branch_id: string;
     department_id: string;
     employment_type: string;
