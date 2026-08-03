@@ -62,6 +62,7 @@ Route::prefix('api')->middleware(['api.json'])->group(function () {
         Route::post('manufacturing/loom-masters/store', [TextileManufacturingApiController::class, 'storeLoomMaster']);
         Route::post('manufacturing/loom-breakdowns/store', [TextileManufacturingApiController::class, 'storeLoomBreakdown']);
         Route::post('manufacturing/loom-maintenances/store', [TextileManufacturingApiController::class, 'storeLoomMaintenance']);
+        Route::post('manufacturing/machine-plans/store', [TextileManufacturingApiController::class, 'storeMachinePlan']);
 
         Route::post('manufacturing/batches/store', [TextileManufacturingApiController::class, 'storeProductionBatch']);
         Route::post('manufacturing/batches/{id}/release', [TextileManufacturingApiController::class, 'releaseProductionBatch']);

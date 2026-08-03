@@ -38,6 +38,7 @@ export default function Index({
     loomMasters,
     loomBreakdowns,
     loomMaintenances,
+    machinePlans,
     beams,
     beamIssues,
     beamReturns,
@@ -54,6 +55,7 @@ export default function Index({
     loomStatusOptions,
     breakdownReasonOptions,
     maintenanceTypeOptions,
+    shiftOptions,
     unitOptions,
     costTypeOptions,
     inspectionResultOptions,
@@ -71,6 +73,7 @@ export default function Index({
     loomMasters: WorkflowDocument[];
     loomBreakdowns: WorkflowDocument[];
     loomMaintenances: WorkflowDocument[];
+    machinePlans: WorkflowDocument[];
     beams: WorkflowDocument[];
     beamIssues: WorkflowDocument[];
     beamReturns: WorkflowDocument[];
@@ -87,6 +90,7 @@ export default function Index({
     loomStatusOptions: string[];
     breakdownReasonOptions: string[];
     maintenanceTypeOptions: string[];
+    shiftOptions: string[];
     unitOptions: string[];
     costTypeOptions: string[];
     inspectionResultOptions: string[];
@@ -97,7 +101,7 @@ export default function Index({
 }) {
     const { t } = useTranslation();
     const sectionParam = new URLSearchParams(window.location.search).get('section');
-    const validSections = new Set(['warp-planning', 'beam-batch', 'loom-management', 'weaving-output', 'waste', 'rework']);
+    const validSections = new Set(['warp-planning', 'beam-batch', 'loom-management', 'machine-planning', 'weaving-output', 'waste', 'rework']);
     const activeSection = sectionParam && validSections.has(sectionParam) ? sectionParam : 'warp-planning';
 
     const warpPlanForm = useForm({
@@ -144,6 +148,7 @@ export default function Index({
     });
     const loomBreakdownForm = useForm({ loom_master_id: '', breakdown_reason: '', downtime_hours: '', unit: 'hour', operator_name: '', notes: '' });
     const loomMaintenanceForm = useForm({ loom_master_id: '', maintenance_type: '', maintenance_hours: '', unit: 'hour', operator_name: '', notes: '' });
+    const machinePlanForm = useForm({ loom_master_id: '', beam_id: '', planned_date: '', planned_shift: 'day', planned_quantity: '', unit: 'mtr', operator_name: '', notes: '' });
 
     const beamForm = useForm({
         source_reference_type: 'sales_order',
@@ -190,13 +195,14 @@ export default function Index({
     const resolvedLoomStatusOptions = loomStatusOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedBreakdownReasonOptions = breakdownReasonOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedMaintenanceTypeOptions = maintenanceTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
+    const resolvedShiftOptions = shiftOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedUnitOptions = buildUnitOptions(unitOptions);
     const resolvedChemicalOptions = chemicalOptions.map((value) => ({ value, label: value }));
     const resolvedCostTypeOptions = costTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedInspectionResultOptions = inspectionResultOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedOperatorOptions = operatorOptions.map((value) => ({ value, label: value }));
 
-    const allDocuments = [...warpPlans, ...yarnAllocations, ...warpSheets, ...warpProductions, ...sizingRecipes, ...chemicalConsumptions, ...loomMasters, ...loomBreakdowns, ...loomMaintenances, ...beams, ...beamIssues, ...beamReturns, ...beamInspections, ...beamCosts, ...productionBatches, ...weavingOutputs, ...wastes, ...reworks];
+    const allDocuments = [...warpPlans, ...yarnAllocations, ...warpSheets, ...warpProductions, ...sizingRecipes, ...chemicalConsumptions, ...loomMasters, ...loomBreakdowns, ...loomMaintenances, ...machinePlans, ...beams, ...beamIssues, ...beamReturns, ...beamInspections, ...beamCosts, ...productionBatches, ...weavingOutputs, ...wastes, ...reworks];
     const draftCount = allDocuments.filter((row) => row.status === 'draft').length;
     const approvedCount = allDocuments.filter((row) => row.status === 'approved').length;
     const releasedCount = allDocuments.filter((row) => row.status === 'released').length;
@@ -312,6 +318,7 @@ export default function Index({
                     { label: t('Chemical Records'), value: chemicalConsumptions.length, hint: t('Sizing chemical usage entries') },
                     { label: t('Loom Breakdowns'), value: loomBreakdowns.length, hint: t('Loom stoppage and downtime entries') },
                     { label: t('Loom Maintenance'), value: loomMaintenances.length, hint: t('Preventive/corrective maintenance entries') },
+                    { label: t('Machine Plans'), value: machinePlans.length, hint: t('Loom to beam planning assignments') },
                     { label: t('Beam Inspections'), value: beamInspections.length, hint: t('Sizing and beam quality checkpoints') },
                     { label: t('Beam Cost Records'), value: beamCosts.length, hint: t('Sizing and beam cost capture entries') },
                     { label: t('Draft'), value: draftCount, hint: t('Waiting for review') },
@@ -325,10 +332,11 @@ export default function Index({
                 onValueChange={(value) => router.get(route('textile.manufacturing.index', { section: value }), {}, { preserveState: true, replace: true })}
                 className="space-y-6"
             >
-                <TabsList className="grid w-full grid-cols-2 gap-2 h-auto p-1 md:grid-cols-6">
+                <TabsList className="grid w-full grid-cols-2 gap-2 h-auto p-1 md:grid-cols-7">
                     <TabsTrigger value="warp-planning">{t('Warp Planning')}</TabsTrigger>
                     <TabsTrigger value="beam-batch">{t('Beam and Batch')}</TabsTrigger>
                     <TabsTrigger value="loom-management">{t('Loom Management')}</TabsTrigger>
+                    <TabsTrigger value="machine-planning">{t('Machine Planning')}</TabsTrigger>
                     <TabsTrigger value="weaving-output">{t('Weaving Output')}</TabsTrigger>
                     <TabsTrigger value="waste">{t('Waste')}</TabsTrigger>
                     <TabsTrigger value="rework">{t('Rework')}</TabsTrigger>
@@ -1207,6 +1215,96 @@ export default function Index({
                             { key: 'status', header: t('Status') },
                         ]}
                         emptyState={<NoRecordsFound icon={Factory} title={t('No loom maintenance records found')} description={t('Record loom maintenance to track machine care and uptime stability.')} />}
+                    />
+                </div>
+                </TabsContent>
+
+                <TabsContent value="machine-planning">
+                <div className="grid gap-6 xl:grid-cols-2">
+                    <TextileFormCard title={t('Create Machine Plan')} icon={Factory}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            machinePlanForm.post(route('textile.manufacturing.machine-plans.store'), {
+                                onSuccess: () => machinePlanForm.reset('loom_master_id', 'beam_id', 'planned_date', 'planned_quantity', 'operator_name', 'notes'),
+                            });
+                        }}>
+                            <SelectField
+                                label={t('Loom')}
+                                value={machinePlanForm.data.loom_master_id}
+                                onChange={(v) => machinePlanForm.setData('loom_master_id', v)}
+                                options={createTextileWorkflowSelectOptions(actionableLoomMasters)}
+                                includeEmpty
+                                emptyLabel={t('Select loom')}
+                                helperText={t('Only active loom masters are listed.')}
+                                disabled={actionableLoomMasters.length === 0}
+                                disabledReason={t('No active loom master found. Register loom first.')}
+                                required
+                            />
+                            <SelectField
+                                label={t('Approved Beam')}
+                                value={machinePlanForm.data.beam_id}
+                                onChange={(v) => machinePlanForm.setData('beam_id', v)}
+                                options={createTextileWorkflowSelectOptions(approvedBeams)}
+                                includeEmpty
+                                emptyLabel={t('Select approved beam')}
+                                helperText={t('Only approved beams are available for machine planning.')}
+                                disabled={approvedBeams.length === 0}
+                                disabledReason={t('No approved beam found. Approve a beam first.')}
+                                required
+                            />
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Planned Date')} type="date" value={machinePlanForm.data.planned_date} onChange={(v) => machinePlanForm.setData('planned_date', v)} required />
+                                <SelectField
+                                    label={t('Planned Shift')}
+                                    value={machinePlanForm.data.planned_shift}
+                                    onChange={(v) => machinePlanForm.setData('planned_shift', v)}
+                                    options={resolvedShiftOptions}
+                                    required
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Planned Quantity')} type="number" value={machinePlanForm.data.planned_quantity} onChange={(v) => machinePlanForm.setData('planned_quantity', v)} required />
+                                <SelectField
+                                    label={t('Unit')}
+                                    value={machinePlanForm.data.unit}
+                                    onChange={(v) => machinePlanForm.setData('unit', v)}
+                                    options={resolvedUnitOptions}
+                                    includeEmpty
+                                    emptyLabel={t('Select unit')}
+                                    helperText={t('Units are derived from Unit Conversion master.')}
+                                />
+                            </div>
+                            <SelectField
+                                label={t('Operator')}
+                                value={machinePlanForm.data.operator_name}
+                                onChange={(v) => machinePlanForm.setData('operator_name', v)}
+                                options={resolvedOperatorOptions}
+                                includeEmpty
+                                emptyLabel={t('Select operator')}
+                                helperText={t('Operators are listed from your company users.')}
+                                disabled={resolvedOperatorOptions.length === 0}
+                                disabledReason={t('No operators found. Add company users first.')}
+                            />
+                            <Field label={t('Notes')} value={machinePlanForm.data.notes} onChange={(v) => machinePlanForm.setData('notes', v)} />
+                            <Button type="submit" disabled={machinePlanForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Machine Plan')}</Button>
+                        </form>
+                    </TextileFormCard>
+
+                    <TextileDataTableSection
+                        title={t('Machine Plan Records')}
+                        data={machinePlans}
+                        columns={[
+                            { key: 'document_number', header: t('Number') },
+                            { key: 'source_reference_id', header: t('Loom ID') },
+                            { key: 'beam_number', header: t('Beam'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.beam_number ?? row.lot_reference ?? '-') },
+                            { key: 'planned_date', header: t('Planned Date'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_date ?? '-') },
+                            { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') },
+                            { key: 'quantity', header: t('Planned Qty') },
+                            { key: 'unit', header: t('Unit') },
+                            { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') },
+                            { key: 'status', header: t('Status') },
+                        ]}
+                        emptyState={<NoRecordsFound icon={Factory} title={t('No machine plans found')} description={t('Create machine plans to assign approved beams to looms by date and shift.')} />}
                     />
                 </div>
                 </TabsContent>

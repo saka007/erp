@@ -98,6 +98,26 @@ class TextileManufacturingApiController extends Controller
         ], 201);
     }
 
+    public function storeMachinePlan(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'loom_master_id' => ['required', 'integer', 'min:1'],
+            'beam_id' => ['required', 'integer', 'min:1'],
+            'planned_date' => ['required', 'date'],
+            'planned_shift' => ['required', 'string', 'max:100', Rule::in($this->shiftOptions())],
+            'planned_quantity' => ['required', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createMachinePlan((int) $payload['loom_master_id'], (int) $payload['beam_id'], $payload),
+        ], 201);
+    }
+
     public function storeWarpPlan(Request $request): JsonResponse
     {
         $payload = $request->validate([
@@ -575,6 +595,15 @@ class TextileManufacturingApiController extends Controller
             'lubrication',
             'cleaning',
             'other',
+        ];
+    }
+
+    private function shiftOptions(): array
+    {
+        return [
+            'day',
+            'night',
+            'general',
         ];
     }
 }

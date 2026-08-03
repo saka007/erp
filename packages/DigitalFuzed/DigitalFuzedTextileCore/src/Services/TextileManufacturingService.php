@@ -358,6 +358,41 @@ class TextileManufacturingService
         ]);
     }
 
+    public function createMachinePlan(int $loomMasterId, int $beamId, array $payload = []): TextileWorkflowDocument
+    {
+        $loomMaster = $this->findTenantDocument($loomMasterId, 'loom_master');
+        $beam = $this->findTenantDocument($beamId, 'beam');
+
+        if (! in_array($loomMaster->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Loom master must be completed before machine planning.');
+        }
+
+        if ($beam->status !== 'approved') {
+            throw new RuntimeException('Beam must be approved before machine planning.');
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'machine_plan',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $loomMaster->id,
+            'source_action' => 'machine_plan',
+            'party_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? $loomMaster->party_name),
+            'lot_reference' => $beam->document_number,
+            'quantity' => $payload['planned_quantity'] ?? $beam->quantity,
+            'unit' => $payload['unit'] ?? $beam->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'beam_id' => $beam->id,
+                'beam_number' => $beam->document_number,
+                'planned_date' => $payload['planned_date'] ?? null,
+                'planned_shift' => $payload['planned_shift'] ?? null,
+                'operator_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? null),
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
     public function createBeamFromSizingRecipe(int $sizingRecipeId, array $payload = []): TextileWorkflowDocument
     {
         $sizingRecipe = $this->findTenantDocument($sizingRecipeId, 'sizing_recipe');

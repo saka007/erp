@@ -40,6 +40,7 @@ class TextileManufacturingController extends Controller
             'loomMasters' => $this->documents('loom_master'),
             'loomBreakdowns' => $this->documents('loom_breakdown'),
             'loomMaintenances' => $this->documents('loom_maintenance'),
+            'machinePlans' => $this->documents('machine_plan'),
             'beams' => $this->documents('beam'),
             'beamIssues' => $this->documents('beam_issue'),
             'beamReturns' => $this->documents('beam_return'),
@@ -56,6 +57,7 @@ class TextileManufacturingController extends Controller
             'loomStatusOptions' => $this->loomStatusOptions(),
             'breakdownReasonOptions' => $this->breakdownReasonOptions(),
             'maintenanceTypeOptions' => $this->maintenanceTypeOptions(),
+            'shiftOptions' => $this->shiftOptions(),
             'unitOptions' => $this->unitOptions(),
             'costTypeOptions' => $this->costTypeOptions(),
             'inspectionResultOptions' => $this->inspectionResultOptions(),
@@ -400,6 +402,31 @@ class TextileManufacturingController extends Controller
         return back()->with('success', __('Loom maintenance recorded successfully.'));
     }
 
+    public function storeMachinePlan(Request $request, TextileManufacturingService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('manufacturing', 'loom_master_id');
+
+        $validated = $request->validate([
+            'loom_master_id' => ['required', 'integer', 'min:1'],
+            'beam_id' => ['required', 'integer', 'min:1'],
+            'planned_date' => ['required', 'date'],
+            'planned_shift' => ['required', 'string', 'max:100', Rule::in($this->shiftOptions())],
+            'planned_quantity' => ['required', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $service->createMachinePlan((int) $validated['loom_master_id'], (int) $validated['beam_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['loom_master_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Machine plan recorded successfully.'));
+    }
+
     public function approveBeam(Request $request, TextileManufacturingService $service)
     {
         $this->authorizeTextileAccess();
@@ -673,6 +700,15 @@ class TextileManufacturingController extends Controller
         $options = $query->orderBy('name')->pluck('name')->values()->all();
 
         return count($options) > 0 ? $options : $this->defaultMaintenanceTypeOptions();
+    }
+
+    private function shiftOptions(): array
+    {
+        return [
+            'day',
+            'night',
+            'general',
+        ];
     }
 
     private function sourceActionOptions(): array

@@ -171,6 +171,32 @@ class TextileManufacturingAdminTest extends TestCase
         $this->assertSame(2.0, (float) $loomMaintenance->metadata['maintenance_hours']);
 
         $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.machine-plans.store'), [
+                'loom_master_id' => $loomMaster->id,
+                'beam_id' => $beam->id,
+                'planned_date' => '2026-08-04',
+                'planned_shift' => 'day',
+                'planned_quantity' => 220,
+                'unit' => 'mtr',
+                'operator_name' => 'Operator A',
+                'notes' => 'Plan for day shift grey production',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $machinePlan = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'machine_plan')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($machinePlan);
+        $this->assertSame('approved', $machinePlan->status);
+        $this->assertSame($loomMaster->id, $machinePlan->source_reference_id);
+        $this->assertSame($beam->id, $machinePlan->metadata['beam_id']);
+        $this->assertSame('day', $machinePlan->metadata['planned_shift']);
+        $this->assertSame('2026-08-04', $machinePlan->metadata['planned_date']);
+
+        $this->actingAs($companyA)
             ->post(route('textile.manufacturing.batches.store'), [
                 'beam_id' => $beam->id,
             ])
@@ -432,6 +458,7 @@ class TextileManufacturingAdminTest extends TestCase
             ->assertDontSee($loomMaster->document_number)
             ->assertDontSee($loomBreakdown->document_number)
             ->assertDontSee($loomMaintenance->document_number)
+            ->assertDontSee($machinePlan->document_number)
             ->assertDontSee($beamFromSizing->document_number)
             ->assertDontSee($warpSheet->document_number)
             ->assertDontSee($warpProduction->document_number)
@@ -454,6 +481,7 @@ class TextileManufacturingAdminTest extends TestCase
                 ->assertSee($loomMaster->document_number)
                 ->assertSee($loomBreakdown->document_number)
                 ->assertSee($loomMaintenance->document_number)
+                ->assertSee($machinePlan->document_number)
                 ->assertSee($warpSheet->document_number)
                 ->assertSee($warpProduction->document_number)
                 ->assertSee($sizingRecipe->document_number)

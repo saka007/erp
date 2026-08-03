@@ -149,6 +149,7 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/manufacturing/loom-masters', [TextileManufacturingController::class, 'storeLoomMaster'])->name('textile.manufacturing.loom-masters.store');
     Route::post('/textile/manufacturing/loom-breakdowns', [TextileManufacturingController::class, 'storeLoomBreakdown'])->name('textile.manufacturing.loom-breakdowns.store');
     Route::post('/textile/manufacturing/loom-maintenances', [TextileManufacturingController::class, 'storeLoomMaintenance'])->name('textile.manufacturing.loom-maintenances.store');
+    Route::post('/textile/manufacturing/machine-plans', [TextileManufacturingController::class, 'storeMachinePlan'])->name('textile.manufacturing.machine-plans.store');
     Route::post('/textile/manufacturing/beams', [TextileManufacturingController::class, 'storeBeam'])->name('textile.manufacturing.beams.store');
     Route::post('/textile/manufacturing/beams/approve', [TextileManufacturingController::class, 'approveBeam'])->name('textile.manufacturing.beams.approve');
     Route::post('/textile/manufacturing/batches', [TextileManufacturingController::class, 'storeProductionBatch'])->name('textile.manufacturing.batches.store');

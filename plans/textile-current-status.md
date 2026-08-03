@@ -573,10 +573,13 @@ Progress note (2026-08-03):
 | Production Calendar | 🆕 New Module Required | P2 | `[ ]` |
 | Capacity Planning | 🆕 New Module Required | P2 | `[ ]` |
 | Shift Planning | 🆕 New Module Required | P2 | `[ ]` |
-| Machine Planning | 🟡 Extend Existing | P1 | `[~]` |
+| Machine Planning | 🟡 Extend Existing | P1 | `[x]` |
 | Material Planning | 🆕 New Module Required | P1 | `[ ]` |
 | Production Order | ✅ Already Available | P1 | `[x]` |
 | Production Schedule | 🆕 New Module Required | P2 | `[ ]` |
+
+- Domain 12 Machine Planning slice now supports loom-to-beam planning in Textile Manufacturing with controlled loom and approved-beam selectors, planned date, shift, quantity, unit, operator assignment, and records visibility under a dedicated Machine Planning submenu/tab.
+- Verification: `php artisan test tests/Feature/Textile/TextileManufacturingAdminTest.php tests/Feature/Textile/TextileMasterDataAdminTest.php` => pass; `npm run build` => pass (existing chunk-size warnings only).
 ### Domain 13: Weaving Production (8 features)
 
 | Task | Classification | Priority | Status |

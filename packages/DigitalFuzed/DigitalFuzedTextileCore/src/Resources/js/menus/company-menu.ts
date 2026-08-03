@@ -82,6 +82,10 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                         href: route('textile.manufacturing.index', { section: 'loom-management' }),
                     },
                     {
+                        title: t('Machine Planning'),
+                        href: route('textile.manufacturing.index', { section: 'machine-planning' }),
+                    },
+                    {
                         title: t('Weaving Output'),
                         href: route('textile.manufacturing.index', { section: 'weaving-output' }),
                     },
