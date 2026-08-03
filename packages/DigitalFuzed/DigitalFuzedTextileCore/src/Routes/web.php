@@ -21,6 +21,9 @@ use DigitalFuzed\TextileCore\Http\Controllers\TextileDispatchDriverController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileDispatchVehicleController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileDispatchRouteController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileTransportController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextileMaintenanceController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextileFinanceController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextileReportsController;
 
 Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->group(function () {
     Route::get('/textile/specifications', [TextileSpecificationController::class, 'index'])->name('textile.specifications.index');
@@ -199,6 +202,19 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/transport/fuel-entries', [TextileTransportController::class, 'storeFuelEntry'])->name('textile.transport.fuel-entries.store');
     Route::post('/textile/transport/freight-costs', [TextileTransportController::class, 'storeFreightCost'])->name('textile.transport.freight-costs.store');
     Route::post('/textile/transport/vehicle-maintenances', [TextileTransportController::class, 'storeVehicleMaintenance'])->name('textile.transport.vehicle-maintenances.store');
+    Route::get('/textile/maintenance', [TextileMaintenanceController::class, 'index'])->name('textile.maintenance.index');
+    Route::post('/textile/maintenance/pm-schedules', [TextileMaintenanceController::class, 'storePmSchedule'])->name('textile.maintenance.pm-schedules.store');
+    Route::post('/textile/maintenance/breakdowns', [TextileMaintenanceController::class, 'storeBreakdown'])->name('textile.maintenance.breakdowns.store');
+    Route::post('/textile/maintenance/service-schedules', [TextileMaintenanceController::class, 'storeServiceSchedule'])->name('textile.maintenance.service-schedules.store');
+    Route::post('/textile/maintenance/spare-part-usages', [TextileMaintenanceController::class, 'storeSparePartUsage'])->name('textile.maintenance.spare-part-usages.store');
+    Route::post('/textile/maintenance/maintenance-costs', [TextileMaintenanceController::class, 'storeMaintenanceCost'])->name('textile.maintenance.maintenance-costs.store');
+    Route::get('/textile/finance', [TextileFinanceController::class, 'index'])->name('textile.finance.index');
+    Route::post('/textile/finance/machine-costs', [TextileFinanceController::class, 'storeMachineCost'])->name('textile.finance.machine-costs.store');
+    Route::post('/textile/finance/power-costs', [TextileFinanceController::class, 'storePowerCost'])->name('textile.finance.power-costs.store');
+    Route::post('/textile/finance/chemical-costs', [TextileFinanceController::class, 'storeChemicalCost'])->name('textile.finance.chemical-costs.store');
+    Route::post('/textile/finance/labour-costs', [TextileFinanceController::class, 'storeLabourCost'])->name('textile.finance.labour-costs.store');
+    Route::get('/textile/reports', [TextileReportsController::class, 'index'])->name('textile.reports.index');
+    Route::get('/textile/reports/export', [TextileReportsController::class, 'export'])->name('textile.reports.export');
 
     Route::get('/textile/manufacturing', [TextileManufacturingController::class, 'index'])->name('textile.manufacturing.index');
     Route::post('/textile/manufacturing/warp-plans', [TextileManufacturingController::class, 'storeWarpPlan'])->name('textile.manufacturing.warp-plans.store');

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Activity, ShieldCheck } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import NoRecordsFound from '@/components/no-records-found';
+import { formatTextileLabel } from '@/components/textile/textile-form-options';
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
 import { TextileSectionGrid } from '@/components/textile/textile-section-grid';
@@ -58,10 +59,10 @@ export default function Index({ loginHistory, auditLogs }: { loginHistory: Login
                     data={auditLogs}
                     columns={[
                         { key: 'id', header: t('ID') },
-                        { key: 'event_type', header: t('Event') },
+                        { key: 'event_type', header: t('Event'), render: formatTextileLabel },
                         { key: 'creator_id', header: t('Actor') , render: optionalNumber },
                         { key: 'created_at', header: t('Created At'), render: optional },
-                        { key: 'payload', header: t('Context'), render: (value: AuditLogRow['payload']) => String((value?.document_number ?? value?.action ?? value?.entity_id ?? '-')) },
+                        { key: 'payload', header: t('Context'), render: (value: AuditLogRow['payload']) => formatTextileLabel(String(value?.document_number ?? value?.action ?? value?.entity_id ?? '')) },
                     ]}
                     emptyState={<NoRecordsFound icon={ShieldCheck} title={t('No textile audit logs found')} description={t('Workflow and costing audit logs will appear here.')} />}
                 />

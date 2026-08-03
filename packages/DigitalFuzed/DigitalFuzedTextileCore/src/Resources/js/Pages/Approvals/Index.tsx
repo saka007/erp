@@ -10,6 +10,7 @@ import { TextileField as Field } from '@/components/textile/textile-field';
 import { TextileFormCard } from '@/components/textile/textile-form-card';
 import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
+import { formatTextileLabel } from '@/components/textile/textile-form-options';
 
 interface ApprovalRule {
     id: number;
@@ -65,7 +66,7 @@ export default function Index({ rules, pendingApprovals, documents }: Props) {
     });
 
     const documentOptions = useMemo(
-        () => documents.map((doc) => ({ value: String(doc.id), label: `${doc.document_number} (${doc.document_type})` })),
+        () => documents.map((doc) => ({ value: String(doc.id), label: `${doc.document_number} (${formatTextileLabel(doc.document_type)})` })),
         [documents]
     );
 
@@ -84,7 +85,7 @@ export default function Index({ rules, pendingApprovals, documents }: Props) {
                                 });
                             }}
                         >
-                            <Field label={t('Document Type (optional)')} value={ruleForm.data.document_type} onChange={(v) => ruleForm.setData('document_type', v)} placeholder={t('purchase_requisition')} />
+                            <Field label={t('Document Type (optional)')} value={ruleForm.data.document_type} onChange={(v) => ruleForm.setData('document_type', v)} placeholder={formatTextileLabel('purchase_requisition')} />
                             <div className="grid grid-cols-2 gap-3">
                                 <Field label={t('From Status')} value={ruleForm.data.from_status} onChange={(v) => ruleForm.setData('from_status', v)} required />
                                 <Field label={t('To Status')} value={ruleForm.data.to_status} onChange={(v) => ruleForm.setData('to_status', v)} required />
@@ -139,9 +140,9 @@ export default function Index({ rules, pendingApprovals, documents }: Props) {
                 <TextileDataTableCard
                     data={rules}
                     columns={[
-                        { key: 'document_type', header: t('Document Type'), render: (value: string | null) => value || t('Any') },
-                        { key: 'from_status', header: t('From') },
-                        { key: 'to_status', header: t('To') },
+                        { key: 'document_type', header: t('Document Type'), render: (value: string | null) => formatTextileLabel(value ?? t('Any')) },
+                        { key: 'from_status', header: t('From'), render: formatTextileLabel },
+                        { key: 'to_status', header: t('To'), render: formatTextileLabel },
                         { key: 'required_approvals', header: t('Approvals') },
                     ]}
                     emptyState={<NoRecordsFound icon={ShieldCheck} title={t('No approval rules found')} description={t('Create rules to enforce document approvals before transitions.')} />}
@@ -151,8 +152,8 @@ export default function Index({ rules, pendingApprovals, documents }: Props) {
                     data={pendingApprovals}
                     columns={[
                         { key: 'document_number', header: t('Document') },
-                        { key: 'current_status', header: t('Current') },
-                        { key: 'next_status', header: t('Next') },
+                        { key: 'current_status', header: t('Current'), render: formatTextileLabel },
+                        { key: 'next_status', header: t('Next'), render: formatTextileLabel },
                         {
                             key: 'approved_count',
                             header: t('Progress'),

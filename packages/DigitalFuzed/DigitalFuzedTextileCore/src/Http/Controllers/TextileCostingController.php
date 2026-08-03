@@ -40,6 +40,7 @@ class TextileCostingController extends Controller
             'lot_reference' => ['nullable', 'string', 'max:100'],
             'quantity' => ['nullable', 'numeric', 'gt:0'],
             'unit' => ['nullable', 'string', 'max:50'],
+            'rolls_count' => ['nullable', 'numeric', 'gt:0'],
             'material_cost' => ['required', 'numeric', 'gte:0'],
             'conversion_cost' => ['required', 'numeric', 'gte:0'],
             'overhead_cost' => ['required', 'numeric', 'gte:0'],

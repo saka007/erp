@@ -65,6 +65,40 @@ For enterprise backlog items, this tracker also references feature classificatio
 
 Reference artifact: `plans/textile-enterprise-traceability-matrix.md`
 
+## UI Shell Redesign: workspace left-rail navigation (app-wide)
+
+Problem: workspace pages (Procurement, Manufacturing, Finance, Reports, etc.) use hardcoded tab bars with 2-14 tabs that wrap and overlap; the sidebar submenu (144 items, 3 levels) duplicates the same section list, and every page repeats the same section orchestration + KPI + form + table blocks (33 duplicated `grid gap-6 xl:grid-cols-2` blocks across 11 files).
+
+Target design: left-rail section navigation inside each workspace (Linear/Supabase pattern), deep-linked via `?section=`, with per-section KPIs. One registry + two shared components; no per-page duplication.
+
+### Phase 0 — Foundation (shared, single place)
+
+- [ ] `resources/js/components/textile/textile-workspaces.ts` — app-wide registry: every workspace `{ id, label, icon, route, capability, sections: [{ id, label, icon, capability? }] }`; drives sidebar menu AND workspace rails (single source of truth, no drift).
+- [ ] `TextileWorkspace` component — left rail (icon rail, collapsible), workspace header (title + breadcrumb), URL `?section=` handling, capability filtering, per-section KPI slot, standard `KPI -> form -> table` body via `TextileSection`.
+- [ ] `TextileSection` component — standard section body (KPI strip + form card + data table card) replacing the 33 duplicated grid blocks.
+- [ ] `useTextileSection()` hook — section param read/write; `useSectionKpis(rows)` helper — per-section status counts.
+- [ ] `company-menu.ts` — collapse submenu items to workspace level for rail-driven workspaces (menu becomes group > workspace, 2 levels; rail owns sections).
+
+### Phase 1 — Pilot
+
+- [ ] Refactor `Procurement` (6 sections) onto the registry + `TextileWorkspace`; verify tsc/build/browser + menu route diff.
+
+### Phase 2 — Workflow workspaces (rollout, smallest first)
+
+- [ ] `Sales` (3 sections) → `Transport` (3) → `Packing` (4) → `Dispatch` (2-6) → `Maintenance` (6) → `Finance` (7) → `Quality` (8) → `Manufacturing` (7, largest page 1873 lines, split during refactor) → `Processing` (11) → `Reports` (14; rail, revisit hub-cards only if sections grow independent filter bars).
+
+### Phase 3 — Master/CRUD pages (light touch)
+
+- [ ] `Masters`, `Specifications`, `Costing`, `Approvals`, `CostCenters`, `CustomFields`, `OperatingPolicy`, `Logs`, `DispatchVehicles`, `DispatchDrivers`, `DispatchRoutes` — adopt shared `TextileFormCard`/`TextileSection`/KPIs where duplicated; no rail needed (single-purpose pages).
+
+### Phase 4 — Dashboard decision
+
+- [ ] `Dashboard` (7 chart tabs) — decision: keep tabs (charts want horizontal space) or convert to rail; do not force one pattern on a charts-first page without a visual check.
+
+### Verification gate (per phase)
+
+- `npx tsc --noEmit` => 0 errors; `npm run build` => pass; `php artisan test tests/Feature/Textile` => pass; browser check of every refactored workspace (rail renders, `?section=` deep links work, capability filtering respected); `route()` diff between menu/registry and `php artisan route:list` => empty.
+
 ## Layer 1: Phase-1 baseline (delivered)
 
 ## Platform access and tenant enablement
@@ -832,7 +866,7 @@ Progress note (2026-08-03):
 - Domain 19 transport vendor progression: transport vendor selection is now linked to Account Vendor master (`supplier_type=transport`) across Driver, Vehicle, Route setup modules and Dispatch planning/tracking (`transport_vendor_id` + `transport_vendor_name` metadata), with Supplier Setup navigation entry for Transport Vendors.
 - Own vs vendor handling is explicit: Driver now has `driver_source` (`own`/`vendor`) and Vehicle ownership (`owned`/`hired`/`vendor`) is enforced; transport vendor is required only when source/ownership is vendor.
 - Transport operating policy: Operating Model settings grid now exposes `Own Transport` and `Vendor Transport` toggles (`has_transport_own`/`has_transport_vendor`, default both on); Driver and Vehicle setup reject vendor mode when vendor transport is disabled and own mode when own transport is disabled (`assertTransportModeAllowed`).
-- Transport workspace (Domain 19): new `Daily Operations > Dispatch > Transport` workspace with Fuel, Freight Cost and Vehicle Maintenance tabs; each tab follows KPI cards -> form -> table layout; all records are tenant-scoped with denormalized vehicle/driver/route/vendor snapshots.
+- Transport workspace (Domain 19): new `Daily Operations > Transport` workspace with Fuel, Freight Cost and Vehicle Maintenance tabs; each tab follows KPI cards -> form -> table layout; all records are tenant-scoped with denormalized vehicle/driver/route/vendor snapshots.
 - Transport masters: `Master Setup > Transport Setup` added with Fuel Types, Freight Types and Maintenance Types (domain `transport`) consumed via select controls in the workspace forms (no free-text).
 - Verification: `php artisan test tests/Feature/Textile/TextileTransportAdminTest.php` => pass (1 test, 20 assertions: fuel/freight/maintenance store, denormalized names, tenant isolation); `php artisan test tests/Feature/Textile/TextileDispatchSetupAdminTest.php tests/Feature/Textile/TextileDispatchAdminTest.php` => pass (2 tests, 62 assertions); `npm run build` => pass (existing chunk-size warnings only).
 
@@ -840,10 +874,10 @@ UI Verification (Domain 19)
 
 | Feature | Menu/Submenu | Direct URL |
 |---|---|---|
-| Transport Workspace | Daily Operations > Dispatch > Transport | `/textile/transport` |
-| Fuel | Daily Operations > Dispatch > Transport > Fuel | `/textile/transport?section=fuel` |
-| Freight Cost | Daily Operations > Dispatch > Transport > Freight Cost | `/textile/transport?section=freight-cost` |
-| Vehicle Maintenance | Daily Operations > Dispatch > Transport > Vehicle Maintenance | `/textile/transport?section=vehicle-maintenance` |
+| Transport Workspace | Daily Operations > Transport | `/textile/transport` |
+| Fuel | Daily Operations > Transport > Fuel | `/textile/transport?section=fuel` |
+| Freight Cost | Daily Operations > Transport > Freight Cost | `/textile/transport?section=freight-cost` |
+| Vehicle Maintenance | Daily Operations > Transport > Vehicle Maintenance | `/textile/transport?section=vehicle-maintenance` |
 | Fuel Types | Master Setup > Transport Setup > Fuel Types | `/textile/master-setup/transport/fuel-types` |
 | Freight Types | Master Setup > Transport Setup > Freight Types | `/textile/master-setup/transport/freight-types` |
 | Maintenance Types | Master Setup > Transport Setup > Maintenance Types | `/textile/master-setup/transport/maintenance-types` |
@@ -851,6 +885,7 @@ UI Verification (Domain 19)
 
 Progress note (2026-08-04):
 
+- Demo data seeder shipped: `php artisan textile:demo {user?}` (defaults to first company user) seeds realistic demo data across every module — masters + reference masters (152), workflow documents (35, incl. full weave-to-dispatch chain), inventory lots/movements, maintenance (PM schedules, breakdowns, service schedule, spare parts, costs), finance (machine/power/chemical/labour costs), transport (drivers, vehicles, routes, fuel, freight, vehicle maintenance), HR (departments, shifts, employees, attendance), approvals + audit logs. Idempotent via `updateOrCreate` (re-run safe). Verified: all 26 tables populated on real MySQL, re-run keeps counts identical (workflow_docs 35, attendances 4, movements 3).
 - Sitewide 500s fixed: pending textile migrations (000007-000014) were applied to the real MySQL DB (`migrate:status` => 0 pending); root cause was tests using a separate test DB masking missing tables.
 - `TextileApprovalAdminTest` fixed: seeds a jobwork operating policy (sales disabled) for companyA and asserts `auth.user.textile_capabilities.sales_order` is `false` via `assertInertia`; suite now passes (18 assertions).
 - Frontend type-checking enabled for packages: root `tsconfig.json` now includes `packages/DigitalFuzed/DigitalFuzedTextileCore` and `DigitalFuzedTextileInventory` JS (scoped to textile packages to keep the `tsc` build step green; legacy packages were never type-checked and are out of scope). `npx tsc --noEmit` => 0 errors; `npm run build` => pass.
@@ -864,13 +899,19 @@ Progress note (2026-08-04):
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| Preventive Maintenance | 🆕 New Module Required | P2 | `[ ]` |
-| Breakdown | 🆕 New Module Required | P2 | `[ ]` |
-| Service Schedule | 🆕 New Module Required | P2 | `[ ]` |
-| Spare Parts | 🟡 Extend Existing | P2 | `[~]` |
-| Machine History | 🟡 Extend Existing | P2 | `[~]` |
-| Downtime | 🟡 Extend Existing | P2 | `[~]` |
-| Maintenance Cost | 🔵 Modify Existing | P2 | `[~]` |
+| Preventive Maintenance | 🆕 New Module Required | P2 | `[x]` |
+| Breakdown | 🆕 New Module Required | P2 | `[x]` |
+| Service Schedule | 🆕 New Module Required | P2 | `[x]` |
+| Spare Parts | 🟡 Extend Existing | P2 | `[x]` |
+| Machine History | 🟡 Extend Existing | P2 | `[x]` |
+| Downtime | 🟡 Extend Existing | P2 | `[x]` |
+| Maintenance Cost | 🔵 Modify Existing | P2 | `[x]` |
+
+- Maintenance workspace (Domain 20): new `Daily Operations > Maintenance` workspace with Preventive Maintenance, Breakdowns, Service Schedule, Spare Parts, Maintenance Cost and Machine History tabs; each tab follows KPI cards -> form -> table layout; machines come from approved loom masters (`loom_master` workflow documents) via select controls — no free-text machine names; PM frequency is a controlled select (days/hours/cycles), breakdown symptom is a controlled select from Breakdown Reasons master (`breakdown_reason`), maintenance type from Maintenance Types master (`maintenance_type`).
+- Downtime covered: breakdowns record `downtime_minutes`; the Maintenance Overview KPIs show Total Downtime and Open Breakdowns; machine history merges PM/breakdown/service/cost events into a per-machine timeline with machine filter.
+- Denormalization: every record snapshots `machine_name` (= loom document number) and `machine_type` at save time; spare part usage resolves `machine_name` from the linked PM/breakdown/service record; computed totals are stored (spare part `total_cost` = quantity × unit_cost; cost `total_cost` = labor + parts + external).
+- Tenant safety: all five record tables store `created_by`/`creator_id` and are scoped on read/write; capability `maintenance_operations` gated via operating policy (`SETTING_HAS_MAINTENANCE`).
+- Verification: `php artisan migrate --force` => 5 migrations applied (000015-000019); `php artisan test tests/Feature/Textile/TextileMaintenanceAdminTest.php` => pass (1 test, 32 assertions: all 5 stores, denormalized machine names, computed totals, tenant isolation); full suite `php artisan test tests/Feature/Textile/` => 55 passed (918 assertions); `npx tsc --noEmit` => 0 errors; `npm run build` => pass; route diff menu vs `route:list` => empty.
 ### Domain 21: HR (10 features)
 
 | Task | Classification | Priority | Status |
@@ -892,48 +933,70 @@ Progress note (2026-08-04):
 | Journal | ✅ Already Available | P2 | `[x]` |
 | Cost Centers | 🆕 New Module Required | P1 | `[x]` |
 | Production Cost | ✅ Already Available | P1 | `[x]` |
-| Cost Per Meter | 🔵 Modify Existing | P2 | `[~]` |
-| Cost Per Roll | 🔵 Modify Existing | P2 | `[~]` |
-| Machine Cost | 🔵 Modify Existing | P2 | `[~]` |
-| Power Cost | 🆕 New Module Required | P2 | `[ ]` |
-| Chemical Cost | 🔵 Modify Existing | P2 | `[~]` |
-| Labour Cost | 🔵 Modify Existing | P2 | `[~]` |
-| Profitability | 🔵 Modify Existing | P2 | `[~]` |
+| Cost Per Meter | 🔵 Modify Existing | P2 | `[x]` |
+| Cost Per Roll | 🔵 Modify Existing | P2 | `[x]` |
+| Machine Cost | 🔵 Modify Existing | P2 | `[x]` |
+| Power Cost | 🆕 New Module Required | P2 | `[x]` |
+| Chemical Cost | 🔵 Modify Existing | P2 | `[x]` |
+| Labour Cost | 🔵 Modify Existing | P2 | `[x]` |
+| Profitability | 🔵 Modify Existing | P2 | `[x]` |
+
+- Finance workspace (Domain 22): new `Insights > Finance` workspace with Cost Per Meter, Cost Per Roll, Machine Cost, Power Cost, Chemical Cost, Labour Cost and Profitability tabs; each cost tab follows KPI cards -> form -> table layout (KPI overview shows Total Revenue, Total Cost, Margin %, Cost Per Meter 4dp, Cost Per Roll 2dp, Operating Costs).
+- Computed metrics: cost per meter is derived from approved costing entries (total cost ÷ meters, weighted average); cost per roll requires `rolls_count` captured on the costing entry form (total cost ÷ rolls, average); profitability = margin snapshots (revenue − product cost) minus operating costs summed from maintenance, machine, power, chemical and labour record tables, returned with margin value/percent and a per-cost-type breakdown.
+- Controlled selects: machine comes from approved loom masters (`loom_master` workflow documents) via select controls, cost center from the Cost Centers master (`textile_cost_centers`), process stage and shift from controlled option lists — no free-text values; machine type options come from the Machine Types master via `referenceOptions` with fallback.
+- Denormalization: every cost record snapshots its reference (machine `machine_name`/`machine_type`, cost center `cost_center_name`/`shift_name`); computed totals are stored (machine = dep + maintenance + power + labor + other; power units = end − start reading, total = units × rate; chemical = qty × unit cost; labour = workers × hours × rate).
+- Tenant safety: all four cost tables store `created_by`/`creator_id` and are scoped on read/write; Finance follows the Costing precedent — company/superadmin access only, no capability gating.
+- Verification: `php artisan migrate --force` => 4 migrations applied (000020-000023); `php artisan test tests/Feature/Textile/TextileFinanceAdminTest.php` => pass (2 tests, 35 assertions: all 4 stores + computed totals + denormalized refs + tenant isolation; cost-per-roll computed from costing entry rolls_count); full suite `php artisan test tests/Feature/Textile/` => 57 passed (953 assertions); `npx tsc --noEmit` => 0 errors; `npm run build` => pass; route diff menu vs `route:list` => empty.
+- Navigation: menu `Insights > Finance`; URLs `/textile/finance` and `/textile/finance?section=cost-per-meter|cost-per-roll|machine-cost|power-cost|chemical-cost|labour-cost|profitability`; breadcrumb + page title render from the shared authenticated layout; tab selection is a controlled selector synced to the URL section param.
 ### Domain 23: Reports (12 features)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| Production Reports | 🟡 Extend Existing | P2 | `[~]` |
-| Loom Reports | 🟡 Extend Existing | P2 | `[~]` |
-| Operator Reports | 🟡 Extend Existing | P2 | `[~]` |
-| Yarn Consumption | 🟡 Extend Existing | P2 | `[~]` |
-| Beam Reports | 🟡 Extend Existing | P2 | `[~]` |
-| Grey Fabric Reports | 🟡 Extend Existing | P2 | `[~]` |
-| Finished Fabric Reports | 🟡 Extend Existing | P2 | `[~]` |
-| Dispatch Reports | 🟡 Extend Existing | P2 | `[~]` |
-| Purchase Reports | 🟡 Extend Existing | P2 | `[~]` |
-| Sales Reports | 🟡 Extend Existing | P2 | `[~]` |
-| Stock Reports | 🟡 Extend Existing | P2 | `[~]` |
-| Profit Reports | 🔵 Modify Existing | P2 | `[~]` |
-| Machine Efficiency | 🟡 Extend Existing | P2 | `[~]` |
-| Waste Analysis | 🟡 Extend Existing | P2 | `[~]` |
-| Power Consumption | 🆕 New Module Required | P3 | `[ ]` |
-| Daily MIS | 🟡 Extend Existing | P2 | `[~]` |
+| Production Reports | 🟡 Extend Existing | P2 | `[x]` |
+| Loom Reports | 🟡 Extend Existing | P2 | `[x]` |
+| Operator Reports | 🟡 Extend Existing | P2 | `[x]` |
+| Yarn Consumption | 🟡 Extend Existing | P2 | `[x]` |
+| Beam Reports | 🟡 Extend Existing | P2 | `[x]` |
+| Grey Fabric Reports | 🟡 Extend Existing | P2 | `[x]` |
+| Finished Fabric Reports | 🟡 Extend Existing | P2 | `[x]` |
+| Dispatch Reports | 🟡 Extend Existing | P2 | `[x]` |
+| Purchase Reports | 🟡 Extend Existing | P2 | `[x]` |
+| Sales Reports | 🟡 Extend Existing | P2 | `[x]` |
+| Stock Reports | 🟡 Extend Existing | P2 | `[x]` |
+| Profit Reports | 🔵 Modify Existing | P2 | `[x]` |
+| Machine Efficiency | 🟡 Extend Existing | P2 | `[x]` |
+| Waste Analysis | 🟡 Extend Existing | P2 | `[x]` |
+| Power Consumption | 🆕 New Module Required | P3 | `[x]` |
+| Daily MIS | 🟡 Extend Existing | P2 | `[x]` |
+
+- Reports workspace (Domain 23): new `Insights > Reports` workspace with 16 tabs (Production, Loom, Operator, Yarn, Beam, Grey Fabric, Finished, Dispatch, Purchase, Sales, Stock, Profit, Efficiency, Waste, Power, Daily MIS); each tab follows KPI cards -> table layout with a global date-range filter (from/to) applied to all reports; tab selection synced to the URL `section` param.
+- Report sources: Production = production_batch/weaving_output/shift_production workflow documents; Loom = loom_master + breakdowns + loom_efficiency; Operator = operator_efficiency; Yarn = yarn_allocation + chemical_consumption; Beam = beam/beam_issue/beam_return/beam_inspection; Grey Fabric = grey_fabric_roll; Finished Fabric = active textile lots; Dispatch = dispatch_plan (freight from metadata); Purchase = purchase_order/purchase_requisition/grn; Sales = sales_order; Stock = textile movements; Profit = margin_snapshots; Efficiency = loom_efficiency; Waste = waste + rework; Power = textile_power_costs; Daily MIS = day-wise production/dispatch/revenue/waste aggregate.
+- Table export: shared `DataTable` (used by all textile tables) ships four separate export buttons — CSV, Excel, PDF, Print — next to the search box (no dropdown), exporting the currently filtered rows; new `resources/js/lib/table-export.ts` helper; `TextileDataTableCard`/`TextileDataTableSection` forward `exportable`/`exportFilename` props.
+- Server-side export: Excel and PDF are true server-generated files, not browser print dialogs — `GET /textile/reports/export?section=<tab>&format=xlsx|pdf&from=&to=`; Excel via PhpSpreadsheet (`phpoffice/phpspreadsheet`, bold headers, auto-sized columns), PDF via Dompdf (`barryvdh/laravel-dompdf`, blade template `digitalfuzed-textile-core::reports.export` with generated-at + period meta); per-section server column maps (`COLUMNS`) mirror the frontend tables; filename slugs the report title with optional `-from-to` period suffix; section/format fall back to `production`/`xlsx` when invalid; `TextileDataTableCard` gains `exportUrl` so Excel/PDF hit the server endpoint while CSV/Print stay client-side.
+- Tenant safety: every report query scopes `created_by` to the current tenant (workflow documents, lots, movements, power costs, breakdowns); the service falls back to unscoped when no auth context (safe for console use).
+- Verification: `php artisan test tests/Feature/Textile/TextileReportsAdminTest.php` => pass (3 tests, 84 assertions: all 16 report shapes on the page, aggregation values, date filters, company A/B isolation, xlsx content-type + zip shared-strings tenant isolation, pdf content-type via dompdf, invalid section/format fallbacks); full suite `php artisan test tests/Feature/Textile/` => 60 passed (1037 assertions); `npx tsc --noEmit` => 0 errors; `npm run build` => pass; route diff menu vs `route:list` => empty.
+- Navigation: menu `Insights > Reports`; URL `/textile/reports` and `/textile/reports?section=production|loom|operator|yarn-consumption|beam|grey-fabric|finished-fabric|dispatch|purchase|sales|stock|profit|machine-efficiency|waste-analysis|power-consumption|daily-mis`; export URL `/textile/reports/export?section=&format=xlsx|pdf&from=&to=`; breadcrumb + page title render from the shared authenticated layout; date filters are controlled inputs synced to `from`/`to` URL params.
 | Monthly MIS | 🟡 Extend Existing | P2 | `[~]` |
 | Annual MIS | 🟡 Extend Existing | P3 | `[~]` |
 ### Domain 24: Dashboards (9 features)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| CEO Dashboard | 🟡 Extend Existing | P2 | `[~]` |
-| Factory Dashboard | 🟡 Extend Existing | P2 | `[~]` |
+| CEO Dashboard | 🟡 Extend Existing | P2 | `[x]` |
+| Factory Dashboard | 🟡 Extend Existing | P2 | `[x]` |
 | Production Dashboard | ✅ Already Available | P1 | `[x]` |
-| Purchase Dashboard | 🟡 Extend Existing | P2 | `[~]` |
-| Inventory Dashboard | 🟡 Extend Existing | P2 | `[~]` |
-| Sales Dashboard | 🟡 Extend Existing | P2 | `[~]` |
-| Finance Dashboard | 🟡 Extend Existing | P2 | `[~]` |
-| Maintenance Dashboard | 🟡 Extend Existing | P2 | `[~]` |
-| HR Dashboard | 🟡 Extend Existing | P2 | `[~]` |
+| Purchase Dashboard | 🟡 Extend Existing | P2 | `[x]` |
+| Inventory Dashboard | 🟡 Extend Existing | P2 | `[x]` |
+| Sales Dashboard | 🟡 Extend Existing | P2 | `[x]` |
+| Finance Dashboard | 🟡 Extend Existing | P2 | `[x]` |
+| Maintenance Dashboard | 🟡 Extend Existing | P2 | `[x]` |
+| HR Dashboard | 🟡 Extend Existing | P2 | `[x]` |
+
+- CEO + Factory dashboard (Domain 24): the `Textile > Dashboard` workspace was rebuilt as a modern charts-first overview using `recharts` (already vendored) — 6 gradient KPI cards (Total Revenue with 30d delta hint, Total Cost, Total Margin, Margin %, Workflow Documents, In Progress) -> 4 chart panels: Production Trend (area, daily output vs dispatch, last 14 days), Revenue vs Cost (multi-line from margin snapshots), Document Mix (donut, top 8 types), Status Distribution (bar), Machine Efficiency (horizontal bar, latest % per loom), Power Consumption (units + cost per billing period); empty states render a NoRecordsFound-style placeholder instead of a blank chart; recent documents table + login/audit activity cards retained below.
+- Dashboard data source: new `TextileDashboardService` (productionTrend/dispatchTrend from production_batch + weaving_output + shift_production and dispatch_plan grouped per day, financialTrend + revenue delta from margin_snapshot metadata, machineEfficiency latest log per loom, powerTrend from TextilePowerCost, kpis via TextileCostingService::summary + workflow counts); controller passes existing props unchanged plus `kpis`, `productionTrend`, `dispatchTrend`, `financialTrend`, `machineEfficiency`, `powerTrend`, `statusDistribution`, `typeDistribution`.
+- Verification: `php artisan test tests/Feature/Textile/TextileDashboardAdminTest.php` => pass (2 tests, 80 assertions: chart series lengths, per-day quantities 250 total, financial 5000/3000/2000, machine efficiency 88.5, power 750/6000, KPI strings with thousand separators, status/type distributions, company A/B isolation on every series); full textile suite => 61 passed (1092 assertions); `npx tsc --noEmit` => 0 errors; `npm run build` => pass.
+- Domain sub-dashboards (Purchase / Inventory / Sales / Finance / Maintenance / HR): the dashboard page is now a 7-tab workspace (`?view=overview|purchase|inventory|sales|finance|maintenance|hr`, tab clicks via `router.get` with `preserveState` so chart state survives switching) — each domain tab renders its own 6 KPI cards + trend/chart panels in the shared `panels.tsx` (`KpiRow`, `KpiCard`, `ChartCard`, `Donut`, `VerticalBars`, `ChartEmpty`, `CHART_COLORS`); `TextileDashboardService` gained tenant-scoped `purchase()` (docs/orders/requisitions/GRN qty + trend + status + top-5 types), `inventory()` (lots/available/allocated + 4-series movement trend + lot status), `sales()` (orders/qty/approved/released/in-progress + trend + status), `finance()` (costing summary KPIs + cost breakdown across Power/Chemicals/Labour/Machines/Maintenance + financial trend + power trend), `maintenance()` (breakdowns/open/downtime hrs/cost + daily trend + downtime by machine + cost trend), `hr()` (employees/departments/today's attendance/overtime/hours/absent + attendance trend + headcount by department, from `Workdo\Hrm` models); every query scoped `created_by` to the tenant.
+- Verification: `php artisan test tests/Feature/Textile/TextileDashboardAdminTest.php` => pass (3 tests, 148 assertions incl. `test_domain_dashboards_provide_tenant_scoped_data`: per-domain KPI values, purchase trend 190, movement receipt 50/issue 10, cost breakdown Chemicals 1200/Power 6000, downtime 1.50 hrs + maintenance cost 5,000.00, HR attendance 2 + Weaving headcount 1, company B sees zero domain data); full textile suite => 62 passed (1160 assertions); `npx tsc --noEmit` => 0 errors; `npm run build` => pass.
 ### Domain 25: Mobile (5 features)
 
 | Task | Classification | Priority | Status |

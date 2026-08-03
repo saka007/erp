@@ -22,6 +22,11 @@ class TextileCoreServiceProvider extends ServiceProvider
         if (is_dir($migrationsPath)) {
             $this->loadMigrationsFrom($migrationsPath);
         }
+
+        $viewsPath = __DIR__.'/../Resources/views';
+        if (is_dir($viewsPath)) {
+            $this->loadViewsFrom($viewsPath, 'digitalfuzed-textile-core');
+        }
     }
 
     public function register(): void

@@ -3,8 +3,15 @@ import { Card, CardContent, CardHeader } from './card';
 import { Input } from './input';
 import { Button } from './button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './table';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, ChevronLeft, ChevronRight, FileDown, FileSpreadsheet, FileText, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { tableRows, downloadCsv, downloadExcelHtml, printTable } from '@/lib/table-export';
+import { formatTextileLabel } from '@/components/textile/textile-form-options';
+
+function formatCellValue(value: unknown): React.ReactNode {
+  if (value === null || value === undefined || value === '') return '-';
+  return typeof value === 'string' ? formatTextileLabel(value) : (value as React.ReactNode);
+}
 
 export interface Column<T = any> {
   key: string;
@@ -26,6 +33,9 @@ export interface DataTableProps<T = any> {
   searchPlaceholder?: string;
   pageSize?: number;
   showPagination?: boolean;
+  exportable?: boolean;
+  exportFilename?: string;
+  exportUrl?: string;
   rowProps?: (row: T, index: number) => React.HTMLAttributes<HTMLTableRowElement>;
 }
 
@@ -41,6 +51,9 @@ export function DataTable<T = any>({
   searchPlaceholder = "Search...",
   pageSize = 10,
   showPagination = false,
+  exportable = false,
+  exportFilename = "export",
+  exportUrl,
   rowProps
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -80,21 +93,71 @@ export function DataTable<T = any>({
     setCurrentPage(page);
   };
 
+  const exportRows = () => tableRows(filteredData, columns);
+  const exportHeaders = () => columns.map((column) => column.header);
+
+  const handleExport = (format: 'csv' | 'excel' | 'pdf' | 'print') => {
+    if ((format === 'excel' || format === 'pdf') && exportUrl) {
+      window.location.href = `${exportUrl}${exportUrl.includes('?') ? '&' : '?'}format=${format}`;
+      return;
+    }
+    const title = exportFilename.replace(/[-_]/g, ' ');
+    const hint = `${filteredData.length} rows exported on ${new Date().toLocaleString()}`;
+    switch (format) {
+      case 'csv':
+        downloadCsv(exportRows(), exportHeaders(), exportFilename);
+        break;
+      case 'excel':
+        downloadExcelHtml(exportRows(), exportHeaders(), exportFilename);
+        break;
+      case 'pdf':
+        printTable(title, exportHeaders(), exportRows(), `${hint} — use Save as PDF`);
+        break;
+      case 'print':
+        printTable(title, exportHeaders(), exportRows(), hint);
+        break;
+    }
+  };
+
   return (
     <Card className={className}>
-      {searchable && (
+      {(searchable || exportable) && (
         <CardHeader className="pb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder={searchPlaceholder}
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="pl-10"
-            />
+          <div className="flex items-center gap-2">
+            {searchable && (
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder={searchPlaceholder}
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="pl-10"
+                />
+              </div>
+            )}
+            {exportable && (
+              <div className="flex items-center gap-1.5">
+                <Button variant="outline" size="sm" disabled={filteredData.length === 0} onClick={() => handleExport('csv')} title="Export CSV">
+                  <FileText className="mr-1.5 h-4 w-4" />
+                  CSV
+                </Button>
+                <Button variant="outline" size="sm" disabled={filteredData.length === 0} onClick={() => handleExport('excel')} title="Export Excel">
+                  <FileSpreadsheet className="mr-1.5 h-4 w-4" />
+                  Excel
+                </Button>
+                <Button variant="outline" size="sm" disabled={filteredData.length === 0} onClick={() => handleExport('pdf')} title="Export PDF">
+                  <FileDown className="mr-1.5 h-4 w-4" />
+                  PDF
+                </Button>
+                <Button variant="outline" size="sm" disabled={filteredData.length === 0} onClick={() => handleExport('print')} title="Print table">
+                  <Printer className="mr-1.5 h-4 w-4" />
+                  Print
+                </Button>
+              </div>
+            )}
           </div>
         </CardHeader>
       )}
@@ -131,7 +194,7 @@ export function DataTable<T = any>({
                     <TableCell key={column.key} className={column.className}>
                       {column.render
                         ? column.render((row as any)[column.key], row, index)
-                        : (row as any)[column.key] || '-'
+                        : formatCellValue((row as any)[column.key])
                       }
                     </TableCell>
                   ))}

@@ -10,7 +10,7 @@ import { TextileFormCard } from '@/components/textile/textile-form-card';
 import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
-import { buildUnitOptions } from '@/components/textile/textile-form-options';
+import { buildUnitOptions, formatTextileLabel } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 import { PageProps } from '@/types';
 
@@ -472,10 +472,10 @@ export default function Index({
                                 { key: 'document_number', header: t('Document') },
                                 { key: 'party_name', header: t('Party') },
                                 { key: 'lot_reference', header: t('Lot') },
-                                { key: 'claim_type', header: t('Claim Type'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.claim_type ?? '-') },
+                                { key: 'claim_type', header: t('Claim Type'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.claim_type ?? '')) },
                                 { key: 'claim_amount', header: t('Claim Amount'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.claim_amount ?? '-') },
-                                { key: 'resolution_type', header: t('Resolution'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.resolution_type ?? '-') },
-                                { key: 'status', header: t('Status') },
+                                { key: 'resolution_type', header: t('Resolution'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.resolution_type ?? '')) },
+                                { key: 'status', header: t('Status'), render: formatTextileLabel },
                                 {
                                     key: 'actions',
                                     header: t('Actions'),

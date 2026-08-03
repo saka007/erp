@@ -11,6 +11,18 @@ export function formatTextileOptionLabel(value: string): string {
         .replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
+/**
+ * Safe label formatter for displayed values. Title-cases snake_case and
+ * lowercase controlled values (purchase_requisition -> Purchase Requisition,
+ * draft -> Draft) but leaves codes and identifiers untouched (PO-0001, LOT-D-001).
+ */
+export function formatTextileLabel(value: string | null | undefined): string {
+    if (!value) return '-';
+    if (value.includes('_')) return formatTextileOptionLabel(value);
+    if (/^[a-z][a-z ]*$/.test(value)) return formatTextileOptionLabel(value);
+    return value;
+}
+
 const defaultUnitOptions = ['kg', 'mtr', 'pcs', 'cone', 'roll', 'set', 'rpm'];
 
 export const textileSourceTypeOptions: TextileOption[] = [

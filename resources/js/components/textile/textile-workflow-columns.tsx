@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
+import { formatTextileLabel } from '@/components/textile/textile-form-options';
 
 export interface TextileWorkflowRow {
     id: number;
@@ -121,7 +122,7 @@ export function createTextileWorkflowColumns(
         columns.push({ key: 'purchase_invoice_id', header: t('Invoice ID'), render: optionalNumber });
     }
 
-    columns.push({ key: 'status', header: t('Status') });
+    columns.push({ key: 'status', header: t('Status'), render: formatTextileLabel });
 
     if (actions) {
         columns.push({

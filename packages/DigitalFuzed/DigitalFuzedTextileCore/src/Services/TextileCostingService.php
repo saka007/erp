@@ -27,6 +27,7 @@ class TextileCostingService
             'overhead_cost' => (float) ($payload['overhead_cost'] ?? 0),
             'revenue_value' => (float) ($payload['revenue_value'] ?? 0),
             'variance_value' => (float) ($payload['variance_value'] ?? 0),
+            'rolls_count' => isset($payload['rolls_count']) && $payload['rolls_count'] !== '' ? (float) $payload['rolls_count'] : null,
             'notes' => $payload['notes'] ?? null,
         ];
 

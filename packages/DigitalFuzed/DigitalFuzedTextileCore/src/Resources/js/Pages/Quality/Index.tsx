@@ -10,7 +10,7 @@ import { TextileSelectField as SelectField } from '@/components/textile/textile-
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { TextileDataTableSection } from '@/components/textile/textile-data-table-section';
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
-import { buildUnitOptions, formatTextileOptionLabel } from '@/components/textile/textile-form-options';
+import { buildUnitOptions, formatTextileLabel, formatTextileOptionLabel } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 import { PageProps } from '@/types';
 
@@ -431,8 +431,8 @@ export default function Index({
                                     },
                                 ]),
                             }).concat([
-                                { key: 'qc_stage', header: t('QC Stage'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.qc_stage ?? '-') },
-                                { key: 'inspection_result', header: t('Result'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.inspection_result ?? '-') },
+                                { key: 'qc_stage', header: t('QC Stage'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.qc_stage ?? '')) },
+                                { key: 'inspection_result', header: t('Result'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.inspection_result ?? '')) },
                                 { key: 'defects', header: t('Defects'), render: (_value: unknown, row: WorkflowDocument) => (row.metadata?.defects ?? []).join(', ') || '-' },
                                 { key: 'decision', header: t('Decision'), render: (_value: unknown, row: WorkflowDocument) => normalizeDecisionFilter(row) },
                             ])}

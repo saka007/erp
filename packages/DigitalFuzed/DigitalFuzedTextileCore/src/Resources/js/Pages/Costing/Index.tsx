@@ -10,6 +10,7 @@ import { TextileField as Field } from '@/components/textile/textile-field';
 import { TextileFormCard } from '@/components/textile/textile-form-card';
 import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
+import { formatTextileLabel } from '@/components/textile/textile-form-options';
 
 interface WorkflowDocument {
     id: number;
@@ -61,6 +62,7 @@ export default function Index({
         lot_reference: '',
         quantity: '',
         unit: 'mtr',
+        rolls_count: '',
         material_cost: '',
         conversion_cost: '',
         overhead_cost: '',
@@ -89,7 +91,7 @@ export default function Index({
                             onSubmit={(event) => {
                                 event.preventDefault();
                                 entryForm.post(route('textile.costing.entries.store'), {
-                                    onSuccess: () => entryForm.reset('source_document_id', 'party_name', 'lot_reference', 'quantity', 'material_cost', 'conversion_cost', 'overhead_cost', 'variance_value', 'revenue_value', 'notes'),
+                                    onSuccess: () => entryForm.reset('source_document_id', 'party_name', 'lot_reference', 'quantity', 'rolls_count', 'material_cost', 'conversion_cost', 'overhead_cost', 'variance_value', 'revenue_value', 'notes'),
                                 });
                             }}
                         >
@@ -100,6 +102,7 @@ export default function Index({
                                 <Field label={t('Quantity')} type="number" value={entryForm.data.quantity} onChange={(value) => entryForm.setData('quantity', value)} />
                                 <Field label={t('Unit')} value={entryForm.data.unit} onChange={(value) => entryForm.setData('unit', value)} />
                             </div>
+                            <Field label={t('Rolls Count')} type="number" value={entryForm.data.rolls_count} onChange={(value) => entryForm.setData('rolls_count', value)} />
                             <div className="grid grid-cols-2 gap-3">
                                 <Field label={t('Material Cost')} type="number" value={entryForm.data.material_cost} onChange={(value) => entryForm.setData('material_cost', value)} required />
                                 <Field label={t('Conversion Cost')} type="number" value={entryForm.data.conversion_cost} onChange={(value) => entryForm.setData('conversion_cost', value)} required />
@@ -137,10 +140,10 @@ export default function Index({
                             data={eligibleSources}
                             columns={[
                                 { key: 'id', header: t('ID') },
-                                { key: 'document_type', header: t('Type') },
+                                { key: 'document_type', header: t('Type'), render: formatTextileLabel },
                                 { key: 'document_number', header: t('Number') },
                                 { key: 'lot_reference', header: t('Lot'), render: optional },
-                                { key: 'status', header: t('Status') },
+                                { key: 'status', header: t('Status'), render: formatTextileLabel },
                             ]}
                             emptyState={<NoRecordsFound icon={Calculator} title={t('No eligible source documents')} description={t('Approved or released textile workflow documents will be available for costing.')} />}
                         />
@@ -155,7 +158,7 @@ export default function Index({
                         { key: 'document_number', header: t('Number') },
                         { key: 'lot_reference', header: t('Lot'), render: optional },
                         { key: 'quantity', header: t('Qty') },
-                        { key: 'status', header: t('Status') },
+                        { key: 'status', header: t('Status'), render: formatTextileLabel },
                         { key: 'metadata', header: t('Total Cost'), render: (value: WorkflowDocument['metadata']) => String(value?.total_cost ?? '-') },
                     ]}
                     emptyState={<NoRecordsFound icon={Calculator} title={t('No costing entries found')} description={t('Capture a costing entry to start margin tracking.')} />}
@@ -167,7 +170,7 @@ export default function Index({
                         { key: 'id', header: t('ID') },
                         { key: 'document_number', header: t('Number') },
                         { key: 'lot_reference', header: t('Lot'), render: optional },
-                        { key: 'status', header: t('Status') },
+                        { key: 'status', header: t('Status'), render: formatTextileLabel },
                         { key: 'metadata', header: t('Margin'), render: (value: WorkflowDocument['metadata']) => String(value?.margin_value ?? '-') },
                         { key: 'metadata_percent', header: t('Margin %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.margin_percent ?? '-') },
                     ]}

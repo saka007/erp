@@ -11,7 +11,7 @@ import { TextileSelectField as SelectField } from '@/components/textile/textile-
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { TextileDataTableSection } from '@/components/textile/textile-data-table-section';
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
-import { buildUnitOptions, formatTextileOptionLabel, textileMachineTypeOptions, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
+import { buildUnitOptions, formatTextileLabel, formatTextileOptionLabel, textileMachineTypeOptions, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 import { PageProps } from '@/types';
 
@@ -755,7 +755,7 @@ export default function Index({
                         columns={[
                             { key: 'document_number', header: t('Number') },
                             { key: 'source_reference_id', header: t('Sizing Recipe ID') },
-                            { key: 'chemical_type', header: t('Chemical'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.chemical_type ?? '-') },
+                            { key: 'chemical_type', header: t('Chemical'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.chemical_type ?? '')) },
                             { key: 'composition_percent', header: t('Composition %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.composition_percent ?? '-') },
                             { key: 'quantity', header: t('Consumption Qty') },
                             { key: 'unit', header: t('Unit') },
@@ -778,7 +778,7 @@ export default function Index({
                                     return beamRecord?.document_number ?? String(value ?? '-');
                                 },
                             },
-                            { key: 'inspection_result', header: t('Result'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.inspection_result ?? '-') },
+                            { key: 'inspection_result', header: t('Result'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.inspection_result ?? '')) },
                             { key: 'remarks', header: t('Remarks'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.remarks ?? '-') },
                             { key: 'status', header: t('Status') },
                         ]}
@@ -799,7 +799,7 @@ export default function Index({
                                     return beamRecord?.document_number ?? String(value ?? '-');
                                 },
                             },
-                            { key: 'cost_type', header: t('Cost Type'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_type ?? '-') },
+                            { key: 'cost_type', header: t('Cost Type'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.cost_type ?? '')) },
                             { key: 'cost_amount', header: t('Cost Amount'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_amount ?? '-') },
                             { key: 'cost_per_unit', header: t('Cost/Unit'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_per_unit ?? '-') },
                             { key: 'quantity', header: t('Quantity') },
@@ -1257,8 +1257,8 @@ export default function Index({
                             { key: 'lot_reference', header: t('Machine Type') },
                             { key: 'quantity', header: t('RPM') },
                             { key: 'width', header: t('Width'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.width ?? '-') },
-                            { key: 'shed_type', header: t('Shed'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.shed_type ?? '-') },
-                            { key: 'loom_status', header: t('Status'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.loom_status ?? '-') },
+                            { key: 'shed_type', header: t('Shed'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.shed_type ?? '')) },
+                            { key: 'loom_status', header: t('Status'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.loom_status ?? '')) },
                             { key: 'running_hours', header: t('Running Hrs'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.running_hours ?? '-') },
                             { key: 'idle_hours', header: t('Idle Hrs'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.idle_hours ?? '-') },
                             { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') },
@@ -1271,7 +1271,7 @@ export default function Index({
                         columns={[
                             { key: 'document_number', header: t('Number') },
                             { key: 'source_reference_id', header: t('Loom ID') },
-                            { key: 'breakdown_reason', header: t('Reason'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.breakdown_reason ?? '-') },
+                            { key: 'breakdown_reason', header: t('Reason'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.breakdown_reason ?? '')) },
                             { key: 'downtime_hours', header: t('Downtime Hrs'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.downtime_hours ?? '-') },
                             { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') },
                             { key: 'status', header: t('Status') },
@@ -1284,7 +1284,7 @@ export default function Index({
                         columns={[
                             { key: 'document_number', header: t('Number') },
                             { key: 'source_reference_id', header: t('Loom ID') },
-                            { key: 'maintenance_type', header: t('Type'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.maintenance_type ?? '-') },
+                            { key: 'maintenance_type', header: t('Type'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.maintenance_type ?? '')) },
                             { key: 'maintenance_hours', header: t('Hours'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.maintenance_hours ?? '-') },
                             { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') },
                             { key: 'status', header: t('Status') },
@@ -1476,7 +1476,7 @@ export default function Index({
                         columns={[
                             { key: 'document_number', header: t('Number') },
                             { key: 'plan_date', header: t('Plan Date'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.plan_date ?? '-') },
-                            { key: 'day_type', header: t('Day Type'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.day_type ?? '-') },
+                            { key: 'day_type', header: t('Day Type'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.day_type ?? '')) },
                             { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') },
                             { key: 'status', header: t('Status') },
                         ]}
@@ -1552,7 +1552,7 @@ export default function Index({
                             { key: 'source_reference_id', header: t('Loom ID') },
                             { key: 'beam_number', header: t('Beam'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.beam_number ?? row.lot_reference ?? '-') },
                             { key: 'scheduled_date', header: t('Scheduled Date'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.scheduled_date ?? '-') },
-                            { key: 'scheduled_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.scheduled_shift ?? '-') },
+                            { key: 'scheduled_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.scheduled_shift ?? '')) },
                             { key: 'quantity', header: t('Scheduled Qty') },
                             { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') },
                             { key: 'status', header: t('Status') },
@@ -1785,10 +1785,10 @@ export default function Index({
                     <TextileDataTableSection title={t('Takha Entry Records')} data={takhaEntries} columns={[{ key: 'document_number', header: t('Number') }, { key: 'takha_number', header: t('Takha'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.takha_number ?? row.lot_reference ?? '-') }, { key: 'quantity', header: t('Qty') }, { key: 'unit', header: t('Unit') }, { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No takha entries found')} description={t('Record takha-level production entries from completed weaving output.')} />} />
                     <TextileDataTableSection title={t('Loom Efficiency Records')} data={loomEfficiencies} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Loom ID') }, { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') }, { key: 'planned_quantity', header: t('Planned Qty'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_quantity ?? '-') }, { key: 'actual_quantity', header: t('Actual Qty'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.actual_quantity ?? '-') }, { key: 'efficiency_percent', header: t('Efficiency %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.efficiency_percent ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No loom efficiency found')} description={t('Record planned vs actual loom output to track efficiency.')} />} />
                     <TextileDataTableSection title={t('Operator Efficiency Records')} data={operatorEfficiencies} columns={[{ key: 'document_number', header: t('Number') }, { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') }, { key: 'planned_quantity', header: t('Planned Qty'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_quantity ?? '-') }, { key: 'actual_quantity', header: t('Actual Qty'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.actual_quantity ?? '-') }, { key: 'efficiency_percent', header: t('Efficiency %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.efficiency_percent ?? '-') }, { key: 'party_name', header: t('Operator') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No operator efficiency found')} description={t('Record operator planned vs actual production to track efficiency.')} />} />
-                    <TextileDataTableSection title={t('Machine Downtime Records')} data={machineDowntimes} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Loom ID') }, { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') }, { key: 'downtime_reason', header: t('Reason'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.downtime_reason ?? '-') }, { key: 'downtime_hours', header: t('Downtime Hrs'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.downtime_hours ?? '-') }, { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No machine downtime found')} description={t('Record weaving-stage machine downtime by shift and loom.')} />} />
+                    <TextileDataTableSection title={t('Machine Downtime Records')} data={machineDowntimes} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Loom ID') }, { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') }, { key: 'downtime_reason', header: t('Reason'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.downtime_reason ?? '')) }, { key: 'downtime_hours', header: t('Downtime Hrs'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.downtime_hours ?? '-') }, { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No machine downtime found')} description={t('Record weaving-stage machine downtime by shift and loom.')} />} />
                     <TextileDataTableSection title={t('Production Cost Records')} data={productionCosts} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Weaving Output ID') }, { key: 'cost_amount', header: t('Cost Amount'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_amount ?? '-') }, { key: 'cost_per_unit', header: t('Cost/Unit'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_per_unit ?? '-') }, { key: 'quantity', header: t('Qty') }, { key: 'unit', header: t('Unit') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No production cost found')} description={t('Record weaving production cost against completed output.')} />} />
                     <TextileDataTableSection title={t('Grey Fabric Roll Records')} data={greyFabricRolls} columns={[{ key: 'document_number', header: t('Number') }, { key: 'roll_number', header: t('Roll No.'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_number ?? row.lot_reference ?? '-') }, { key: 'roll_barcode', header: t('Barcode'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_barcode ?? '-') }, { key: 'roll_qr_code', header: t('QR'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_qr_code ?? '-') }, { key: 'roll_weight', header: t('Weight'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_weight ?? '-') }, { key: 'roll_length', header: t('Length'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_length ?? row.quantity ?? '-') }, { key: 'gsm', header: t('GSM'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.gsm ?? '-') }, { key: 'width', header: t('Width'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.width ?? '-') }, { key: 'grade', header: t('Grade'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.grade ?? '-') }, { key: 'warehouse', header: t('Warehouse'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.warehouse ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No grey fabric roll found')} description={t('Generate grey fabric roll with roll-number, barcode, QR, and quality profile fields.')} />} />
-                    <TextileDataTableSection title={t('Grey Roll History Records')} data={greyRollHistories} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Roll ID') }, { key: 'roll_number', header: t('Roll No.'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_number ?? row.lot_reference ?? '-') }, { key: 'history_event', header: t('Event'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.history_event ?? '-') }, { key: 'history_notes', header: t('Notes'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.history_notes ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No grey roll history found')} description={t('Grey roll updates and lifecycle events will appear here.')} />} />
+                    <TextileDataTableSection title={t('Grey Roll History Records')} data={greyRollHistories} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Roll ID') }, { key: 'roll_number', header: t('Roll No.'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_number ?? row.lot_reference ?? '-') }, { key: 'history_event', header: t('Event'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.history_event ?? '')) }, { key: 'history_notes', header: t('Notes'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.history_notes ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No grey roll history found')} description={t('Grey roll updates and lifecycle events will appear here.')} />} />
                 </div>
                 </TabsContent> : null}
 

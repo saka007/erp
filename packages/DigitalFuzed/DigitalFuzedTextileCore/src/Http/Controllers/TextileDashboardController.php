@@ -6,13 +6,14 @@ use App\Models\LoginHistory;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Models\TextileAuditLog;
 use DigitalFuzed\TextileCore\Services\TextileCostingService;
+use DigitalFuzed\TextileCore\Services\TextileDashboardService;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 class TextileDashboardController extends Controller
 {
-    public function index(TextileCostingService $costingService)
+    public function index(TextileCostingService $costingService, TextileDashboardService $dashboardService)
     {
         $this->authorizeTextileAccess();
 
@@ -65,6 +66,26 @@ class TextileDashboardController extends Controller
             'auditLogCount' => $auditLogCount,
             'recentLoginHistory' => $recentLoginHistory,
             'recentAuditLogs' => $recentAuditLogs,
+            'kpis' => $dashboardService->kpis(),
+            'productionTrend' => $dashboardService->productionTrend(),
+            'dispatchTrend' => $dashboardService->dispatchTrend(),
+            'financialTrend' => $dashboardService->financialTrend(),
+            'machineEfficiency' => $dashboardService->machineEfficiency(),
+            'powerTrend' => $dashboardService->powerTrend(),
+            'statusDistribution' => $byStatus
+                ->map(fn ($row) => ['name' => $row->status, 'value' => $row->total])
+                ->values(),
+            'typeDistribution' => $byType
+                ->sortByDesc('total')
+                ->take(8)
+                ->map(fn ($row) => ['name' => $row->document_type, 'value' => $row->total])
+                ->values(),
+            'purchase' => $dashboardService->purchase(),
+            'inventory' => $dashboardService->inventory(),
+            'sales' => $dashboardService->sales(),
+            'finance' => $dashboardService->finance(),
+            'maintenance' => $dashboardService->maintenance(),
+            'hr' => $dashboardService->hr(),
         ]);
     }
 

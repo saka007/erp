@@ -204,6 +204,7 @@ class TextileOperatingPolicyService
             'manufacturing_rework' => false,
             'manufacturing_maintenance' => false,
             'transport_operations' => false,
+            'maintenance_operations' => false,
         ];
 
         foreach ($activeProfiles as $profile) {
@@ -255,6 +256,7 @@ class TextileOperatingPolicyService
         $capabilities['inventory_verification'] = $capabilities['inventory'] && ($settings[self::SETTING_HAS_INVENTORY_VERIFICATION] ?? false);
         $capabilities['inventory_cycle_count'] = $capabilities['inventory'] && ($settings[self::SETTING_HAS_INVENTORY_CYCLE_COUNT] ?? false);
         $capabilities['transport_operations'] = (($settings[self::SETTING_HAS_TRANSPORT_OWN] ?? false) || ($settings[self::SETTING_HAS_TRANSPORT_VENDOR] ?? false));
+        $capabilities['maintenance_operations'] = $settings[self::SETTING_HAS_MAINTENANCE] ?? false;
 
         return $capabilities;
     }
