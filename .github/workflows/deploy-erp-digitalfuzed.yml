@@ -1,0 +1,96 @@
+name: Deploy ERP DigitalFuzed
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-erp-digitalfuzed
+  cancel-in-progress: true
+
+env:
+  APP_PATH: /home/digitalfuzed-erp-cp/htdocs/erp.digitalfuzed.com
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build assets
+        run: npm run build
+
+      - name: Sync files to server
+        uses: burnett01/rsync-deployments@7.0.2
+        with:
+          switches: -az --delete --omit-dir-times --no-perms --no-owner --no-group --exclude='.git' --exclude='.github' --exclude='node_modules' --exclude='tests' --exclude='.env'
+          path: ./
+          remote_path: ${{ env.APP_PATH }}
+          remote_host: ${{ secrets.SERVER_HOST }}
+          remote_user: ${{ secrets.SERVER_USER }}
+          remote_port: ${{ secrets.SERVER_PORT }}
+          remote_key: ${{ secrets.SERVER_SSH_KEY }}
+
+      - name: Remote post-deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            set -e
+            APP_PATH="/home/digitalfuzed-erp-cp/htdocs/erp.digitalfuzed.com"
+            APP_USER="digitalfuzed-erp-cp"
+
+            mkdir -p "$APP_PATH/storage/logs" "$APP_PATH/bootstrap/cache"
+            if [ -f "$APP_PATH/.env.example" ] && [ ! -f "$APP_PATH/.env" ]; then
+              cp "$APP_PATH/.env.example" "$APP_PATH/.env"
+            fi
+
+            chown -R "$APP_USER:$APP_USER" /home/digitalfuzed-erp-cp
+            chmod -R ug+rwx "$APP_PATH/storage" "$APP_PATH/bootstrap/cache"
+
+            # Keep root-style serving compatible with Laravel build and media URLs.
+            [ -e "$APP_PATH/build" ] || ln -s "$APP_PATH/public/build" "$APP_PATH/build"
+            mkdir -p "$APP_PATH/storage/app/public/media"
+            if [ -e "$APP_PATH/storage/media" ] && [ ! -L "$APP_PATH/storage/media" ]; then
+              rm -rf "$APP_PATH/storage/media"
+            fi
+            [ -e "$APP_PATH/storage/media" ] || ln -s app/public/media "$APP_PATH/storage/media"
+
+            # Publish LandingPage package images expected by storage/media URL paths.
+            LP_DST="$APP_PATH/storage/app/public/media/packages/workdo/LandingPage/src/Resources/assets/img"
+            mkdir -p "$LP_DST"
+            cp -f "$APP_PATH/packages/DigitalFuzed/LandingPage/src/Resources/assets/img/hero.png" "$LP_DST/hero.png"
+            cp -f "$APP_PATH/packages/DigitalFuzed/LandingPage/src/Resources/assets/img/hrm.png" "$LP_DST/hrm.png"
+            cp -f "$APP_PATH/packages/DigitalFuzed/LandingPage/src/Resources/assets/img/gallery1.jpeg" "$LP_DST/gallery1.jpeg"
+
+            su -s /bin/bash -c "cd '$APP_PATH' && composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader" "$APP_USER"
+            su -s /bin/bash -c "cd '$APP_PATH' && php artisan migrate --force" "$APP_USER"
+            su -s /bin/bash -c "cd '$APP_PATH' && php artisan optimize:clear || true" "$APP_USER"
+            su -s /bin/bash -c "cd '$APP_PATH' && php artisan config:cache" "$APP_USER"
+            su -s /bin/bash -c "cd '$APP_PATH' && php artisan route:cache" "$APP_USER"
+            su -s /bin/bash -c "cd '$APP_PATH' && php artisan view:cache" "$APP_USER"
+
+            chown -h "$APP_USER:$APP_USER" "$APP_PATH/build" "$APP_PATH/storage/media" || true
+            chown -R "$APP_USER:$APP_USER" "$APP_PATH/storage/app/public/media"
+
+            php-fpm8.4 -t
+            nginx -t
+            systemctl restart php8.4-fpm
+            systemctl reload nginx
+
+            curl -sSI -H "Host: erp.digitalfuzed.com" http://127.0.0.1 | head -n 1
