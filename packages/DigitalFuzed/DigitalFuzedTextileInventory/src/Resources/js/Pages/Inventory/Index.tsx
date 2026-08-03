@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { Boxes, MoveRight, Plus } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
@@ -10,6 +10,7 @@ import { TextileDataTableCard } from '@/components/textile/textile-data-table-ca
 import { TextileField } from '@/components/textile/textile-field';
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
 import { TextileSelectField } from '@/components/textile/textile-select-field';
+import { PageProps } from '@/types';
 
 interface TextileLot {
     id: number;
@@ -94,11 +95,21 @@ export default function Index({
     filters: InventoryFilters;
 }) {
     const { t } = useTranslation();
+    const { auth } = usePage<PageProps>().props;
+    const textileCapabilities = auth.user?.textile_capabilities || {};
+    const hasFineGrainedCapabilities = Object.keys(textileCapabilities).some((key) => key.startsWith('inventory_'));
     const searchParams = new URLSearchParams(window.location.search);
     const sectionParam = searchParams.get('section');
     const subSectionParam = searchParams.get('sub');
-    const validSections = new Set(['transactions', 'controls', 'records']);
-    const activeSection = sectionParam && validSections.has(sectionParam) ? sectionParam : 'transactions';
+    const visibleSections = hasFineGrainedCapabilities
+        ? [
+            textileCapabilities.inventory_transactions ? 'transactions' : null,
+            textileCapabilities.inventory_controls ? 'controls' : null,
+            textileCapabilities.inventory_records ? 'records' : null,
+        ].filter((value): value is string => value !== null)
+        : ['transactions', 'controls', 'records'];
+    const validSections = new Set(visibleSections);
+    const activeSection = sectionParam && validSections.has(sectionParam) ? sectionParam : (visibleSections[0] ?? 'transactions');
 
     const sectionSubsections: Record<string, string[]> = {
         transactions: ['lot-create', 'movement-create', 'reservation-create'],
@@ -123,13 +134,42 @@ export default function Index({
         records: 'record-locations',
     };
 
+    const visibleSubsectionsBySection: Record<string, string[]> = hasFineGrainedCapabilities
+        ? {
+            transactions: [
+                textileCapabilities.inventory_transactions ? 'lot-create' : null,
+                textileCapabilities.inventory_movements ? 'movement-create' : null,
+                textileCapabilities.inventory_reservations ? 'reservation-create' : null,
+            ].filter((value): value is string => value !== null),
+            controls: [
+                textileCapabilities.inventory_locations ? 'location-create' : null,
+                textileCapabilities.inventory_locations ? 'location-archive' : null,
+                textileCapabilities.inventory_controls ? 'lot-status-update' : null,
+                textileCapabilities.inventory_controls ? 'lot-status-archive' : null,
+                textileCapabilities.inventory_freeze ? 'lot-freeze' : null,
+                textileCapabilities.inventory_freeze ? 'lot-unfreeze' : null,
+                textileCapabilities.inventory_verification ? 'physical-verification' : null,
+                textileCapabilities.inventory_cycle_count ? 'cycle-count' : null,
+                textileCapabilities.inventory_reservations ? 'reservation-release' : null,
+                textileCapabilities.inventory_reservations ? 'reservation-allocate' : null,
+            ].filter((value): value is string => value !== null),
+            records: [
+                textileCapabilities.inventory_records ? 'record-locations' : null,
+                textileCapabilities.inventory_records ? 'record-lots' : null,
+                textileCapabilities.inventory_records ? 'record-movements' : null,
+                textileCapabilities.inventory_records ? 'record-cycle-counts' : null,
+                textileCapabilities.inventory_records ? 'record-reservations' : null,
+            ].filter((value): value is string => value !== null),
+        }
+        : sectionSubsections;
+
     const resolveSubsection = (section: string) => {
-        const validSubsections = sectionSubsections[section] || [];
+        const validSubsections = visibleSubsectionsBySection[section] || [];
         if (subSectionParam && validSubsections.includes(subSectionParam)) {
             return subSectionParam;
         }
 
-        return defaultSubsectionBySection[section] || '';
+        return validSubsections[0] || defaultSubsectionBySection[section] || '';
     };
 
     const activeSubsection = resolveSubsection(activeSection);
@@ -405,24 +445,24 @@ export default function Index({
                 className="space-y-6"
             >
                 <TabsList className="grid w-full grid-cols-3 h-auto p-1">
-                    <TabsTrigger value="transactions">{t('Transactions')}</TabsTrigger>
-                    <TabsTrigger value="controls">{t('Controls')}</TabsTrigger>
-                    <TabsTrigger value="records">{t('Records')}</TabsTrigger>
+                    {validSections.has('transactions') ? <TabsTrigger value="transactions">{t('Transactions')}</TabsTrigger> : null}
+                    {validSections.has('controls') ? <TabsTrigger value="controls">{t('Controls')}</TabsTrigger> : null}
+                    {validSections.has('records') ? <TabsTrigger value="records">{t('Records')}</TabsTrigger> : null}
                 </TabsList>
 
-                <TabsContent value="transactions" className="space-y-6">
+                {validSections.has('transactions') ? <TabsContent value="transactions" className="space-y-6">
                     <Tabs
                         value={activeSection === 'transactions' ? activeSubsection : defaultSubsectionBySection.transactions}
                         onValueChange={(value) => router.get(route('textile.inventory.index'), { section: 'transactions', sub: value }, { preserveState: true, replace: true })}
                         className="space-y-4"
                     >
                         <TabsList className="grid w-full grid-cols-1 gap-2 h-auto p-1 sm:grid-cols-3">
-                            <TabsTrigger value="lot-create">{t('New Lot')}</TabsTrigger>
-                            <TabsTrigger value="movement-create">{t('Record Movement')}</TabsTrigger>
-                            <TabsTrigger value="reservation-create">{t('Reserve Quantity')}</TabsTrigger>
+                            {visibleSubsectionsBySection.transactions.includes('lot-create') ? <TabsTrigger value="lot-create">{t('New Lot')}</TabsTrigger> : null}
+                            {visibleSubsectionsBySection.transactions.includes('movement-create') ? <TabsTrigger value="movement-create">{t('Record Movement')}</TabsTrigger> : null}
+                            {visibleSubsectionsBySection.transactions.includes('reservation-create') ? <TabsTrigger value="reservation-create">{t('Reserve Quantity')}</TabsTrigger> : null}
                         </TabsList>
 
-                        <TabsContent value="lot-create" className="space-y-6">
+                        {visibleSubsectionsBySection.transactions.includes('lot-create') ? <TabsContent value="lot-create" className="space-y-6">
                             <Card>
                                 <CardContent className="p-5">
                                     <div className="mb-5 flex items-center gap-2">
@@ -449,9 +489,9 @@ export default function Index({
                             </Card>
 
                             <TextileDataTableCard data={lots} columns={[{ key: 'lot_reference', header: t('Lot Reference') }, { key: 'batch_number', header: t('Batch'), render: optional }, { key: 'barcode', header: t('Barcode'), render: optional }, { key: 'qr_code', header: t('QR Code'), render: optional }, { key: 'received_quantity', header: t('Received') }, { key: 'available_quantity', header: t('Available') }, { key: 'reserved_quantity', header: t('Reserved') }, { key: 'status', header: t('Status') }, { key: 'is_frozen', header: t('Frozen'), render: booleanLabel }, { key: 'freeze_note', header: t('Freeze Note'), render: optional }, { key: 'id', header: t('Details'), render: (value: number) => (<Button type="button" variant="ghost" size="sm" onClick={() => router.visit(route('textile.inventory.lots.show', value))}>{t('View')}</Button>) }]} emptyState={<NoRecordsFound icon={Boxes} title={t('No textile lots found')} description={t('Create the first lot to begin tracking stock by lot.')} />} />
-                        </TabsContent>
+                        </TabsContent> : null}
 
-                        <TabsContent value="movement-create" className="space-y-6">
+                        {visibleSubsectionsBySection.transactions.includes('movement-create') ? <TabsContent value="movement-create" className="space-y-6">
                             <Card>
                                 <CardContent className="p-5">
                                     <div className="mb-5 flex items-center gap-2">
@@ -495,9 +535,9 @@ export default function Index({
                             </Card>
 
                             <TextileDataTableCard data={movements} columns={[{ key: 'movement_type', header: t('Type') }, { key: 'adjustment_direction', header: t('Direction'), render: optional }, { key: 'lot_reference', header: t('Lot'), render: optional }, { key: 'location_from', header: t('From'), render: optional }, { key: 'location_to', header: t('To'), render: optional }, { key: 'quantity', header: t('Qty') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={MoveRight} title={t('No textile movements found')} description={t('Record the first inventory movement to build stock history.')} />} />
-                        </TabsContent>
+                        </TabsContent> : null}
 
-                        <TabsContent value="reservation-create" className="space-y-6">
+                        {visibleSubsectionsBySection.transactions.includes('reservation-create') ? <TabsContent value="reservation-create" className="space-y-6">
                             <Card>
                                 <CardContent className="p-5">
                                     <div className="mb-5 flex items-center gap-2">
@@ -532,27 +572,27 @@ export default function Index({
                             </Card>
 
                             <TextileDataTableCard data={reservations} columns={[{ key: 'lot_reference', header: t('Lot') }, { key: 'reserved_quantity', header: t('Reserved Qty') }, { key: 'reference_type', header: t('Reference Type'), render: optional }, { key: 'reference_id', header: t('Reference ID'), render: optionalNumber }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Boxes} title={t('No textile reservations found')} description={t('Reserve stock to control lot availability by demand.')} />} />
-                        </TabsContent>
+                        </TabsContent> : null}
                     </Tabs>
-                </TabsContent>
+                </TabsContent> : null}
 
-                <TabsContent value="controls" className="space-y-6">
+                {validSections.has('controls') ? <TabsContent value="controls" className="space-y-6">
                     <Tabs
                         value={activeSection === 'controls' ? activeSubsection : defaultSubsectionBySection.controls}
                         onValueChange={(value) => router.get(route('textile.inventory.index'), { section: 'controls', sub: value }, { preserveState: true, replace: true })}
                         className="space-y-4"
                     >
                         <TabsList className="grid w-full grid-cols-1 gap-2 h-auto p-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-                            <TabsTrigger value="location-create">{t('Create Location')}</TabsTrigger>
-                            <TabsTrigger value="location-archive">{t('Archive Location')}</TabsTrigger>
-                            <TabsTrigger value="lot-status-update">{t('Update Lot')}</TabsTrigger>
-                            <TabsTrigger value="lot-status-archive">{t('Archive Lot')}</TabsTrigger>
-                            <TabsTrigger value="lot-freeze">{t('Freeze Lot')}</TabsTrigger>
-                            <TabsTrigger value="lot-unfreeze">{t('Unfreeze Lot')}</TabsTrigger>
-                            <TabsTrigger value="physical-verification">{t('Physical Verification')}</TabsTrigger>
-                            <TabsTrigger value="cycle-count">{t('Cycle Count')}</TabsTrigger>
-                            <TabsTrigger value="reservation-release">{t('Release Reservation')}</TabsTrigger>
-                            <TabsTrigger value="reservation-allocate">{t('Allocate Reservation')}</TabsTrigger>
+                            {visibleSubsectionsBySection.controls.includes('location-create') ? <TabsTrigger value="location-create">{t('Create Location')}</TabsTrigger> : null}
+                            {visibleSubsectionsBySection.controls.includes('location-archive') ? <TabsTrigger value="location-archive">{t('Archive Location')}</TabsTrigger> : null}
+                            {visibleSubsectionsBySection.controls.includes('lot-status-update') ? <TabsTrigger value="lot-status-update">{t('Update Lot')}</TabsTrigger> : null}
+                            {visibleSubsectionsBySection.controls.includes('lot-status-archive') ? <TabsTrigger value="lot-status-archive">{t('Archive Lot')}</TabsTrigger> : null}
+                            {visibleSubsectionsBySection.controls.includes('lot-freeze') ? <TabsTrigger value="lot-freeze">{t('Freeze Lot')}</TabsTrigger> : null}
+                            {visibleSubsectionsBySection.controls.includes('lot-unfreeze') ? <TabsTrigger value="lot-unfreeze">{t('Unfreeze Lot')}</TabsTrigger> : null}
+                            {visibleSubsectionsBySection.controls.includes('physical-verification') ? <TabsTrigger value="physical-verification">{t('Physical Verification')}</TabsTrigger> : null}
+                            {visibleSubsectionsBySection.controls.includes('cycle-count') ? <TabsTrigger value="cycle-count">{t('Cycle Count')}</TabsTrigger> : null}
+                            {visibleSubsectionsBySection.controls.includes('reservation-release') ? <TabsTrigger value="reservation-release">{t('Release Reservation')}</TabsTrigger> : null}
+                            {visibleSubsectionsBySection.controls.includes('reservation-allocate') ? <TabsTrigger value="reservation-allocate">{t('Allocate Reservation')}</TabsTrigger> : null}
                         </TabsList>
 
                         <TabsContent value="location-create" className="space-y-6">
@@ -767,9 +807,9 @@ export default function Index({
                             <TextileDataTableCard data={reservations} columns={[{ key: 'lot_reference', header: t('Lot') }, { key: 'reserved_quantity', header: t('Reserved Qty') }, { key: 'reference_type', header: t('Reference Type'), render: optional }, { key: 'reference_id', header: t('Reference ID'), render: optionalNumber }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Boxes} title={t('No textile reservations found')} description={t('Reserve stock to control lot availability by demand.')} />} />
                         </TabsContent>
                     </Tabs>
-                </TabsContent>
+                </TabsContent> : null}
 
-                <TabsContent value="records" className="space-y-6">
+                {validSections.has('records') ? <TabsContent value="records" className="space-y-6">
                     <Tabs
                         value={activeSection === 'records' ? activeSubsection : defaultSubsectionBySection.records}
                         onValueChange={(value) => router.get(route('textile.inventory.index'), { section: 'records', sub: value }, { preserveState: true, replace: true })}
@@ -815,7 +855,7 @@ export default function Index({
                             <TextileDataTableCard data={reservations} columns={[{ key: 'lot_reference', header: t('Lot') }, { key: 'reserved_quantity', header: t('Reserved Qty') }, { key: 'reference_type', header: t('Reference Type'), render: optional }, { key: 'reference_id', header: t('Reference ID'), render: optionalNumber }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Boxes} title={t('No textile reservations found')} description={t('Reserve stock to control lot availability by demand.')} />} />
                         </TabsContent>
                     </Tabs>
-                </TabsContent>
+                </TabsContent> : null}
             </Tabs>
         </AuthenticatedLayout>
     );

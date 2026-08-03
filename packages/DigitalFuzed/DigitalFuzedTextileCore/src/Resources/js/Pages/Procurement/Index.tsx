@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { ShoppingCart, Plus, Check, Truck, FileText } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
@@ -12,6 +12,7 @@ import { TextileDataTableCard } from '@/components/textile/textile-data-table-ca
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
 import { buildUnitOptions } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
+import { PageProps } from '@/types';
 
 interface WorkflowDocument {
     id: number;
@@ -47,9 +48,22 @@ export default function Index({
     lotReferenceOptions: string[];
 }) {
     const { t } = useTranslation();
+    const { auth } = usePage<PageProps>().props;
+    const textileCapabilities = auth.user?.textile_capabilities || {};
+    const hasFineGrainedCapabilities = Object.keys(textileCapabilities).some((key) => key.startsWith('procurement_'));
     const sectionParam = new URLSearchParams(window.location.search).get('section');
-    const validSections = new Set(['requisitions', 'rfqs', 'purchase-orders', 'grns', 'incoming-qc', 'supplier-claims']);
-    const activeSection = sectionParam && validSections.has(sectionParam) ? sectionParam : 'requisitions';
+    const visibleSections = hasFineGrainedCapabilities
+        ? [
+            textileCapabilities.procurement_requisition ? 'requisitions' : null,
+            textileCapabilities.procurement_rfq ? 'rfqs' : null,
+            textileCapabilities.procurement_purchase_order ? 'purchase-orders' : null,
+            textileCapabilities.procurement_grn ? 'grns' : null,
+            textileCapabilities.procurement_incoming_qc ? 'incoming-qc' : null,
+            textileCapabilities.procurement_supplier_claims ? 'supplier-claims' : null,
+        ].filter((value): value is string => value !== null)
+        : ['requisitions', 'rfqs', 'purchase-orders', 'grns', 'incoming-qc', 'supplier-claims'];
+    const validSections = new Set(visibleSections);
+    const activeSection = sectionParam && validSections.has(sectionParam) ? sectionParam : (visibleSections[0] ?? 'requisitions');
 
     const requisitionForm = useForm({
         party_name: '',
@@ -139,15 +153,15 @@ export default function Index({
                 className="space-y-6"
             >
                 <TabsList className="grid w-full grid-cols-2 gap-2 h-auto p-1 md:grid-cols-6">
-                    <TabsTrigger value="requisitions">{t('Requisitions')}</TabsTrigger>
-                    <TabsTrigger value="rfqs">{t('RFQ')}</TabsTrigger>
-                    <TabsTrigger value="purchase-orders">{t('Purchase Orders')}</TabsTrigger>
-                    <TabsTrigger value="grns">{t('GRN')}</TabsTrigger>
-                    <TabsTrigger value="incoming-qc">{t('Incoming QC')}</TabsTrigger>
-                    <TabsTrigger value="supplier-claims">{t('Supplier Claims')}</TabsTrigger>
+                    {validSections.has('requisitions') ? <TabsTrigger value="requisitions">{t('Requisitions')}</TabsTrigger> : null}
+                    {validSections.has('rfqs') ? <TabsTrigger value="rfqs">{t('RFQ')}</TabsTrigger> : null}
+                    {validSections.has('purchase-orders') ? <TabsTrigger value="purchase-orders">{t('Purchase Orders')}</TabsTrigger> : null}
+                    {validSections.has('grns') ? <TabsTrigger value="grns">{t('GRN')}</TabsTrigger> : null}
+                    {validSections.has('incoming-qc') ? <TabsTrigger value="incoming-qc">{t('Incoming QC')}</TabsTrigger> : null}
+                    {validSections.has('supplier-claims') ? <TabsTrigger value="supplier-claims">{t('Supplier Claims')}</TabsTrigger> : null}
                 </TabsList>
 
-                <TabsContent value="requisitions">
+                {validSections.has('requisitions') ? <TabsContent value="requisitions">
                     <div className="grid gap-6 xl:grid-cols-2">
                         <TextileFormCard title={t('Create Requisition')} icon={ShoppingCart}>
                                 <form className="space-y-3" onSubmit={(e) => {
@@ -209,9 +223,9 @@ export default function Index({
                             emptyState={<NoRecordsFound icon={ShoppingCart} title={t('No requisitions found')} description={t('Create procurement requisitions to begin material planning.')} />}
                         />
                     </div>
-                </TabsContent>
+                </TabsContent> : null}
 
-                <TabsContent value="rfqs">
+                {validSections.has('rfqs') ? <TabsContent value="rfqs">
                     <div className="grid gap-6 xl:grid-cols-2">
                         <TextileFormCard title={t('Create RFQ')} icon={FileText}>
                             <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
@@ -254,9 +268,9 @@ export default function Index({
                             emptyState={<NoRecordsFound icon={FileText} title={t('No RFQs found')} description={t('Create RFQ records from approved requisitions.')} />}
                         />
                     </div>
-                </TabsContent>
+                </TabsContent> : null}
 
-                <TabsContent value="purchase-orders">
+                {validSections.has('purchase-orders') ? <TabsContent value="purchase-orders">
                     <div className="grid gap-6 xl:grid-cols-2">
                         <TextileFormCard title={t('Create Purchase Order')} icon={ShoppingCart}>
                                 <form className="space-y-3" onSubmit={(e) => {
@@ -307,9 +321,9 @@ export default function Index({
                             emptyState={<NoRecordsFound icon={ShoppingCart} title={t('No purchase orders found')} description={t('Convert approved requisitions into purchase orders.')} />}
                         />
                     </div>
-                </TabsContent>
+                </TabsContent> : null}
 
-                <TabsContent value="grns">
+                {validSections.has('grns') ? <TabsContent value="grns">
                     <div className="grid gap-6 xl:grid-cols-2">
                         <TextileFormCard title={t('Create GRN')} icon={Truck}>
                                 <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
@@ -354,9 +368,9 @@ export default function Index({
                             emptyState={<NoRecordsFound icon={Truck} title={t('No GRNs found')} description={t('Create and release GRNs against approved purchase orders.')} />}
                         />
                     </div>
-                </TabsContent>
+                </TabsContent> : null}
 
-                <TabsContent value="incoming-qc">
+                {validSections.has('incoming-qc') ? <TabsContent value="incoming-qc">
                     <div className="grid gap-6 xl:grid-cols-2">
                         <TextileFormCard title={t('Create Incoming QC')} icon={Plus}>
                                 <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
@@ -397,9 +411,9 @@ export default function Index({
                             emptyState={<NoRecordsFound icon={Check} title={t('No incoming QC records found')} description={t('Create incoming QC entries from released GRNs.')} />}
                         />
                     </div>
-                </TabsContent>
+                </TabsContent> : null}
 
-                <TabsContent value="supplier-claims">
+                {validSections.has('supplier-claims') ? <TabsContent value="supplier-claims">
                     <div className="grid gap-6 xl:grid-cols-2">
                         <TextileFormCard title={t('Create Supplier Claim')} icon={FileText}>
                             <form className="space-y-3" onSubmit={(e) => {
@@ -487,7 +501,7 @@ export default function Index({
                             emptyState={<NoRecordsFound icon={FileText} title={t('No supplier claims found')} description={t('Create supplier claims from released GRNs for quality and settlement tracking.')} />}
                         />
                     </div>
-                </TabsContent>
+                </TabsContent> : null}
             </Tabs>
         </AuthenticatedLayout>
     );

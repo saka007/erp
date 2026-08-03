@@ -118,6 +118,98 @@ class TextileManufacturingApiController extends Controller
         ], 201);
     }
 
+    public function storeProductionCalendar(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'plan_date' => ['required', 'date'],
+            'day_type' => ['required', 'string', 'max:100', Rule::in($this->dayTypeOptions())],
+            'planned_shift' => ['nullable', 'string', 'max:100', Rule::in($this->shiftOptions())],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createProductionCalendar($payload),
+        ], 201);
+    }
+
+    public function storeCapacityPlan(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'loom_master_id' => ['required', 'integer', 'min:1'],
+            'plan_date' => ['required', 'date'],
+            'available_hours' => ['required', 'numeric', 'gt:0'],
+            'capacity_quantity' => ['required', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'efficiency_target' => ['nullable', 'numeric', 'gt:0', 'lte:100'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createCapacityPlan((int) $payload['loom_master_id'], $payload),
+        ], 201);
+    }
+
+    public function storeShiftPlan(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'loom_master_id' => ['required', 'integer', 'min:1'],
+            'plan_date' => ['required', 'date'],
+            'planned_shift' => ['required', 'string', 'max:100', Rule::in($this->shiftOptions())],
+            'expected_hours' => ['required', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createShiftPlan((int) $payload['loom_master_id'], $payload),
+        ], 201);
+    }
+
+    public function storeMaterialPlan(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'beam_id' => ['required', 'integer', 'min:1'],
+            'plan_date' => ['required', 'date'],
+            'required_quantity' => ['required', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createMaterialPlan((int) $payload['beam_id'], $payload),
+        ], 201);
+    }
+
+    public function storeProductionSchedule(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'loom_master_id' => ['required', 'integer', 'min:1'],
+            'beam_id' => ['required', 'integer', 'min:1'],
+            'scheduled_date' => ['required', 'date'],
+            'scheduled_shift' => ['required', 'string', 'max:100', Rule::in($this->shiftOptions())],
+            'scheduled_quantity' => ['required', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createProductionSchedule((int) $payload['loom_master_id'], (int) $payload['beam_id'], $payload),
+        ], 201);
+    }
+
     public function storeWarpPlan(Request $request): JsonResponse
     {
         $payload = $request->validate([
@@ -382,6 +474,120 @@ class TextileManufacturingApiController extends Controller
         ], 201);
     }
 
+    public function storeShiftProduction(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'batch_id' => ['required', 'integer', 'min:1'],
+            'loom_master_id' => ['nullable', 'integer', 'min:1'],
+            'planned_shift' => ['required', 'string', 'max:100', Rule::in($this->shiftOptions())],
+            'quantity' => ['required', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createShiftProduction((int) $payload['batch_id'], $payload),
+        ], 201);
+    }
+
+    public function storeTakhaEntry(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'weaving_output_id' => ['required', 'integer', 'min:1'],
+            'takha_number' => ['required', 'string', 'max:100'],
+            'quantity' => ['required', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createTakhaEntry((int) $payload['weaving_output_id'], $payload),
+        ], 201);
+    }
+
+    public function storeLoomEfficiency(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'loom_master_id' => ['required', 'integer', 'min:1'],
+            'planned_shift' => ['required', 'string', 'max:100', Rule::in($this->shiftOptions())],
+            'planned_quantity' => ['required', 'numeric', 'gt:0'],
+            'actual_quantity' => ['required', 'numeric', 'gte:0'],
+            'runtime_hours' => ['nullable', 'numeric', 'gte:0'],
+            'downtime_hours' => ['nullable', 'numeric', 'gte:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createLoomEfficiency((int) $payload['loom_master_id'], $payload),
+        ], 201);
+    }
+
+    public function storeOperatorEfficiency(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'planned_shift' => ['required', 'string', 'max:100', Rule::in($this->shiftOptions())],
+            'planned_quantity' => ['required', 'numeric', 'gt:0'],
+            'actual_quantity' => ['required', 'numeric', 'gte:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'operator_name' => ['required', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createOperatorEfficiency($payload),
+        ], 201);
+    }
+
+    public function storeMachineDowntime(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'loom_master_id' => ['required', 'integer', 'min:1'],
+            'planned_shift' => ['required', 'string', 'max:100', Rule::in($this->shiftOptions())],
+            'downtime_reason' => ['required', 'string', 'max:100', Rule::in($this->breakdownReasonOptions())],
+            'downtime_hours' => ['required', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createMachineDowntime((int) $payload['loom_master_id'], $payload),
+        ], 201);
+    }
+
+    public function storeProductionCost(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'weaving_output_id' => ['required', 'integer', 'min:1'],
+            'cost_center_id' => ['nullable', 'integer', 'min:1'],
+            'cost_amount' => ['required', 'numeric', 'gt:0'],
+            'quantity' => ['nullable', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:50'],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createProductionCost((int) $payload['weaving_output_id'], $payload),
+        ], 201);
+    }
+
     public function storeWaste(Request $request): JsonResponse
     {
         $payload = $request->validate([
@@ -604,6 +810,16 @@ class TextileManufacturingApiController extends Controller
             'day',
             'night',
             'general',
+        ];
+    }
+
+    private function dayTypeOptions(): array
+    {
+        return [
+            'working',
+            'holiday',
+            'shutdown',
+            'maintenance',
         ];
     }
 }

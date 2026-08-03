@@ -40,6 +40,7 @@ class TextileOperatingPolicyController extends Controller
         return Inertia::render('DigitalFuzedTextileCore/OperatingPolicy/Index', [
             'policy' => $policy,
             'capabilities' => $this->policyService->capabilities($policy),
+            'settings' => $this->policyService->settings($policy),
             'activeProfiles' => $resolvedProfiles,
             'profileHistory' => $this->policyService->profileHistoryForTenant($targetTenantId),
             'isSuperadmin' => $user?->type === 'superadmin',
@@ -50,6 +51,7 @@ class TextileOperatingPolicyController extends Controller
                 'operatingProfiles' => $this->policyService->options(),
                 'materialOwnership' => $this->policyService->materialOwnershipOptions(),
                 'billingModes' => $this->policyService->billingModeOptions(),
+                'settings' => $this->policyService->settingOptions(),
             ],
         ]);
     }
@@ -65,6 +67,8 @@ class TextileOperatingPolicyController extends Controller
             'operating_profiles.*' => ['required', 'string', Rule::in($this->policyService->options())],
             'material_ownership' => ['required', 'string', 'max:30'],
             'billing_mode' => ['required', 'string', 'max:30'],
+            'settings' => ['nullable', 'array'],
+            'settings.*' => ['required', 'string', Rule::in($this->policyService->settingOptions())],
         ]);
 
         if (!empty($validated['operating_profiles']) && !in_array($validated['operating_model'], $validated['operating_profiles'], true)) {

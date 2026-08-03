@@ -63,11 +63,22 @@ Route::prefix('api')->middleware(['api.json'])->group(function () {
         Route::post('manufacturing/loom-breakdowns/store', [TextileManufacturingApiController::class, 'storeLoomBreakdown']);
         Route::post('manufacturing/loom-maintenances/store', [TextileManufacturingApiController::class, 'storeLoomMaintenance']);
         Route::post('manufacturing/machine-plans/store', [TextileManufacturingApiController::class, 'storeMachinePlan']);
+        Route::post('manufacturing/production-calendars/store', [TextileManufacturingApiController::class, 'storeProductionCalendar']);
+        Route::post('manufacturing/capacity-plans/store', [TextileManufacturingApiController::class, 'storeCapacityPlan']);
+        Route::post('manufacturing/shift-plans/store', [TextileManufacturingApiController::class, 'storeShiftPlan']);
+        Route::post('manufacturing/material-plans/store', [TextileManufacturingApiController::class, 'storeMaterialPlan']);
+        Route::post('manufacturing/production-schedules/store', [TextileManufacturingApiController::class, 'storeProductionSchedule']);
 
         Route::post('manufacturing/batches/store', [TextileManufacturingApiController::class, 'storeProductionBatch']);
         Route::post('manufacturing/batches/{id}/release', [TextileManufacturingApiController::class, 'releaseProductionBatch']);
 
         Route::post('manufacturing/weaving-output/store', [TextileManufacturingApiController::class, 'storeWeavingOutput']);
+        Route::post('manufacturing/shift-productions/store', [TextileManufacturingApiController::class, 'storeShiftProduction']);
+        Route::post('manufacturing/takha-entries/store', [TextileManufacturingApiController::class, 'storeTakhaEntry']);
+        Route::post('manufacturing/loom-efficiencies/store', [TextileManufacturingApiController::class, 'storeLoomEfficiency']);
+        Route::post('manufacturing/operator-efficiencies/store', [TextileManufacturingApiController::class, 'storeOperatorEfficiency']);
+        Route::post('manufacturing/machine-downtimes/store', [TextileManufacturingApiController::class, 'storeMachineDowntime']);
+        Route::post('manufacturing/production-costs/store', [TextileManufacturingApiController::class, 'storeProductionCost']);
         Route::post('manufacturing/waste/store', [TextileManufacturingApiController::class, 'storeWaste']);
         Route::post('manufacturing/rework/store', [TextileManufacturingApiController::class, 'storeRework']);
 

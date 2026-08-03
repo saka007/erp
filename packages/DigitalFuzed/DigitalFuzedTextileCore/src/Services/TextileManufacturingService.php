@@ -375,7 +375,6 @@ class TextileManufacturingService
             'document_type' => 'machine_plan',
             'source_reference_type' => 'textile_workflow_document',
             'source_reference_id' => $loomMaster->id,
-            'source_action' => 'machine_plan',
             'party_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? $loomMaster->party_name),
             'lot_reference' => $beam->document_number,
             'quantity' => $payload['planned_quantity'] ?? $beam->quantity,
@@ -386,6 +385,122 @@ class TextileManufacturingService
                 'beam_number' => $beam->document_number,
                 'planned_date' => $payload['planned_date'] ?? null,
                 'planned_shift' => $payload['planned_shift'] ?? null,
+                'operator_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? null),
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createProductionCalendar(array $payload = []): TextileWorkflowDocument
+    {
+        return $this->workflowService->createDocument([
+            'document_type' => 'production_calendar',
+            'party_name' => null,
+            'lot_reference' => null,
+            'quantity' => 0,
+            'unit' => null,
+            'status' => 'approved',
+            'metadata' => [
+                'plan_date' => $payload['plan_date'] ?? null,
+                'day_type' => $payload['day_type'] ?? null,
+                'planned_shift' => $payload['planned_shift'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createCapacityPlan(int $loomMasterId, array $payload = []): TextileWorkflowDocument
+    {
+        $loomMaster = $this->findTenantDocument($loomMasterId, 'loom_master');
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'capacity_plan',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $loomMaster->id,
+            'party_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? $loomMaster->party_name),
+            'lot_reference' => $loomMaster->document_number,
+            'quantity' => $payload['capacity_quantity'] ?? 0,
+            'unit' => $payload['unit'] ?? null,
+            'status' => 'approved',
+            'metadata' => [
+                'plan_date' => $payload['plan_date'] ?? null,
+                'available_hours' => $payload['available_hours'] ?? null,
+                'efficiency_target' => $payload['efficiency_target'] ?? null,
+                'operator_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? null),
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createShiftPlan(int $loomMasterId, array $payload = []): TextileWorkflowDocument
+    {
+        $loomMaster = $this->findTenantDocument($loomMasterId, 'loom_master');
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'shift_plan',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $loomMaster->id,
+            'party_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? $loomMaster->party_name),
+            'lot_reference' => $loomMaster->document_number,
+            'quantity' => $payload['expected_hours'] ?? 0,
+            'unit' => $payload['unit'] ?? 'hour',
+            'status' => 'approved',
+            'metadata' => [
+                'plan_date' => $payload['plan_date'] ?? null,
+                'planned_shift' => $payload['planned_shift'] ?? null,
+                'expected_hours' => $payload['expected_hours'] ?? null,
+                'operator_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? null),
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createMaterialPlan(int $beamId, array $payload = []): TextileWorkflowDocument
+    {
+        $beam = $this->findTenantDocument($beamId, 'beam');
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'material_plan',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $beam->id,
+            'party_name' => $beam->party_name,
+            'lot_reference' => $beam->document_number,
+            'quantity' => $payload['required_quantity'] ?? $beam->quantity,
+            'unit' => $payload['unit'] ?? $beam->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'plan_date' => $payload['plan_date'] ?? null,
+                'beam_number' => $beam->document_number,
+                'required_quantity' => $payload['required_quantity'] ?? $beam->quantity,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createProductionSchedule(int $loomMasterId, int $beamId, array $payload = []): TextileWorkflowDocument
+    {
+        $loomMaster = $this->findTenantDocument($loomMasterId, 'loom_master');
+        $beam = $this->findTenantDocument($beamId, 'beam');
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'production_schedule',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $loomMaster->id,
+            'party_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? $loomMaster->party_name),
+            'lot_reference' => $beam->document_number,
+            'quantity' => $payload['scheduled_quantity'] ?? $beam->quantity,
+            'unit' => $payload['unit'] ?? $beam->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'beam_id' => $beam->id,
+                'beam_number' => $beam->document_number,
+                'scheduled_date' => $payload['scheduled_date'] ?? null,
+                'scheduled_shift' => $payload['scheduled_shift'] ?? null,
                 'operator_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? null),
                 'notes' => $payload['notes'] ?? null,
             ],
@@ -477,6 +592,168 @@ class TextileManufacturingService
             'unit' => $payload['unit'] ?? $batch->unit,
             'status' => 'approved',
             'metadata' => $payload['metadata'] ?? null,
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createShiftProduction(int $batchId, array $payload = []): TextileWorkflowDocument
+    {
+        $batch = $this->findTenantDocument($batchId, 'production_batch');
+        if ($batch->status !== 'released') {
+            throw new RuntimeException('Production batch must be released before shift production entry.');
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'shift_production',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $batch->id,
+            'party_name' => $payload['operator_name'] ?? $batch->party_name,
+            'lot_reference' => $payload['lot_reference'] ?? $batch->lot_reference,
+            'quantity' => $payload['quantity'] ?? 0,
+            'unit' => $payload['unit'] ?? $batch->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'planned_shift' => $payload['planned_shift'] ?? null,
+                'operator_name' => $payload['operator_name'] ?? null,
+                'loom_master_id' => $payload['loom_master_id'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createTakhaEntry(int $weavingOutputId, array $payload = []): TextileWorkflowDocument
+    {
+        $output = $this->findTenantDocument($weavingOutputId, 'weaving_output');
+        if (!in_array($output->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Weaving output must be completed before takha entry.');
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'takha_entry',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $output->id,
+            'party_name' => $payload['operator_name'] ?? $output->party_name,
+            'lot_reference' => $payload['takha_number'] ?? $output->lot_reference,
+            'quantity' => $payload['quantity'] ?? 0,
+            'unit' => $payload['unit'] ?? $output->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'takha_number' => $payload['takha_number'] ?? null,
+                'operator_name' => $payload['operator_name'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createLoomEfficiency(int $loomMasterId, array $payload = []): TextileWorkflowDocument
+    {
+        $loomMaster = $this->findTenantDocument($loomMasterId, 'loom_master');
+        $plannedQuantity = (float) ($payload['planned_quantity'] ?? 0);
+        $actualQuantity = (float) ($payload['actual_quantity'] ?? 0);
+        $runtimeHours = (float) ($payload['runtime_hours'] ?? 0);
+        $downtimeHours = (float) ($payload['downtime_hours'] ?? 0);
+
+        $efficiencyPercent = $plannedQuantity > 0
+            ? round(($actualQuantity / $plannedQuantity) * 100, 2)
+            : (($runtimeHours + $downtimeHours) > 0 ? round(($runtimeHours / ($runtimeHours + $downtimeHours)) * 100, 2) : null);
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'loom_efficiency',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $loomMaster->id,
+            'party_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? $loomMaster->party_name),
+            'lot_reference' => $loomMaster->document_number,
+            'quantity' => $actualQuantity,
+            'unit' => $payload['unit'] ?? 'mtr',
+            'status' => 'approved',
+            'metadata' => [
+                'planned_shift' => $payload['planned_shift'] ?? null,
+                'planned_quantity' => $plannedQuantity,
+                'actual_quantity' => $actualQuantity,
+                'runtime_hours' => $runtimeHours,
+                'downtime_hours' => $downtimeHours,
+                'efficiency_percent' => $efficiencyPercent,
+                'operator_name' => $payload['operator_name'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createOperatorEfficiency(array $payload = []): TextileWorkflowDocument
+    {
+        $plannedQuantity = (float) ($payload['planned_quantity'] ?? 0);
+        $actualQuantity = (float) ($payload['actual_quantity'] ?? 0);
+        $efficiencyPercent = $plannedQuantity > 0 ? round(($actualQuantity / $plannedQuantity) * 100, 2) : null;
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'operator_efficiency',
+            'party_name' => $payload['operator_name'] ?? null,
+            'lot_reference' => $payload['planned_shift'] ?? null,
+            'quantity' => $actualQuantity,
+            'unit' => $payload['unit'] ?? 'mtr',
+            'status' => 'approved',
+            'metadata' => [
+                'planned_shift' => $payload['planned_shift'] ?? null,
+                'planned_quantity' => $plannedQuantity,
+                'actual_quantity' => $actualQuantity,
+                'efficiency_percent' => $efficiencyPercent,
+                'operator_name' => $payload['operator_name'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createMachineDowntime(int $loomMasterId, array $payload = []): TextileWorkflowDocument
+    {
+        $loomMaster = $this->findTenantDocument($loomMasterId, 'loom_master');
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'machine_downtime',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $loomMaster->id,
+            'party_name' => $payload['operator_name'] ?? ($loomMaster->metadata['operator_name'] ?? $loomMaster->party_name),
+            'lot_reference' => $loomMaster->document_number,
+            'quantity' => $payload['downtime_hours'] ?? 0,
+            'unit' => $payload['unit'] ?? 'hour',
+            'status' => 'approved',
+            'metadata' => [
+                'planned_shift' => $payload['planned_shift'] ?? null,
+                'downtime_reason' => $payload['downtime_reason'] ?? null,
+                'downtime_hours' => $payload['downtime_hours'] ?? null,
+                'operator_name' => $payload['operator_name'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
+    public function createProductionCost(int $weavingOutputId, array $payload = []): TextileWorkflowDocument
+    {
+        $output = $this->findTenantDocument($weavingOutputId, 'weaving_output');
+        $quantity = (float) ($payload['quantity'] ?? $output->quantity ?? 0);
+        $costAmount = (float) ($payload['cost_amount'] ?? 0);
+        $costPerUnit = $quantity > 0 ? round($costAmount / $quantity, 4) : null;
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'production_cost',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $output->id,
+            'party_name' => $payload['operator_name'] ?? $output->party_name,
+            'lot_reference' => $output->lot_reference,
+            'quantity' => $quantity,
+            'unit' => $payload['unit'] ?? $output->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'cost_center_id' => $payload['cost_center_id'] ?? null,
+                'cost_amount' => $costAmount,
+                'cost_per_unit' => $costPerUnit,
+                'operator_name' => $payload['operator_name'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
     }

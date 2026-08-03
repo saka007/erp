@@ -38,21 +38,57 @@ class TextileOperatingPolicyAdminTest extends TestCase
             ->post(route('textile.operating-policy.update'), [
                 'company_id' => $company->id,
                 'operating_model' => TextileOperatingPolicyService::MODEL_JOBWORK_WEAVING,
+                'operating_profiles' => [TextileOperatingPolicyService::MODEL_JOBWORK_WEAVING],
                 'material_ownership' => 'customer_owned',
                 'billing_mode' => 'conversion_charge',
+                'settings' => [
+                    TextileOperatingPolicyService::SETTING_HAS_OWN_LOOMS,
+                    TextileOperatingPolicyService::SETTING_HAS_WEAVING_PRODUCTION,
+                ],
             ])
             ->assertSessionHasNoErrors();
 
         $policy = TextileOperatingPolicy::query()->where('created_by', $company->id)->first();
         $this->assertNotNull($policy);
         $this->assertSame(TextileOperatingPolicyService::MODEL_JOBWORK_WEAVING, $policy->operating_model);
+        $this->assertTrue((bool) ($policy->settings[TextileOperatingPolicyService::SETTING_HAS_OWN_LOOMS] ?? false));
+        $this->assertFalse((bool) ($policy->settings[TextileOperatingPolicyService::SETTING_HAS_SIZING] ?? false));
 
         $this->actingAs($company)
-            ->get(route('textile.manufacturing.index'))
-            ->assertOk();
+            ->post(route('textile.manufacturing.loom-masters.store'), [
+                'source_reference_type' => 'factory',
+                'source_reference_id' => 9001,
+                'source_action' => 'loom_register',
+                'party_name' => 'Policy Loom A',
+                'lot_reference' => 'rapier',
+                'quantity' => 500,
+                'unit' => 'rpm',
+                'shed_type' => 'open',
+                'width' => 108,
+                'loom_status' => 'running',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($company)
+            ->post(route('textile.manufacturing.sizing-recipes.store'), [
+                'warp_production_id' => 1,
+            ])
+            ->assertSessionHasErrors('warp_production_id');
 
         $this->actingAs($company)
             ->get(route('textile.procurement.index'))
+            ->assertForbidden();
+
+        $this->actingAs($company)
+            ->get(route('textile.sales.index'))
+            ->assertForbidden();
+
+        $this->actingAs($company)
+            ->get(route('textile.processing.index'))
+            ->assertForbidden();
+
+        $this->actingAs($company)
+            ->get(route('textile.quality.index'))
             ->assertForbidden();
 
         $this->actingAs($company)
@@ -87,6 +123,9 @@ class TextileOperatingPolicyAdminTest extends TestCase
                 ],
                 'material_ownership' => 'mixed',
                 'billing_mode' => 'hybrid',
+                'settings' => [
+                    TextileOperatingPolicyService::SETTING_HAS_JOBWORK_PROCESSING,
+                ],
             ])
             ->assertSessionHasNoErrors();
 
@@ -110,6 +149,10 @@ class TextileOperatingPolicyAdminTest extends TestCase
                 ],
                 'material_ownership' => 'mixed',
                 'billing_mode' => 'hybrid',
+                'settings' => [
+                    TextileOperatingPolicyService::SETTING_HAS_JOBWORK_PROCESSING,
+                    TextileOperatingPolicyService::SETTING_HAS_SHIFT_PLANNING,
+                ],
             ])
             ->assertSessionHasNoErrors();
 

@@ -38,6 +38,25 @@ Verification gate for this rule:
 - Confirm menu and submenu entries exist for each delivered slice and navigate to the expected section/route before marking the task complete.
 - Confirm controlled vocabulary fields are wired to master CRUD options (not free-text) before marking the task complete.
 
+## Adaptive architecture rule book (mandatory for all future textile slices)
+
+This ERP must adapt per company operating reality instead of assuming one fixed textile flow.
+
+Required architecture rules:
+1. Keep core workflow fields static and first-class when they drive status, costing, approvals, traceability, reports, or downstream business logic.
+2. Use textile master CRUD for controlled vocabularies such as `type`, `unit`, `machine`, `status`, `reason`, `result`, and similar enumerated fields.
+3. Use tenant operating policy for flow enablement. If a company does not run a capability such as sizing, own looms, shift planning, maintenance, job-work weaving, or job-work processing, the related menu entries, page sections, and server actions must be hidden or blocked.
+4. Do not rely on frontend hiding alone. Any adaptive visibility rule must have matching server-side capability enforcement.
+5. Prefer fine-grained capability keys over coarse domain flags when gating subflows. Example: `manufacturing_sizing` is preferred over only `manufacturing`.
+6. Custom fields are additive only. They may extend metadata capture, but must not replace core operational fields or weaken typed validation for workflow-critical inputs.
+7. New domain work must check whether earlier slices in the same operational path should be upgraded to the same adaptive capability model before adding more static behavior.
+8. Fail open only for backward compatibility when capability data is absent; once a capability model is introduced for a slice, both menu and action handling must consume it consistently.
+
+Verification gate for this rule:
+- Confirm the slice has matching company settings or capability derivation logic when business applicability can differ per company.
+- Confirm sidebar visibility, page section visibility, and controller/service enforcement follow the same capability model.
+- Confirm earlier adjacent slices were reviewed for compatibility with the same adaptive architecture before closing the task.
+
 For enterprise backlog items, this tracker also references feature classification from the traceability matrix:
 - `Reuse` = already available in ERPGo and/or current textile slices.
 - `Extend` = base exists and needs textile-specific enrichment.
@@ -291,6 +310,7 @@ Every delivered task must include this evidence in its progress note:
 
 Progress note (2026-08-03):
 - Page-type decision matrix and navigation acceptance checklist are now defined in this tracker and become hard gate criteria for all subsequent domain rows.
+- Adaptive operating capability layer extended: tenant operating policy now supports fine-grained company settings (for example warping, sizing, looms, weaving, shift planning, maintenance, job-work modes) so sidebar submenus and textile page sections can progressively adapt per company beyond coarse procurement/manufacturing/processing toggles.
 
 ### Domain 1: Core ERP (16 features)
 
@@ -570,29 +590,32 @@ Progress note (2026-08-03):
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
-| Production Calendar | 🆕 New Module Required | P2 | `[ ]` |
-| Capacity Planning | 🆕 New Module Required | P2 | `[ ]` |
-| Shift Planning | 🆕 New Module Required | P2 | `[ ]` |
+| Production Calendar | 🆕 New Module Required | P2 | `[x]` |
+| Capacity Planning | 🆕 New Module Required | P2 | `[x]` |
+| Shift Planning | 🆕 New Module Required | P2 | `[x]` |
 | Machine Planning | 🟡 Extend Existing | P1 | `[x]` |
-| Material Planning | 🆕 New Module Required | P1 | `[ ]` |
+| Material Planning | 🆕 New Module Required | P1 | `[x]` |
 | Production Order | ✅ Already Available | P1 | `[x]` |
-| Production Schedule | 🆕 New Module Required | P2 | `[ ]` |
+| Production Schedule | 🆕 New Module Required | P2 | `[x]` |
 
-- Domain 12 Machine Planning slice now supports loom-to-beam planning in Textile Manufacturing with controlled loom and approved-beam selectors, planned date, shift, quantity, unit, operator assignment, and records visibility under a dedicated Machine Planning submenu/tab.
+- Domain 12 completion slice now provides a unified Production Planning workspace inside Textile Manufacturing covering calendar, capacity, shift, machine, material, and production schedule planning with shared UX, tenant isolation, and direct submenu access.
 - Verification: `php artisan test tests/Feature/Textile/TextileManufacturingAdminTest.php tests/Feature/Textile/TextileMasterDataAdminTest.php` => pass; `npm run build` => pass (existing chunk-size warnings only).
 ### Domain 13: Weaving Production (8 features)
 
 | Task | Classification | Priority | Status |
 |---|---|---:|---|
 | Daily Production | ✅ Already Available | P1 | `[x]` |
-| Shift Production | 🔵 Modify Existing | P1 | `[~]` |
-| Takha Entry | 🆕 New Module Required | P2 | `[ ]` |
+| Shift Production | 🔵 Modify Existing | P1 | `[x]` |
+| Takha Entry | 🆕 New Module Required | P2 | `[x]` |
 | Roll Generation | ✅ Already Available | P1 | `[x]` |
-| Loom Efficiency | 🟡 Extend Existing | P2 | `[~]` |
-| Operator Efficiency | 🟡 Extend Existing | P2 | `[~]` |
-| Machine Downtime | 🆕 New Module Required | P2 | `[ ]` |
+| Loom Efficiency | 🟡 Extend Existing | P2 | `[x]` |
+| Operator Efficiency | 🟡 Extend Existing | P2 | `[x]` |
+| Machine Downtime | 🆕 New Module Required | P2 | `[x]` |
 | Waste | ✅ Already Available | P1 | `[x]` |
-| Production Cost | 🔵 Modify Existing | P2 | `[~]` |
+| Production Cost | 🔵 Modify Existing | P2 | `[x]` |
+
+- Domain 13 completion slice now expands the Weaving Production workspace inside Textile Manufacturing to cover shift production, takha entry, loom efficiency, operator efficiency, machine downtime, production cost, waste, and rework with shared UX and tenant isolation.
+- Navigation: Manufacturing submenu label now reflects Weaving Production and lands on the full weaving section rather than output-only scope.
 ### Domain 14: Grey Fabric (6 features)
 
 | Task | Classification | Priority | Status |

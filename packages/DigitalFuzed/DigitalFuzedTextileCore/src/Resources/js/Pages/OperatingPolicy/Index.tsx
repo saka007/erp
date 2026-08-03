@@ -24,6 +24,7 @@ interface Policy {
 interface Props {
     policy: Policy;
     capabilities: Record<string, boolean>;
+    settings: Record<string, boolean>;
     activeProfiles: string[];
     profileHistory: Array<{
         id: number;
@@ -37,13 +38,14 @@ interface Props {
         operatingProfiles: string[];
         materialOwnership: string[];
         billingModes: string[];
+        settings: string[];
     };
     isSuperadmin: boolean;
     selectedCompanyId: number | null;
     companies: CompanyOption[];
 }
 
-export default function Index({ policy, capabilities, activeProfiles, profileHistory, options, isSuperadmin, selectedCompanyId, companies }: Props) {
+export default function Index({ policy, capabilities, settings, activeProfiles, profileHistory, options, isSuperadmin, selectedCompanyId, companies }: Props) {
     const { t } = useTranslation();
 
     const form = useForm({
@@ -52,6 +54,7 @@ export default function Index({ policy, capabilities, activeProfiles, profileHis
         operating_profiles: activeProfiles,
         material_ownership: policy.material_ownership,
         billing_mode: policy.billing_mode,
+        settings: Object.entries(settings).filter(([, enabled]) => enabled).map(([key]) => key),
     });
 
     const capabilityRows = useMemo(
@@ -59,9 +62,50 @@ export default function Index({ policy, capabilities, activeProfiles, profileHis
             ['procurement', t('Procurement')],
             ['manufacturing', t('Manufacturing')],
             ['processing', t('Processing')],
+            ['quality', t('Quality')],
+            ['sales', t('Sales')],
+            ['inventory', t('Inventory')],
             ['grn_invoice_sync', t('GRN to Invoice Sync')],
+            ['procurement_requisition', t('Procurement Requisition')],
+            ['procurement_rfq', t('Procurement RFQ')],
+            ['procurement_purchase_order', t('Procurement Purchase Order')],
+            ['procurement_grn', t('Procurement GRN')],
+            ['procurement_incoming_qc', t('Procurement Incoming QC')],
+            ['procurement_supplier_claims', t('Procurement Supplier Claims')],
+            ['processing_outward', t('Processing Outward')],
+            ['processing_batch', t('Processing Batch')],
+            ['processing_inward', t('Processing Inward')],
+            ['processing_reconciliation', t('Processing Reconciliation')],
+            ['quality_inspection', t('Quality Inspection')],
+            ['quality_hold_release', t('Quality Hold/Release')],
+            ['sales_order', t('Sales Order')],
+            ['sales_allocation_dispatch', t('Sales Allocation/Dispatch')],
+            ['sales_challan_pod', t('Sales Challan/POD')],
+            ['inventory_transactions', t('Inventory Transactions')],
+            ['inventory_controls', t('Inventory Controls')],
+            ['inventory_records', t('Inventory Records')],
+            ['inventory_locations', t('Inventory Locations')],
+            ['inventory_movements', t('Inventory Movements')],
+            ['inventory_reservations', t('Inventory Reservations')],
+            ['inventory_freeze', t('Inventory Freeze')],
+            ['inventory_verification', t('Inventory Verification')],
+            ['inventory_cycle_count', t('Inventory Cycle Count')],
+            ['manufacturing_warping', t('Warping')],
+            ['manufacturing_sizing', t('Sizing')],
+            ['manufacturing_beam', t('Beam Management')],
+            ['manufacturing_loom', t('Loom Management')],
+            ['manufacturing_planning', t('Production Planning')],
+            ['manufacturing_weaving', t('Weaving Output')],
+            ['manufacturing_waste', t('Waste Tracking')],
+            ['manufacturing_rework', t('Rework')],
+            ['manufacturing_maintenance', t('Maintenance')],
         ],
         [t]
+    );
+
+    const settingRows = useMemo(
+        () => options.settings.map((key) => ({ value: key, label: key.replaceAll('_', ' ') })),
+        [options.settings]
     );
 
     return (
@@ -134,6 +178,19 @@ export default function Index({ policy, capabilities, activeProfiles, profileHis
                                 includeEmpty
                                 required
                             />
+
+                            <div className="space-y-2">
+                                <p className="text-sm font-medium text-foreground">{t('Operational Settings')}</p>
+                                <CheckboxGroup
+                                    direction="vertical"
+                                    options={settingRows}
+                                    value={form.data.settings}
+                                    onValueChange={(value) => form.setData('settings', value)}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    {t('Use these company-specific switches to show, hide, or block subflows such as sizing, loom planning, maintenance, and job-work paths.')}
+                                </p>
+                            </div>
 
                             <Button type="submit" disabled={form.processing} className="w-full">
                                 {t('Save Operating Model')}

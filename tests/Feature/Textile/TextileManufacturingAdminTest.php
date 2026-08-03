@@ -197,6 +197,110 @@ class TextileManufacturingAdminTest extends TestCase
         $this->assertSame('2026-08-04', $machinePlan->metadata['planned_date']);
 
         $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.production-calendars.store'), [
+                'plan_date' => '2026-08-04',
+                'day_type' => 'working',
+                'planned_shift' => 'day',
+                'notes' => 'Standard working day',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $productionCalendar = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'production_calendar')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($productionCalendar);
+        $this->assertSame('working', $productionCalendar->metadata['day_type']);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.capacity-plans.store'), [
+                'loom_master_id' => $loomMaster->id,
+                'plan_date' => '2026-08-04',
+                'available_hours' => 12,
+                'capacity_quantity' => 260,
+                'unit' => 'mtr',
+                'efficiency_target' => 88,
+                'operator_name' => 'Operator A',
+                'notes' => 'Capacity for day run',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $capacityPlan = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'capacity_plan')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($capacityPlan);
+        $this->assertSame($loomMaster->id, $capacityPlan->source_reference_id);
+        $this->assertSame(88.0, (float) $capacityPlan->metadata['efficiency_target']);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.shift-plans.store'), [
+                'loom_master_id' => $loomMaster->id,
+                'plan_date' => '2026-08-04',
+                'planned_shift' => 'night',
+                'expected_hours' => 8,
+                'unit' => 'hour',
+                'operator_name' => 'Operator A',
+                'notes' => 'Night shift plan',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $shiftPlan = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'shift_plan')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($shiftPlan);
+        $this->assertSame('night', $shiftPlan->metadata['planned_shift']);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.material-plans.store'), [
+                'beam_id' => $beam->id,
+                'plan_date' => '2026-08-04',
+                'required_quantity' => 230,
+                'unit' => 'mtr',
+                'notes' => 'Reserve beam quantity for run',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $materialPlan = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'material_plan')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($materialPlan);
+        $this->assertSame($beam->id, $materialPlan->source_reference_id);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.production-schedules.store'), [
+                'loom_master_id' => $loomMaster->id,
+                'beam_id' => $beam->id,
+                'scheduled_date' => '2026-08-05',
+                'scheduled_shift' => 'day',
+                'scheduled_quantity' => 210,
+                'unit' => 'mtr',
+                'operator_name' => 'Operator A',
+                'notes' => 'Scheduled production commitment',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $productionSchedule = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'production_schedule')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($productionSchedule);
+        $this->assertSame($loomMaster->id, $productionSchedule->source_reference_id);
+        $this->assertSame($beam->id, $productionSchedule->metadata['beam_id']);
+
+        $this->actingAs($companyA)
             ->post(route('textile.manufacturing.batches.store'), [
                 'beam_id' => $beam->id,
             ])
@@ -236,6 +340,131 @@ class TextileManufacturingAdminTest extends TestCase
 
         $this->assertNotNull($weavingOutput);
         $this->assertSame('approved', $weavingOutput->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.shift-productions.store'), [
+                'batch_id' => $batch->id,
+                'loom_master_id' => $loomMaster->id,
+                'planned_shift' => 'day',
+                'quantity' => 120,
+                'unit' => 'mtr',
+                'operator_name' => 'Operator A',
+                'notes' => 'Day shift weaving production',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $shiftProduction = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'shift_production')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($shiftProduction);
+        $this->assertSame('day', $shiftProduction->metadata['planned_shift']);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.takha-entries.store'), [
+                'weaving_output_id' => $weavingOutput->id,
+                'takha_number' => 'TAKHA-001',
+                'quantity' => 60,
+                'unit' => 'mtr',
+                'operator_name' => 'Operator A',
+                'notes' => 'First takha from loom run',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $takhaEntry = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'takha_entry')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($takhaEntry);
+        $this->assertSame('TAKHA-001', $takhaEntry->metadata['takha_number']);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.loom-efficiencies.store'), [
+                'loom_master_id' => $loomMaster->id,
+                'planned_shift' => 'day',
+                'planned_quantity' => 140,
+                'actual_quantity' => 120,
+                'runtime_hours' => 7,
+                'downtime_hours' => 1,
+                'unit' => 'mtr',
+                'operator_name' => 'Operator A',
+                'notes' => 'Efficiency snapshot for day shift',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $loomEfficiency = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'loom_efficiency')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($loomEfficiency);
+        $this->assertSame(85.71, (float) $loomEfficiency->metadata['efficiency_percent']);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.operator-efficiencies.store'), [
+                'planned_shift' => 'day',
+                'planned_quantity' => 130,
+                'actual_quantity' => 120,
+                'unit' => 'mtr',
+                'operator_name' => 'Operator A',
+                'notes' => 'Operator performance for day shift',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $operatorEfficiency = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'operator_efficiency')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($operatorEfficiency);
+        $this->assertSame(92.31, (float) $operatorEfficiency->metadata['efficiency_percent']);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.machine-downtimes.store'), [
+                'loom_master_id' => $loomMaster->id,
+                'planned_shift' => 'day',
+                'downtime_reason' => 'mechanical',
+                'downtime_hours' => 1.25,
+                'unit' => 'hour',
+                'operator_name' => 'Operator A',
+                'notes' => 'Stopped for mechanical adjustment',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $machineDowntime = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'machine_downtime')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($machineDowntime);
+        $this->assertSame('mechanical', $machineDowntime->metadata['downtime_reason']);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.production-costs.store'), [
+                'weaving_output_id' => $weavingOutput->id,
+                'cost_amount' => 4800,
+                'quantity' => 240,
+                'unit' => 'mtr',
+                'operator_name' => 'Operator A',
+                'notes' => 'Direct weaving production cost',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $productionCost = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'production_cost')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($productionCost);
+        $this->assertSame(20.0, (float) $productionCost->metadata['cost_per_unit']);
 
         $this->actingAs($companyA)
             ->post(route('textile.manufacturing.waste.store'), [
@@ -459,6 +688,17 @@ class TextileManufacturingAdminTest extends TestCase
             ->assertDontSee($loomBreakdown->document_number)
             ->assertDontSee($loomMaintenance->document_number)
             ->assertDontSee($machinePlan->document_number)
+            ->assertDontSee($productionCalendar->document_number)
+            ->assertDontSee($capacityPlan->document_number)
+            ->assertDontSee($shiftPlan->document_number)
+            ->assertDontSee($materialPlan->document_number)
+            ->assertDontSee($productionSchedule->document_number)
+            ->assertDontSee($shiftProduction->document_number)
+            ->assertDontSee($takhaEntry->document_number)
+            ->assertDontSee($loomEfficiency->document_number)
+            ->assertDontSee($operatorEfficiency->document_number)
+            ->assertDontSee($machineDowntime->document_number)
+            ->assertDontSee($productionCost->document_number)
             ->assertDontSee($beamFromSizing->document_number)
             ->assertDontSee($warpSheet->document_number)
             ->assertDontSee($warpProduction->document_number)
@@ -482,6 +722,17 @@ class TextileManufacturingAdminTest extends TestCase
                 ->assertSee($loomBreakdown->document_number)
                 ->assertSee($loomMaintenance->document_number)
                 ->assertSee($machinePlan->document_number)
+                ->assertSee($productionCalendar->document_number)
+                ->assertSee($capacityPlan->document_number)
+                ->assertSee($shiftPlan->document_number)
+                ->assertSee($materialPlan->document_number)
+                ->assertSee($productionSchedule->document_number)
+                ->assertSee($shiftProduction->document_number)
+                ->assertSee($takhaEntry->document_number)
+                ->assertSee($loomEfficiency->document_number)
+                ->assertSee($operatorEfficiency->document_number)
+                ->assertSee($machineDowntime->document_number)
+                ->assertSee($productionCost->document_number)
                 ->assertSee($warpSheet->document_number)
                 ->assertSee($warpProduction->document_number)
                 ->assertSee($sizingRecipe->document_number)

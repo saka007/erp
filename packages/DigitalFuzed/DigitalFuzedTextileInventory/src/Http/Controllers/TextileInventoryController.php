@@ -2,6 +2,7 @@
 
 namespace DigitalFuzed\TextileInventory\Http\Controllers;
 
+use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileInventory\Models\TextileCycleCount;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Models\TextileLocation;
@@ -23,9 +24,14 @@ class TextileInventoryController extends Controller
     private const MOVEMENT_STATUSES = ['pending', 'posted', 'cancelled'];
     private const LOT_STATUSES = ['active', 'hold', 'inactive'];
 
+    public function __construct(protected TextileOperatingPolicyService $policyService)
+    {
+    }
+
     public function index(Request $request)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapabilityOrAbort('inventory');
 
         $movementsQuery = TextileMovement::query()->where('created_by', creatorId());
 
@@ -79,6 +85,7 @@ class TextileInventoryController extends Controller
     public function storeLocation(Request $request)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('inventory_locations', 'name');
 
         $validated = $request->validate([
             'name' => [
@@ -110,6 +117,7 @@ class TextileInventoryController extends Controller
     public function archiveLocation(Request $request)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('inventory_locations', 'location_id');
 
         $validated = $request->validate([
             'location_id' => ['required', 'integer', 'min:1'],
@@ -129,6 +137,7 @@ class TextileInventoryController extends Controller
     public function storeLot(Request $request)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('inventory_transactions', 'lot_reference');
 
         $validated = $request->validate([
             'lot_reference' => [
@@ -173,6 +182,7 @@ class TextileInventoryController extends Controller
     public function updateLot(Request $request)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('inventory_controls', 'lot_id');
 
         $validated = $request->validate([
             'lot_id' => ['required', 'integer', 'min:1'],
@@ -189,6 +199,7 @@ class TextileInventoryController extends Controller
     public function archiveLot(Request $request)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('inventory_controls', 'lot_id');
 
         $validated = $request->validate([
             'lot_id' => ['required', 'integer', 'min:1'],
@@ -205,6 +216,7 @@ class TextileInventoryController extends Controller
     public function freezeLot(Request $request)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('inventory_freeze', 'lot_id');
 
         $validated = $request->validate([
             'lot_id' => ['required', 'integer', 'min:1'],
@@ -227,6 +239,7 @@ class TextileInventoryController extends Controller
     public function unfreezeLot(Request $request)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('inventory_freeze', 'lot_id');
 
         $validated = $request->validate([
             'lot_id' => ['required', 'integer', 'min:1'],
@@ -250,6 +263,7 @@ class TextileInventoryController extends Controller
     public function showLot(int $lotId, TextileAvailabilityService $availabilityService)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('inventory_records', 'lotId');
 
         $lot = TextileLot::where('created_by', creatorId())->where('id', $lotId)->firstOrFail();
 
@@ -264,6 +278,7 @@ class TextileInventoryController extends Controller
     public function storeMovement(Request $request, TextileMovementService $movementService)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('inventory_movements', 'movement_type');
 
         $validated = $request->validate([
             'movement_type' => ['required', Rule::in(self::MOVEMENT_TYPES)],
@@ -292,6 +307,7 @@ class TextileInventoryController extends Controller
     public function storeReservation(Request $request, TextileAvailabilityService $availabilityService)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('inventory_reservations', 'lot_reference');
 
         $validated = $request->validate([
             'lot_reference' => ['required', 'string', 'max:100'],
@@ -319,6 +335,7 @@ class TextileInventoryController extends Controller
     public function storePhysicalVerification(Request $request, TextileMovementService $movementService)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('inventory_verification', 'lot_reference');
 
         $validated = $request->validate([
             'lot_reference' => ['required', 'string', 'max:100'],
@@ -365,6 +382,7 @@ class TextileInventoryController extends Controller
     public function storeCycleCount(Request $request, TextileMovementService $movementService)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('inventory_cycle_count', 'lot_reference');
 
         $validated = $request->validate([
             'lot_reference' => ['required', 'string', 'max:100'],
@@ -425,6 +443,7 @@ class TextileInventoryController extends Controller
     public function releaseReservation(Request $request, TextileAvailabilityService $availabilityService)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('inventory_reservations', 'reservation_id');
 
         $validated = $request->validate([
             'reservation_id' => ['required', 'integer', 'min:1'],
@@ -442,6 +461,7 @@ class TextileInventoryController extends Controller
     public function allocateReservation(Request $request, TextileAvailabilityService $availabilityService)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('inventory_reservations', 'reservation_id');
 
         $validated = $request->validate([
             'reservation_id' => ['required', 'integer', 'min:1'],
@@ -511,6 +531,26 @@ class TextileInventoryController extends Controller
         $user = Auth::user();
 
         abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+    }
+
+    private function authorizeCapability(string $capability, string $errorKey): void
+    {
+        try {
+            $this->policyService->assertCapability($capability);
+        } catch (RuntimeException $exception) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                $errorKey => __($exception->getMessage()),
+            ]);
+        }
+    }
+
+    private function authorizeCapabilityOrAbort(string $capability): void
+    {
+        try {
+            $this->policyService->assertCapability($capability);
+        } catch (RuntimeException $exception) {
+            abort(403, __($exception->getMessage()));
+        }
     }
 
     private function ensureLotIsNotFrozen(string $lotReference): void

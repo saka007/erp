@@ -150,11 +150,22 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/manufacturing/loom-breakdowns', [TextileManufacturingController::class, 'storeLoomBreakdown'])->name('textile.manufacturing.loom-breakdowns.store');
     Route::post('/textile/manufacturing/loom-maintenances', [TextileManufacturingController::class, 'storeLoomMaintenance'])->name('textile.manufacturing.loom-maintenances.store');
     Route::post('/textile/manufacturing/machine-plans', [TextileManufacturingController::class, 'storeMachinePlan'])->name('textile.manufacturing.machine-plans.store');
+    Route::post('/textile/manufacturing/production-calendars', [TextileManufacturingController::class, 'storeProductionCalendar'])->name('textile.manufacturing.production-calendars.store');
+    Route::post('/textile/manufacturing/capacity-plans', [TextileManufacturingController::class, 'storeCapacityPlan'])->name('textile.manufacturing.capacity-plans.store');
+    Route::post('/textile/manufacturing/shift-plans', [TextileManufacturingController::class, 'storeShiftPlan'])->name('textile.manufacturing.shift-plans.store');
+    Route::post('/textile/manufacturing/material-plans', [TextileManufacturingController::class, 'storeMaterialPlan'])->name('textile.manufacturing.material-plans.store');
+    Route::post('/textile/manufacturing/production-schedules', [TextileManufacturingController::class, 'storeProductionSchedule'])->name('textile.manufacturing.production-schedules.store');
     Route::post('/textile/manufacturing/beams', [TextileManufacturingController::class, 'storeBeam'])->name('textile.manufacturing.beams.store');
     Route::post('/textile/manufacturing/beams/approve', [TextileManufacturingController::class, 'approveBeam'])->name('textile.manufacturing.beams.approve');
     Route::post('/textile/manufacturing/batches', [TextileManufacturingController::class, 'storeProductionBatch'])->name('textile.manufacturing.batches.store');
     Route::post('/textile/manufacturing/batches/release', [TextileManufacturingController::class, 'releaseProductionBatch'])->name('textile.manufacturing.batches.release');
     Route::post('/textile/manufacturing/weaving-output', [TextileManufacturingController::class, 'storeWeavingOutput'])->name('textile.manufacturing.weaving-output.store');
+    Route::post('/textile/manufacturing/shift-productions', [TextileManufacturingController::class, 'storeShiftProduction'])->name('textile.manufacturing.shift-productions.store');
+    Route::post('/textile/manufacturing/takha-entries', [TextileManufacturingController::class, 'storeTakhaEntry'])->name('textile.manufacturing.takha-entries.store');
+    Route::post('/textile/manufacturing/loom-efficiencies', [TextileManufacturingController::class, 'storeLoomEfficiency'])->name('textile.manufacturing.loom-efficiencies.store');
+    Route::post('/textile/manufacturing/operator-efficiencies', [TextileManufacturingController::class, 'storeOperatorEfficiency'])->name('textile.manufacturing.operator-efficiencies.store');
+    Route::post('/textile/manufacturing/machine-downtimes', [TextileManufacturingController::class, 'storeMachineDowntime'])->name('textile.manufacturing.machine-downtimes.store');
+    Route::post('/textile/manufacturing/production-costs', [TextileManufacturingController::class, 'storeProductionCost'])->name('textile.manufacturing.production-costs.store');
     Route::post('/textile/manufacturing/waste', [TextileManufacturingController::class, 'storeWaste'])->name('textile.manufacturing.waste.store');
     Route::post('/textile/manufacturing/rework', [TextileManufacturingController::class, 'storeRework'])->name('textile.manufacturing.rework.store');
 

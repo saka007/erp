@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { Truck, Plus, Check, ClipboardCheck } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
@@ -13,6 +13,7 @@ import { TextileDataTableSection } from '@/components/textile/textile-data-table
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
 import { buildUnitOptions, formatTextileOptionLabel, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
+import { PageProps } from '@/types';
 
 interface WorkflowDocument {
     id: number;
@@ -58,9 +59,19 @@ export default function Index({
     lotReferenceOptions: string[];
 }) {
     const { t } = useTranslation();
+    const { auth } = usePage<PageProps>().props;
+    const textileCapabilities = auth.user?.textile_capabilities || {};
+    const hasFineGrainedCapabilities = Object.keys(textileCapabilities).some((key) => key.startsWith('sales_'));
     const sectionParam = new URLSearchParams(window.location.search).get('section');
-    const validSections = new Set(['sales-order', 'allocation-dispatch', 'challan-pod']);
-    const activeSection = sectionParam && validSections.has(sectionParam) ? sectionParam : 'sales-order';
+    const visibleSections = hasFineGrainedCapabilities
+        ? [
+            textileCapabilities.sales_order ? 'sales-order' : null,
+            textileCapabilities.sales_allocation_dispatch ? 'allocation-dispatch' : null,
+            textileCapabilities.sales_challan_pod ? 'challan-pod' : null,
+        ].filter((value): value is string => value !== null)
+        : ['sales-order', 'allocation-dispatch', 'challan-pod'];
+    const validSections = new Set(visibleSections);
+    const activeSection = sectionParam && validSections.has(sectionParam) ? sectionParam : (visibleSections[0] ?? 'sales-order');
 
     const salesOrderForm = useForm({
         source_reference_type: 'sales_quotation',
@@ -140,12 +151,12 @@ export default function Index({
                 className="space-y-6"
             >
                 <TabsList className="grid w-full grid-cols-2 gap-2 h-auto p-1 md:grid-cols-3">
-                    <TabsTrigger value="sales-order">{t('Sales Order')}</TabsTrigger>
-                    <TabsTrigger value="allocation-dispatch">{t('Allocation & Dispatch')}</TabsTrigger>
-                    <TabsTrigger value="challan-pod">{t('Challan & POD')}</TabsTrigger>
+                    {validSections.has('sales-order') ? <TabsTrigger value="sales-order">{t('Sales Order')}</TabsTrigger> : null}
+                    {validSections.has('allocation-dispatch') ? <TabsTrigger value="allocation-dispatch">{t('Allocation & Dispatch')}</TabsTrigger> : null}
+                    {validSections.has('challan-pod') ? <TabsTrigger value="challan-pod">{t('Challan & POD')}</TabsTrigger> : null}
                 </TabsList>
 
-                <TabsContent value="sales-order">
+                {validSections.has('sales-order') ? <TabsContent value="sales-order">
                     <div className="grid gap-6 xl:grid-cols-2">
                         <TextileFormCard title={t('Create Sales Order')} icon={Plus}>
                                 <form className="space-y-3" onSubmit={(e) => {
@@ -244,9 +255,9 @@ export default function Index({
                             emptyState={<NoRecordsFound icon={Truck} title={t('No sales orders found')} description={t('Create sales orders from approved commercial references.')} />}
                         />
                     </div>
-                </TabsContent>
+                </TabsContent> : null}
 
-                <TabsContent value="allocation-dispatch">
+                {validSections.has('allocation-dispatch') ? <TabsContent value="allocation-dispatch">
                     <div className="grid gap-6 xl:grid-cols-2">
                         <TextileFormCard title={t('Allocation')} icon={ClipboardCheck}>
                                 <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
@@ -319,9 +330,9 @@ export default function Index({
                             emptyState={<NoRecordsFound icon={Truck} title={t('No dispatches found')} description={t('Create dispatches from released allocations.')} />}
                         />
                     </div>
-                </TabsContent>
+                </TabsContent> : null}
 
-                <TabsContent value="challan-pod">
+                {validSections.has('challan-pod') ? <TabsContent value="challan-pod">
                     <div className="grid gap-6 xl:grid-cols-2">
                         <TextileFormCard title={t('Create Challan')} icon={Plus} contentClassName="p-5 space-y-4">
                                 <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
@@ -365,7 +376,7 @@ export default function Index({
                             emptyState={<NoRecordsFound icon={Check} title={t('No POD records found')} description={t('Mark POD to complete challan lifecycle.')} />}
                         />
                     </div>
-                </TabsContent>
+                </TabsContent> : null}
             </Tabs>
         </AuthenticatedLayout>
     );

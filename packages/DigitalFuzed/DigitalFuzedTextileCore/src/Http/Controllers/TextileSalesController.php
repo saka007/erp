@@ -6,6 +6,7 @@ use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
 use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
+use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextileSalesService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -17,9 +18,14 @@ use Workdo\Account\Models\Customer;
 
 class TextileSalesController extends Controller
 {
+    public function __construct(protected TextileOperatingPolicyService $policyService)
+    {
+    }
+
     public function index()
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapabilityOrAbort('sales');
 
         return Inertia::render('DigitalFuzedTextileCore/Sales/Index', [
             'salesOrders' => $this->documents('sales_order'),
@@ -39,6 +45,7 @@ class TextileSalesController extends Controller
     public function storeSalesOrder(Request $request, TextileSalesService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('sales_order', 'source_reference_id');
 
         $validated = $request->validate([
             'source_reference_type' => ['required', 'string', 'max:100'],
@@ -63,6 +70,7 @@ class TextileSalesController extends Controller
     public function approveSalesOrder(Request $request, TextileSalesService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('sales_order', 'sales_order_id');
 
         $validated = $request->validate([
             'sales_order_id' => ['required', 'integer', 'min:1'],
@@ -80,6 +88,7 @@ class TextileSalesController extends Controller
     public function storeAllocation(Request $request, TextileSalesService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('sales_allocation_dispatch', 'sales_order_id');
 
         $validated = $request->validate([
             'sales_order_id' => ['required', 'integer', 'min:1'],
@@ -97,6 +106,7 @@ class TextileSalesController extends Controller
     public function releaseAllocation(Request $request, TextileSalesService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('sales_allocation_dispatch', 'allocation_id');
 
         $validated = $request->validate([
             'allocation_id' => ['required', 'integer', 'min:1'],
@@ -114,6 +124,7 @@ class TextileSalesController extends Controller
     public function storeDispatch(Request $request, TextileSalesService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('sales_allocation_dispatch', 'allocation_id');
 
         $validated = $request->validate([
             'allocation_id' => ['required', 'integer', 'min:1'],
@@ -131,6 +142,7 @@ class TextileSalesController extends Controller
     public function releaseDispatch(Request $request, TextileSalesService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('sales_allocation_dispatch', 'dispatch_id');
 
         $validated = $request->validate([
             'dispatch_id' => ['required', 'integer', 'min:1'],
@@ -148,6 +160,7 @@ class TextileSalesController extends Controller
     public function storeChallan(Request $request, TextileSalesService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('sales_challan_pod', 'dispatch_id');
 
         $validated = $request->validate([
             'dispatch_id' => ['required', 'integer', 'min:1'],
@@ -165,6 +178,7 @@ class TextileSalesController extends Controller
     public function markPod(Request $request, TextileSalesService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('sales_challan_pod', 'challan_id');
 
         $validated = $request->validate([
             'challan_id' => ['required', 'integer', 'min:1'],
@@ -337,5 +351,25 @@ class TextileSalesController extends Controller
         $user = Auth::user();
 
         abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+    }
+
+    private function authorizeCapability(string $capability, string $errorKey): void
+    {
+        try {
+            $this->policyService->assertCapability($capability);
+        } catch (RuntimeException $exception) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                $errorKey => __($exception->getMessage()),
+            ]);
+        }
+    }
+
+    private function authorizeCapabilityOrAbort(string $capability): void
+    {
+        try {
+            $this->policyService->assertCapability($capability);
+        } catch (RuntimeException $exception) {
+            abort(403, __($exception->getMessage()));
+        }
     }
 }

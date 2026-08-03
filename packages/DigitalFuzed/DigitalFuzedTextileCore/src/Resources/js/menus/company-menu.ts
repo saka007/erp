@@ -19,44 +19,54 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                     {
                         title: t('Requisitions'),
                         href: route('textile.procurement.index', { section: 'requisitions' }),
+                        capability: 'procurement_requisition',
                     },
                     {
                         title: t('Purchase Orders'),
                         href: route('textile.procurement.index', { section: 'purchase-orders' }),
+                        capability: 'procurement_purchase_order',
                     },
                     {
                         title: t('RFQ'),
                         href: route('textile.procurement.index', { section: 'rfqs' }),
+                        capability: 'procurement_rfq',
                     },
                     {
                         title: t('GRN'),
                         href: route('textile.procurement.index', { section: 'grns' }),
+                        capability: 'procurement_grn',
                     },
                     {
                         title: t('Incoming QC'),
                         href: route('textile.procurement.index', { section: 'incoming-qc' }),
+                        capability: 'procurement_incoming_qc',
                     },
                     {
                         title: t('Supplier Claims'),
                         href: route('textile.procurement.index', { section: 'supplier-claims' }),
+                        capability: 'procurement_supplier_claims',
                     },
                 ],
             },
             {
                 title: t('Sales'),
                 href: route('textile.sales.index'),
+                capability: 'sales',
                 children: [
                     {
                         title: t('Sales Orders'),
                         href: route('textile.sales.index', { section: 'sales-order' }),
+                        capability: 'sales_order',
                     },
                     {
                         title: t('Allocation and Dispatch'),
                         href: route('textile.sales.index', { section: 'allocation-dispatch' }),
+                        capability: 'sales_allocation_dispatch',
                     },
                     {
                         title: t('Challan and POD'),
                         href: route('textile.sales.index', { section: 'challan-pod' }),
+                        capability: 'sales_challan_pod',
                     },
                 ],
             },
@@ -68,48 +78,59 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                     {
                         title: t('Warp Planning'),
                         href: route('textile.manufacturing.index', { section: 'warp-planning' }),
+                        capability: 'manufacturing_warping',
                     },
                     {
                         title: t('Sizing and Chemical'),
                         href: route('textile.manufacturing.index', { section: 'warp-planning' }),
+                        capability: 'manufacturing_sizing',
                     },
                     {
                         title: t('Beam and Batch'),
                         href: route('textile.manufacturing.index', { section: 'beam-batch' }),
+                        capability: 'manufacturing_beam',
                     },
                     {
                         title: t('Loom Management'),
                         href: route('textile.manufacturing.index', { section: 'loom-management' }),
+                        capability: 'manufacturing_loom',
                     },
                     {
-                        title: t('Machine Planning'),
+                        title: t('Production Planning'),
                         href: route('textile.manufacturing.index', { section: 'machine-planning' }),
+                        capability: 'manufacturing_planning',
                     },
                     {
-                        title: t('Weaving Output'),
+                        title: t('Weaving Production'),
                         href: route('textile.manufacturing.index', { section: 'weaving-output' }),
+                        capability: 'manufacturing_weaving',
                     },
                     {
                         title: t('Waste'),
                         href: route('textile.manufacturing.index', { section: 'waste' }),
+                        capability: 'manufacturing_waste',
                     },
                     {
                         title: t('Rework'),
                         href: route('textile.manufacturing.index', { section: 'rework' }),
+                        capability: 'manufacturing_rework',
                     },
                 ],
             },
             {
                 title: t('Quality'),
                 href: route('textile.quality.index'),
+                capability: 'quality',
                 children: [
                     {
                         title: t('Inspection'),
                         href: route('textile.quality.index'),
+                        capability: 'quality_inspection',
                     },
                     {
                         title: t('Hold and Release'),
                         href: route('textile.quality.index'),
+                        capability: 'quality_hold_release',
                     },
                 ],
             },
@@ -121,18 +142,22 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                     {
                         title: t('Job Work Outward'),
                         href: route('textile.processing.index'),
+                        capability: 'processing_outward',
                     },
                     {
                         title: t('Processing Batch'),
                         href: route('textile.processing.index'),
+                        capability: 'processing_batch',
                     },
                     {
                         title: t('Job Work Inward'),
                         href: route('textile.processing.index'),
+                        capability: 'processing_inward',
                     },
                     {
                         title: t('Reconciliation'),
                         href: route('textile.processing.index'),
+                        capability: 'processing_reconciliation',
                     },
                 ],
             },

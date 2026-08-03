@@ -43,7 +43,7 @@ class TextileProcessingController extends Controller
     public function storeOutward(Request $request, TextileProcessingService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('processing', 'lot_reference');
+        $this->authorizeCapability('processing_outward', 'lot_reference');
 
         $validated = $request->validate([
             'source_reference_type' => ['nullable', 'string', 'max:100'],
@@ -63,7 +63,7 @@ class TextileProcessingController extends Controller
     public function releaseOutward(Request $request, TextileProcessingService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('processing', 'outward_id');
+        $this->authorizeCapability('processing_outward', 'outward_id');
 
         $validated = $request->validate([
             'outward_id' => ['required', 'integer', 'min:1'],
@@ -81,7 +81,7 @@ class TextileProcessingController extends Controller
     public function storeBatch(Request $request, TextileProcessingService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('processing', 'outward_id');
+        $this->authorizeCapability('processing_batch', 'outward_id');
 
         $validated = $request->validate([
             'outward_id' => ['required', 'integer', 'min:1'],
@@ -99,7 +99,7 @@ class TextileProcessingController extends Controller
     public function releaseBatch(Request $request, TextileProcessingService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('processing', 'batch_id');
+        $this->authorizeCapability('processing_batch', 'batch_id');
 
         $validated = $request->validate([
             'batch_id' => ['required', 'integer', 'min:1'],
@@ -117,7 +117,7 @@ class TextileProcessingController extends Controller
     public function storeInward(Request $request, TextileProcessingService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('processing', 'batch_id');
+        $this->authorizeCapability('processing_inward', 'batch_id');
 
         $validated = $request->validate([
             'batch_id' => ['required', 'integer', 'min:1'],
@@ -137,7 +137,7 @@ class TextileProcessingController extends Controller
     public function finalizeInward(Request $request, TextileProcessingService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('processing', 'inward_id');
+        $this->authorizeCapability('processing_inward', 'inward_id');
 
         $validated = $request->validate([
             'inward_id' => ['required', 'integer', 'min:1'],
@@ -156,7 +156,7 @@ class TextileProcessingController extends Controller
     public function reconcile(Request $request, TextileProcessingService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('processing', 'inward_id');
+        $this->authorizeCapability('processing_reconciliation', 'inward_id');
 
         $validated = $request->validate([
             'outward_id' => ['required', 'integer', 'min:1'],

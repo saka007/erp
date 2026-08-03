@@ -16,6 +16,32 @@ class TextileOperatingPolicyService
     public const MODEL_TRADER_BULK = 'trader_bulk';
     public const MODEL_EXPORT_COMPLIANCE = 'export_compliance';
 
+    public const SETTING_HAS_WARPING = 'has_warping';
+    public const SETTING_HAS_SIZING = 'has_sizing';
+    public const SETTING_HAS_OWN_LOOMS = 'has_own_looms';
+    public const SETTING_HAS_WEAVING_PRODUCTION = 'has_weaving_production';
+    public const SETTING_HAS_SHIFT_PLANNING = 'has_shift_planning';
+    public const SETTING_HAS_MAINTENANCE = 'has_maintenance';
+    public const SETTING_HAS_JOBWORK_WEAVING = 'has_jobwork_weaving';
+    public const SETTING_HAS_JOBWORK_PROCESSING = 'has_jobwork_processing';
+    public const SETTING_HAS_PROCUREMENT = 'has_procurement';
+    public const SETTING_HAS_INCOMING_QC = 'has_incoming_qc';
+    public const SETTING_HAS_SUPPLIER_CLAIMS = 'has_supplier_claims';
+    public const SETTING_HAS_PROCESSING_HOUSE = 'has_processing_house';
+    public const SETTING_HAS_QUALITY_INSPECTION = 'has_quality_inspection';
+    public const SETTING_HAS_HOLD_RELEASE = 'has_hold_release';
+    public const SETTING_HAS_SALES = 'has_sales';
+    public const SETTING_HAS_SALES_ALLOCATION = 'has_sales_allocation';
+    public const SETTING_HAS_SALES_DISPATCH = 'has_sales_dispatch';
+    public const SETTING_HAS_CHALLAN_POD = 'has_challan_pod';
+    public const SETTING_HAS_INVENTORY = 'has_inventory';
+    public const SETTING_HAS_INVENTORY_LOCATIONS = 'has_inventory_locations';
+    public const SETTING_HAS_INVENTORY_MOVEMENTS = 'has_inventory_movements';
+    public const SETTING_HAS_INVENTORY_RESERVATIONS = 'has_inventory_reservations';
+    public const SETTING_HAS_INVENTORY_FREEZE = 'has_inventory_freeze';
+    public const SETTING_HAS_INVENTORY_VERIFICATION = 'has_inventory_verification';
+    public const SETTING_HAS_INVENTORY_CYCLE_COUNT = 'has_inventory_cycle_count';
+
     public function options(): array
     {
         return [
@@ -35,6 +61,37 @@ class TextileOperatingPolicyService
     public function billingModeOptions(): array
     {
         return ['sale_value', 'conversion_charge', 'process_charge', 'hybrid'];
+    }
+
+    public function settingOptions(): array
+    {
+        return [
+            self::SETTING_HAS_WARPING,
+            self::SETTING_HAS_SIZING,
+            self::SETTING_HAS_OWN_LOOMS,
+            self::SETTING_HAS_WEAVING_PRODUCTION,
+            self::SETTING_HAS_SHIFT_PLANNING,
+            self::SETTING_HAS_MAINTENANCE,
+            self::SETTING_HAS_JOBWORK_WEAVING,
+            self::SETTING_HAS_JOBWORK_PROCESSING,
+            self::SETTING_HAS_PROCUREMENT,
+            self::SETTING_HAS_INCOMING_QC,
+            self::SETTING_HAS_SUPPLIER_CLAIMS,
+            self::SETTING_HAS_PROCESSING_HOUSE,
+            self::SETTING_HAS_QUALITY_INSPECTION,
+            self::SETTING_HAS_HOLD_RELEASE,
+            self::SETTING_HAS_SALES,
+            self::SETTING_HAS_SALES_ALLOCATION,
+            self::SETTING_HAS_SALES_DISPATCH,
+            self::SETTING_HAS_CHALLAN_POD,
+            self::SETTING_HAS_INVENTORY,
+            self::SETTING_HAS_INVENTORY_LOCATIONS,
+            self::SETTING_HAS_INVENTORY_MOVEMENTS,
+            self::SETTING_HAS_INVENTORY_RESERVATIONS,
+            self::SETTING_HAS_INVENTORY_FREEZE,
+            self::SETTING_HAS_INVENTORY_VERIFICATION,
+            self::SETTING_HAS_INVENTORY_CYCLE_COUNT,
+        ];
     }
 
     public function resolveForCurrentTenant(): TextileOperatingPolicy
@@ -59,6 +116,7 @@ class TextileOperatingPolicyService
                 'operating_model' => self::MODEL_FULL_PACKAGE,
                 'material_ownership' => 'company_owned',
                 'billing_mode' => 'sale_value',
+                'settings' => $this->defaultSettingsForProfiles([self::MODEL_FULL_PACKAGE]),
             ]
         );
     }
@@ -83,6 +141,7 @@ class TextileOperatingPolicyService
             'operating_model' => $primaryModel,
             'material_ownership' => $payload['material_ownership'],
             'billing_mode' => $payload['billing_mode'],
+            'settings' => $this->resolveRequestedSettings($payload, $selectedProfiles),
             'creator_id' => auth()->id(),
         ]);
 
@@ -102,7 +161,43 @@ class TextileOperatingPolicyService
             'procurement' => false,
             'manufacturing' => false,
             'processing' => false,
+            'quality' => false,
+            'sales' => false,
+            'inventory' => false,
             'grn_invoice_sync' => false,
+            'sales_order' => false,
+            'sales_allocation_dispatch' => false,
+            'sales_challan_pod' => false,
+            'inventory_transactions' => false,
+            'inventory_controls' => false,
+            'inventory_records' => false,
+            'inventory_locations' => false,
+            'inventory_movements' => false,
+            'inventory_reservations' => false,
+            'inventory_freeze' => false,
+            'inventory_verification' => false,
+            'inventory_cycle_count' => false,
+            'procurement_requisition' => false,
+            'procurement_rfq' => false,
+            'procurement_purchase_order' => false,
+            'procurement_grn' => false,
+            'procurement_incoming_qc' => false,
+            'procurement_supplier_claims' => false,
+            'processing_outward' => false,
+            'processing_batch' => false,
+            'processing_inward' => false,
+            'processing_reconciliation' => false,
+            'quality_inspection' => false,
+            'quality_hold_release' => false,
+            'manufacturing_warping' => false,
+            'manufacturing_sizing' => false,
+            'manufacturing_beam' => false,
+            'manufacturing_loom' => false,
+            'manufacturing_planning' => false,
+            'manufacturing_weaving' => false,
+            'manufacturing_waste' => false,
+            'manufacturing_rework' => false,
+            'manufacturing_maintenance' => false,
         ];
 
         foreach ($activeProfiles as $profile) {
@@ -112,7 +207,58 @@ class TextileOperatingPolicyService
             }
         }
 
+        $settings = $this->normalizedSettings($policy, $activeProfiles);
+
+        $capabilities['manufacturing_warping'] = $capabilities['manufacturing'] && ($settings[self::SETTING_HAS_WARPING] ?? false);
+        $capabilities['manufacturing_sizing'] = $capabilities['manufacturing'] && ($settings[self::SETTING_HAS_SIZING] ?? false);
+        $capabilities['manufacturing_beam'] = $capabilities['manufacturing'] && (($settings[self::SETTING_HAS_WARPING] ?? false) || ($settings[self::SETTING_HAS_SIZING] ?? false) || ($settings[self::SETTING_HAS_OWN_LOOMS] ?? false));
+        $capabilities['manufacturing_loom'] = $capabilities['manufacturing'] && ($settings[self::SETTING_HAS_OWN_LOOMS] ?? false);
+        $capabilities['manufacturing_planning'] = $capabilities['manufacturing'] && ($settings[self::SETTING_HAS_OWN_LOOMS] ?? false) && ($settings[self::SETTING_HAS_SHIFT_PLANNING] ?? false);
+        $capabilities['manufacturing_weaving'] = $capabilities['manufacturing'] && ($settings[self::SETTING_HAS_WEAVING_PRODUCTION] ?? false);
+        $capabilities['manufacturing_waste'] = $capabilities['manufacturing_weaving'];
+        $capabilities['manufacturing_rework'] = $capabilities['manufacturing_weaving'];
+        $capabilities['manufacturing_maintenance'] = $capabilities['manufacturing_loom'] && ($settings[self::SETTING_HAS_MAINTENANCE] ?? false);
+        $capabilities['procurement'] = $capabilities['procurement'] && ($settings[self::SETTING_HAS_PROCUREMENT] ?? false);
+        $capabilities['procurement_requisition'] = $capabilities['procurement'];
+        $capabilities['procurement_rfq'] = $capabilities['procurement'];
+        $capabilities['procurement_purchase_order'] = $capabilities['procurement'];
+        $capabilities['procurement_grn'] = $capabilities['procurement'];
+        $capabilities['procurement_incoming_qc'] = $capabilities['procurement'] && ($settings[self::SETTING_HAS_INCOMING_QC] ?? false);
+        $capabilities['procurement_supplier_claims'] = $capabilities['procurement'] && ($settings[self::SETTING_HAS_SUPPLIER_CLAIMS] ?? false);
+        $capabilities['processing'] = $capabilities['processing'] && ($settings[self::SETTING_HAS_PROCESSING_HOUSE] ?? false || $settings[self::SETTING_HAS_JOBWORK_PROCESSING] ?? false);
+        $capabilities['processing_outward'] = $capabilities['processing'];
+        $capabilities['processing_batch'] = $capabilities['processing'];
+        $capabilities['processing_inward'] = $capabilities['processing'];
+        $capabilities['processing_reconciliation'] = $capabilities['processing'];
+        $capabilities['quality'] = ($settings[self::SETTING_HAS_QUALITY_INSPECTION] ?? false) || ($settings[self::SETTING_HAS_HOLD_RELEASE] ?? false);
+        $capabilities['quality_inspection'] = $capabilities['quality'] && ($settings[self::SETTING_HAS_QUALITY_INSPECTION] ?? false);
+        $capabilities['quality_hold_release'] = $capabilities['quality'] && ($settings[self::SETTING_HAS_HOLD_RELEASE] ?? false);
+        $capabilities['sales'] = $settings[self::SETTING_HAS_SALES] ?? false;
+        $capabilities['sales_order'] = $capabilities['sales'];
+        $capabilities['sales_allocation_dispatch'] = $capabilities['sales'] && (($settings[self::SETTING_HAS_SALES_ALLOCATION] ?? false) || ($settings[self::SETTING_HAS_SALES_DISPATCH] ?? false));
+        $capabilities['sales_challan_pod'] = $capabilities['sales'] && ($settings[self::SETTING_HAS_CHALLAN_POD] ?? false);
+        $capabilities['inventory'] = $settings[self::SETTING_HAS_INVENTORY] ?? false;
+        $capabilities['inventory_transactions'] = $capabilities['inventory'];
+        $capabilities['inventory_controls'] = $capabilities['inventory'];
+        $capabilities['inventory_records'] = $capabilities['inventory'];
+        $capabilities['inventory_locations'] = $capabilities['inventory'] && ($settings[self::SETTING_HAS_INVENTORY_LOCATIONS] ?? false);
+        $capabilities['inventory_movements'] = $capabilities['inventory'] && ($settings[self::SETTING_HAS_INVENTORY_MOVEMENTS] ?? false);
+        $capabilities['inventory_reservations'] = $capabilities['inventory'] && ($settings[self::SETTING_HAS_INVENTORY_RESERVATIONS] ?? false);
+        $capabilities['inventory_freeze'] = $capabilities['inventory'] && ($settings[self::SETTING_HAS_INVENTORY_FREEZE] ?? false);
+        $capabilities['inventory_verification'] = $capabilities['inventory'] && ($settings[self::SETTING_HAS_INVENTORY_VERIFICATION] ?? false);
+        $capabilities['inventory_cycle_count'] = $capabilities['inventory'] && ($settings[self::SETTING_HAS_INVENTORY_CYCLE_COUNT] ?? false);
+
         return $capabilities;
+    }
+
+    public function settings(TextileOperatingPolicy $policy): array
+    {
+        $activeProfiles = $this->resolveActiveProfilesForTenant((int) ($policy->created_by ?? 0));
+        if ($activeProfiles === []) {
+            $activeProfiles = [$policy->operating_model];
+        }
+
+        return $this->normalizedSettings($policy, $activeProfiles);
     }
 
     public function resolveActiveProfilesForTenant(?int $tenantId): array
@@ -178,24 +324,36 @@ class TextileOperatingPolicyService
                 'procurement' => false,
                 'manufacturing' => true,
                 'processing' => false,
+                'quality' => true,
+                'sales' => false,
+                'inventory' => true,
                 'grn_invoice_sync' => false,
             ],
             self::MODEL_JOBWORK_PROCESSING => [
                 'procurement' => false,
                 'manufacturing' => false,
                 'processing' => true,
+                'quality' => true,
+                'sales' => false,
+                'inventory' => true,
                 'grn_invoice_sync' => false,
             ],
             self::MODEL_TRADER_BULK => [
                 'procurement' => true,
                 'manufacturing' => false,
                 'processing' => false,
+                'quality' => false,
+                'sales' => true,
+                'inventory' => true,
                 'grn_invoice_sync' => true,
             ],
             default => [
                 'procurement' => true,
                 'manufacturing' => true,
                 'processing' => true,
+                'quality' => true,
+                'sales' => true,
+                'inventory' => true,
                 'grn_invoice_sync' => true,
             ],
         };
@@ -225,6 +383,22 @@ class TextileOperatingPolicyService
         }
 
         return $profiles;
+    }
+
+    private function resolveRequestedSettings(array $payload, array $profiles): array
+    {
+        $requested = $payload['settings'] ?? [];
+        if (!is_array($requested)) {
+            $requested = [];
+        }
+
+        $defaults = $this->defaultSettingsForProfiles($profiles);
+
+        foreach ($this->settingOptions() as $settingKey) {
+            $defaults[$settingKey] = in_array($settingKey, $requested, true);
+        }
+
+        return $defaults;
     }
 
     private function resolvePrimaryModel(TextileOperatingPolicy $policy, array $profiles, ?string $requestedPrimary): string
@@ -292,7 +466,99 @@ class TextileOperatingPolicyService
         $policy->operating_model = self::MODEL_FULL_PACKAGE;
         $policy->material_ownership = 'company_owned';
         $policy->billing_mode = 'sale_value';
+        $policy->settings = $this->defaultSettingsForProfiles([self::MODEL_FULL_PACKAGE]);
 
         return $policy;
+    }
+
+    private function normalizedSettings(TextileOperatingPolicy $policy, array $profiles): array
+    {
+        $defaults = $this->defaultSettingsForProfiles($profiles);
+        $stored = is_array($policy->settings ?? null) ? $policy->settings : [];
+
+        foreach ($this->settingOptions() as $settingKey) {
+            if (array_key_exists($settingKey, $stored)) {
+                $defaults[$settingKey] = (bool) $stored[$settingKey];
+            }
+        }
+
+        return $defaults;
+    }
+
+    private function defaultSettingsForProfiles(array $profiles): array
+    {
+        $defaults = array_fill_keys($this->settingOptions(), false);
+
+        foreach ($profiles as $profile) {
+            switch ($profile) {
+                case self::MODEL_JOBWORK_WEAVING:
+                    $defaults[self::SETTING_HAS_OWN_LOOMS] = true;
+                    $defaults[self::SETTING_HAS_WEAVING_PRODUCTION] = true;
+                    $defaults[self::SETTING_HAS_SHIFT_PLANNING] = true;
+                    $defaults[self::SETTING_HAS_MAINTENANCE] = true;
+                    $defaults[self::SETTING_HAS_JOBWORK_WEAVING] = true;
+                    $defaults[self::SETTING_HAS_QUALITY_INSPECTION] = true;
+                    $defaults[self::SETTING_HAS_HOLD_RELEASE] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_LOCATIONS] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_MOVEMENTS] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_RESERVATIONS] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_FREEZE] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_VERIFICATION] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_CYCLE_COUNT] = true;
+                    break;
+                case self::MODEL_JOBWORK_PROCESSING:
+                    $defaults[self::SETTING_HAS_JOBWORK_PROCESSING] = true;
+                    $defaults[self::SETTING_HAS_PROCESSING_HOUSE] = true;
+                    $defaults[self::SETTING_HAS_QUALITY_INSPECTION] = true;
+                    $defaults[self::SETTING_HAS_HOLD_RELEASE] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_LOCATIONS] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_MOVEMENTS] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_RESERVATIONS] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_VERIFICATION] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_CYCLE_COUNT] = true;
+                    break;
+                case self::MODEL_TRADER_BULK:
+                    $defaults[self::SETTING_HAS_PROCUREMENT] = true;
+                    $defaults[self::SETTING_HAS_INCOMING_QC] = true;
+                    $defaults[self::SETTING_HAS_SALES] = true;
+                    $defaults[self::SETTING_HAS_SALES_ALLOCATION] = true;
+                    $defaults[self::SETTING_HAS_SALES_DISPATCH] = true;
+                    $defaults[self::SETTING_HAS_CHALLAN_POD] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_LOCATIONS] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_MOVEMENTS] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_RESERVATIONS] = true;
+                    break;
+                default:
+                    $defaults[self::SETTING_HAS_PROCUREMENT] = true;
+                    $defaults[self::SETTING_HAS_INCOMING_QC] = true;
+                    $defaults[self::SETTING_HAS_SUPPLIER_CLAIMS] = true;
+                    $defaults[self::SETTING_HAS_PROCESSING_HOUSE] = true;
+                    $defaults[self::SETTING_HAS_QUALITY_INSPECTION] = true;
+                    $defaults[self::SETTING_HAS_HOLD_RELEASE] = true;
+                    $defaults[self::SETTING_HAS_SALES] = true;
+                    $defaults[self::SETTING_HAS_SALES_ALLOCATION] = true;
+                    $defaults[self::SETTING_HAS_SALES_DISPATCH] = true;
+                    $defaults[self::SETTING_HAS_CHALLAN_POD] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_LOCATIONS] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_MOVEMENTS] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_RESERVATIONS] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_FREEZE] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_VERIFICATION] = true;
+                    $defaults[self::SETTING_HAS_INVENTORY_CYCLE_COUNT] = true;
+                    $defaults[self::SETTING_HAS_WARPING] = true;
+                    $defaults[self::SETTING_HAS_SIZING] = true;
+                    $defaults[self::SETTING_HAS_OWN_LOOMS] = true;
+                    $defaults[self::SETTING_HAS_WEAVING_PRODUCTION] = true;
+                    $defaults[self::SETTING_HAS_SHIFT_PLANNING] = true;
+                    $defaults[self::SETTING_HAS_MAINTENANCE] = true;
+                    break;
+            }
+        }
+
+        return $defaults;
     }
 }

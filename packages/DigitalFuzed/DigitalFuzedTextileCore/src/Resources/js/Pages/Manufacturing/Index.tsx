@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { Factory, Plus, Check } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
@@ -13,6 +13,7 @@ import { TextileDataTableSection } from '@/components/textile/textile-data-table
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
 import { buildUnitOptions, formatTextileOptionLabel, textileMachineTypeOptions, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
+import { PageProps } from '@/types';
 
 interface WorkflowDocument {
     id: number;
@@ -38,7 +39,12 @@ export default function Index({
     loomMasters,
     loomBreakdowns,
     loomMaintenances,
+    productionCalendars,
+    capacityPlans,
+    shiftPlans,
     machinePlans,
+    materialPlans,
+    productionSchedules,
     beams,
     beamIssues,
     beamReturns,
@@ -46,6 +52,12 @@ export default function Index({
     beamCosts,
     productionBatches,
     weavingOutputs,
+    shiftProductions,
+    takhaEntries,
+    loomEfficiencies,
+    operatorEfficiencies,
+    machineDowntimes,
+    productionCosts,
     wastes,
     reworks,
     sourceTypeOptions,
@@ -55,8 +67,10 @@ export default function Index({
     loomStatusOptions,
     breakdownReasonOptions,
     maintenanceTypeOptions,
+    dayTypeOptions,
     shiftOptions,
     unitOptions,
+    costCenterOptions,
     costTypeOptions,
     inspectionResultOptions,
     chemicalOptions,
@@ -73,7 +87,12 @@ export default function Index({
     loomMasters: WorkflowDocument[];
     loomBreakdowns: WorkflowDocument[];
     loomMaintenances: WorkflowDocument[];
+    productionCalendars: WorkflowDocument[];
+    capacityPlans: WorkflowDocument[];
+    shiftPlans: WorkflowDocument[];
     machinePlans: WorkflowDocument[];
+    materialPlans: WorkflowDocument[];
+    productionSchedules: WorkflowDocument[];
     beams: WorkflowDocument[];
     beamIssues: WorkflowDocument[];
     beamReturns: WorkflowDocument[];
@@ -81,6 +100,12 @@ export default function Index({
     beamCosts: WorkflowDocument[];
     productionBatches: WorkflowDocument[];
     weavingOutputs: WorkflowDocument[];
+    shiftProductions: WorkflowDocument[];
+    takhaEntries: WorkflowDocument[];
+    loomEfficiencies: WorkflowDocument[];
+    operatorEfficiencies: WorkflowDocument[];
+    machineDowntimes: WorkflowDocument[];
+    productionCosts: WorkflowDocument[];
     wastes: WorkflowDocument[];
     reworks: WorkflowDocument[];
     sourceTypeOptions: string[];
@@ -90,8 +115,10 @@ export default function Index({
     loomStatusOptions: string[];
     breakdownReasonOptions: string[];
     maintenanceTypeOptions: string[];
+    dayTypeOptions: string[];
     shiftOptions: string[];
     unitOptions: string[];
+    costCenterOptions: Array<{ value: string; label: string }>;
     costTypeOptions: string[];
     inspectionResultOptions: string[];
     chemicalOptions: string[];
@@ -100,9 +127,25 @@ export default function Index({
     lotReferenceOptions: string[];
 }) {
     const { t } = useTranslation();
+    const { auth } = usePage<PageProps>().props;
+    const textileCapabilities = auth.user?.textile_capabilities || {};
+    const hasFineGrainedCapabilities = Object.keys(textileCapabilities).some((key) => key.startsWith('manufacturing_'));
     const sectionParam = new URLSearchParams(window.location.search).get('section');
-    const validSections = new Set(['warp-planning', 'beam-batch', 'loom-management', 'machine-planning', 'weaving-output', 'waste', 'rework']);
-    const activeSection = sectionParam && validSections.has(sectionParam) ? sectionParam : 'warp-planning';
+    const visibleSections = hasFineGrainedCapabilities
+        ? [
+            textileCapabilities.manufacturing_warping || textileCapabilities.manufacturing_sizing ? 'warp-planning' : null,
+            textileCapabilities.manufacturing_beam ? 'beam-batch' : null,
+            textileCapabilities.manufacturing_loom ? 'loom-management' : null,
+            textileCapabilities.manufacturing_planning ? 'machine-planning' : null,
+            textileCapabilities.manufacturing_weaving ? 'weaving-output' : null,
+            textileCapabilities.manufacturing_waste ? 'waste' : null,
+            textileCapabilities.manufacturing_rework ? 'rework' : null,
+        ].filter((value): value is string => value !== null)
+        : ['warp-planning', 'beam-batch', 'loom-management', 'machine-planning', 'weaving-output', 'waste', 'rework'];
+    const validSections = new Set(visibleSections);
+    const activeSection = sectionParam && validSections.has(sectionParam)
+        ? sectionParam
+        : (visibleSections[0] ?? 'warp-planning');
 
     const warpPlanForm = useForm({
         source_reference_type: 'inventory_lot',
@@ -148,7 +191,12 @@ export default function Index({
     });
     const loomBreakdownForm = useForm({ loom_master_id: '', breakdown_reason: '', downtime_hours: '', unit: 'hour', operator_name: '', notes: '' });
     const loomMaintenanceForm = useForm({ loom_master_id: '', maintenance_type: '', maintenance_hours: '', unit: 'hour', operator_name: '', notes: '' });
+    const productionCalendarForm = useForm({ plan_date: '', day_type: 'working', planned_shift: 'day', notes: '' });
+    const capacityPlanForm = useForm({ loom_master_id: '', plan_date: '', available_hours: '', capacity_quantity: '', unit: 'mtr', efficiency_target: '', operator_name: '', notes: '' });
+    const shiftPlanForm = useForm({ loom_master_id: '', plan_date: '', planned_shift: 'day', expected_hours: '', unit: 'hour', operator_name: '', notes: '' });
     const machinePlanForm = useForm({ loom_master_id: '', beam_id: '', planned_date: '', planned_shift: 'day', planned_quantity: '', unit: 'mtr', operator_name: '', notes: '' });
+    const materialPlanForm = useForm({ beam_id: '', plan_date: '', required_quantity: '', unit: 'mtr', notes: '' });
+    const productionScheduleForm = useForm({ loom_master_id: '', beam_id: '', scheduled_date: '', scheduled_shift: 'day', scheduled_quantity: '', unit: 'mtr', operator_name: '', notes: '' });
 
     const beamForm = useForm({
         source_reference_type: 'sales_order',
@@ -162,6 +210,12 @@ export default function Index({
 
     const batchForm = useForm({ beam_id: '' });
     const weavingOutputForm = useForm({ batch_id: '', quantity: '', unit: 'mtr' });
+    const shiftProductionForm = useForm({ batch_id: '', loom_master_id: '', planned_shift: 'day', quantity: '', unit: 'mtr', operator_name: '', notes: '' });
+    const takhaEntryForm = useForm({ weaving_output_id: '', takha_number: '', quantity: '', unit: 'mtr', operator_name: '', notes: '' });
+    const loomEfficiencyForm = useForm({ loom_master_id: '', planned_shift: 'day', planned_quantity: '', actual_quantity: '', runtime_hours: '', downtime_hours: '', unit: 'mtr', operator_name: '', notes: '' });
+    const operatorEfficiencyForm = useForm({ planned_shift: 'day', planned_quantity: '', actual_quantity: '', unit: 'mtr', operator_name: '', notes: '' });
+    const machineDowntimeForm = useForm({ loom_master_id: '', planned_shift: 'day', downtime_reason: '', downtime_hours: '', unit: 'hour', operator_name: '', notes: '' });
+    const productionCostForm = useForm({ weaving_output_id: '', cost_center_id: '', cost_amount: '', quantity: '', unit: 'mtr', operator_name: '', notes: '' });
     const wasteForm = useForm({ batch_id: '', quantity: '', unit: 'mtr' });
     const reworkForm = useForm({ weaving_output_id: '', quantity: '', unit: 'mtr' });
     const approvedWarpPlans = warpPlans.filter((row) => row.status === 'approved');
@@ -174,6 +228,7 @@ export default function Index({
     const approvedBeams = beams.filter((row) => row.status === 'approved');
     const actionableBeamIssues = beamIssues.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
     const releasedBatches = productionBatches.filter((row) => row.status === 'released');
+    const completedWeavingOutputs = weavingOutputs.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
     const resolvedSourceTypeOptions = sourceTypeOptions.length > 0
         ? sourceTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }))
         : textileSourceTypeOptions;
@@ -195,14 +250,16 @@ export default function Index({
     const resolvedLoomStatusOptions = loomStatusOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedBreakdownReasonOptions = breakdownReasonOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedMaintenanceTypeOptions = maintenanceTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
+    const resolvedDayTypeOptions = dayTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedShiftOptions = shiftOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedUnitOptions = buildUnitOptions(unitOptions);
+    const resolvedCostCenterOptions = costCenterOptions;
     const resolvedChemicalOptions = chemicalOptions.map((value) => ({ value, label: value }));
     const resolvedCostTypeOptions = costTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedInspectionResultOptions = inspectionResultOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedOperatorOptions = operatorOptions.map((value) => ({ value, label: value }));
 
-    const allDocuments = [...warpPlans, ...yarnAllocations, ...warpSheets, ...warpProductions, ...sizingRecipes, ...chemicalConsumptions, ...loomMasters, ...loomBreakdowns, ...loomMaintenances, ...machinePlans, ...beams, ...beamIssues, ...beamReturns, ...beamInspections, ...beamCosts, ...productionBatches, ...weavingOutputs, ...wastes, ...reworks];
+    const allDocuments = [...warpPlans, ...yarnAllocations, ...warpSheets, ...warpProductions, ...sizingRecipes, ...chemicalConsumptions, ...loomMasters, ...loomBreakdowns, ...loomMaintenances, ...productionCalendars, ...capacityPlans, ...shiftPlans, ...machinePlans, ...materialPlans, ...productionSchedules, ...beams, ...beamIssues, ...beamReturns, ...beamInspections, ...beamCosts, ...productionBatches, ...weavingOutputs, ...shiftProductions, ...takhaEntries, ...loomEfficiencies, ...operatorEfficiencies, ...machineDowntimes, ...productionCosts, ...wastes, ...reworks];
     const draftCount = allDocuments.filter((row) => row.status === 'draft').length;
     const approvedCount = allDocuments.filter((row) => row.status === 'approved').length;
     const releasedCount = allDocuments.filter((row) => row.status === 'released').length;
@@ -318,7 +375,10 @@ export default function Index({
                     { label: t('Chemical Records'), value: chemicalConsumptions.length, hint: t('Sizing chemical usage entries') },
                     { label: t('Loom Breakdowns'), value: loomBreakdowns.length, hint: t('Loom stoppage and downtime entries') },
                     { label: t('Loom Maintenance'), value: loomMaintenances.length, hint: t('Preventive/corrective maintenance entries') },
+                    { label: t('Planning Records'), value: productionCalendars.length + capacityPlans.length + shiftPlans.length + machinePlans.length + materialPlans.length + productionSchedules.length, hint: t('Calendar, capacity, shift, machine, material, and schedule plans') },
                     { label: t('Machine Plans'), value: machinePlans.length, hint: t('Loom to beam planning assignments') },
+                    { label: t('Shift Production'), value: shiftProductions.length, hint: t('Shift-wise weaving execution entries') },
+                    { label: t('Production Cost Records'), value: productionCosts.length, hint: t('Weaving cost capture entries') },
                     { label: t('Beam Inspections'), value: beamInspections.length, hint: t('Sizing and beam quality checkpoints') },
                     { label: t('Beam Cost Records'), value: beamCosts.length, hint: t('Sizing and beam cost capture entries') },
                     { label: t('Draft'), value: draftCount, hint: t('Waiting for review') },
@@ -333,15 +393,15 @@ export default function Index({
                 className="space-y-6"
             >
                 <TabsList className="grid w-full grid-cols-2 gap-2 h-auto p-1 md:grid-cols-7">
-                    <TabsTrigger value="warp-planning">{t('Warp Planning')}</TabsTrigger>
-                    <TabsTrigger value="beam-batch">{t('Beam and Batch')}</TabsTrigger>
-                    <TabsTrigger value="loom-management">{t('Loom Management')}</TabsTrigger>
-                    <TabsTrigger value="machine-planning">{t('Machine Planning')}</TabsTrigger>
-                    <TabsTrigger value="weaving-output">{t('Weaving Output')}</TabsTrigger>
-                    <TabsTrigger value="waste">{t('Waste')}</TabsTrigger>
-                    <TabsTrigger value="rework">{t('Rework')}</TabsTrigger>
+                    {validSections.has('warp-planning') ? <TabsTrigger value="warp-planning">{t('Warp Planning')}</TabsTrigger> : null}
+                    {validSections.has('beam-batch') ? <TabsTrigger value="beam-batch">{t('Beam and Batch')}</TabsTrigger> : null}
+                    {validSections.has('loom-management') ? <TabsTrigger value="loom-management">{t('Loom Management')}</TabsTrigger> : null}
+                    {validSections.has('machine-planning') ? <TabsTrigger value="machine-planning">{t('Production Planning')}</TabsTrigger> : null}
+                    {validSections.has('weaving-output') ? <TabsTrigger value="weaving-output">{t('Weaving Production')}</TabsTrigger> : null}
+                    {validSections.has('waste') ? <TabsTrigger value="waste">{t('Waste')}</TabsTrigger> : null}
+                    {validSections.has('rework') ? <TabsTrigger value="rework">{t('Rework')}</TabsTrigger> : null}
                 </TabsList>
-                <TabsContent value="warp-planning">
+                {validSections.has('warp-planning') ? <TabsContent value="warp-planning">
                 <div className="grid gap-6 xl:grid-cols-2">
                     <TextileFormCard title={t('Create Warp Plan')} icon={Factory}>
                         <form className="space-y-3" onSubmit={(e) => {
@@ -734,9 +794,9 @@ export default function Index({
                         emptyState={<NoRecordsFound icon={Factory} title={t('No beam cost found')} description={t('Record beam cost entries from completed beams.')} />}
                     />
                 </div>
-                </TabsContent>
+                </TabsContent> : null}
 
-                <TabsContent value="beam-batch">
+                {validSections.has('beam-batch') ? <TabsContent value="beam-batch">
                 <div className="grid gap-6 xl:grid-cols-2">
                     <TextileFormCard title={t('Create Beam')} icon={Factory}>
                             <form className="space-y-3" onSubmit={(e) => {
@@ -963,9 +1023,9 @@ export default function Index({
                         emptyState={<NoRecordsFound icon={Factory} title={t('No beam history found')} description={t('Create beam issues and returns to build beam history.')} />}
                     />
                 </div>
-                </TabsContent>
+                </TabsContent> : null}
 
-                <TabsContent value="loom-management">
+                {validSections.has('loom-management') ? <TabsContent value="loom-management">
                 <div className="grid gap-6 xl:grid-cols-2">
                     <TextileFormCard title={t('Register Loom Master')} icon={Factory}>
                         <form className="space-y-3" onSubmit={(e) => {
@@ -1217,10 +1277,74 @@ export default function Index({
                         emptyState={<NoRecordsFound icon={Factory} title={t('No loom maintenance records found')} description={t('Record loom maintenance to track machine care and uptime stability.')} />}
                     />
                 </div>
-                </TabsContent>
+                </TabsContent> : null}
 
-                <TabsContent value="machine-planning">
+                {validSections.has('machine-planning') ? <TabsContent value="machine-planning">
                 <div className="grid gap-6 xl:grid-cols-2">
+                    <TextileFormCard title={t('Create Production Calendar')} icon={Factory}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            productionCalendarForm.post(route('textile.manufacturing.production-calendars.store'), {
+                                onSuccess: () => productionCalendarForm.reset('plan_date', 'notes'),
+                            });
+                        }}>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Plan Date')} type="date" value={productionCalendarForm.data.plan_date} onChange={(v) => productionCalendarForm.setData('plan_date', v)} required />
+                                <SelectField label={t('Day Type')} value={productionCalendarForm.data.day_type} onChange={(v) => productionCalendarForm.setData('day_type', v)} options={resolvedDayTypeOptions} required />
+                            </div>
+                            <SelectField label={t('Planned Shift')} value={productionCalendarForm.data.planned_shift} onChange={(v) => productionCalendarForm.setData('planned_shift', v)} options={resolvedShiftOptions} includeEmpty emptyLabel={t('Select shift')} />
+                            <Field label={t('Notes')} value={productionCalendarForm.data.notes} onChange={(v) => productionCalendarForm.setData('notes', v)} />
+                            <Button type="submit" disabled={productionCalendarForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Calendar Entry')}</Button>
+                        </form>
+                    </TextileFormCard>
+
+                    <TextileFormCard title={t('Create Capacity Plan')} icon={Factory}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            capacityPlanForm.post(route('textile.manufacturing.capacity-plans.store'), {
+                                onSuccess: () => capacityPlanForm.reset('loom_master_id', 'plan_date', 'available_hours', 'capacity_quantity', 'efficiency_target', 'operator_name', 'notes'),
+                            });
+                        }}>
+                            <SelectField label={t('Loom')} value={capacityPlanForm.data.loom_master_id} onChange={(v) => capacityPlanForm.setData('loom_master_id', v)} options={createTextileWorkflowSelectOptions(actionableLoomMasters)} includeEmpty emptyLabel={t('Select loom')} helperText={t('Only active loom masters are listed.')} disabled={actionableLoomMasters.length === 0} disabledReason={t('No active loom master found. Register loom first.')} required />
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Plan Date')} type="date" value={capacityPlanForm.data.plan_date} onChange={(v) => capacityPlanForm.setData('plan_date', v)} required />
+                                <Field label={t('Available Hours')} type="number" value={capacityPlanForm.data.available_hours} onChange={(v) => capacityPlanForm.setData('available_hours', v)} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Capacity Quantity')} type="number" value={capacityPlanForm.data.capacity_quantity} onChange={(v) => capacityPlanForm.setData('capacity_quantity', v)} required />
+                                <SelectField label={t('Unit')} value={capacityPlanForm.data.unit} onChange={(v) => capacityPlanForm.setData('unit', v)} options={resolvedUnitOptions} includeEmpty emptyLabel={t('Select unit')} helperText={t('Units are derived from Unit Conversion master.')} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Efficiency Target %')} type="number" value={capacityPlanForm.data.efficiency_target} onChange={(v) => capacityPlanForm.setData('efficiency_target', v)} />
+                                <SelectField label={t('Operator')} value={capacityPlanForm.data.operator_name} onChange={(v) => capacityPlanForm.setData('operator_name', v)} options={resolvedOperatorOptions} includeEmpty emptyLabel={t('Select operator')} helperText={t('Operators are listed from your company users.')} disabled={resolvedOperatorOptions.length === 0} disabledReason={t('No operators found. Add company users first.')} />
+                            </div>
+                            <Field label={t('Notes')} value={capacityPlanForm.data.notes} onChange={(v) => capacityPlanForm.setData('notes', v)} />
+                            <Button type="submit" disabled={capacityPlanForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Capacity Plan')}</Button>
+                        </form>
+                    </TextileFormCard>
+
+                    <TextileFormCard title={t('Create Shift Plan')} icon={Factory}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            shiftPlanForm.post(route('textile.manufacturing.shift-plans.store'), {
+                                onSuccess: () => shiftPlanForm.reset('loom_master_id', 'plan_date', 'expected_hours', 'operator_name', 'notes'),
+                            });
+                        }}>
+                            <SelectField label={t('Loom')} value={shiftPlanForm.data.loom_master_id} onChange={(v) => shiftPlanForm.setData('loom_master_id', v)} options={createTextileWorkflowSelectOptions(actionableLoomMasters)} includeEmpty emptyLabel={t('Select loom')} helperText={t('Only active loom masters are listed.')} disabled={actionableLoomMasters.length === 0} disabledReason={t('No active loom master found. Register loom first.')} required />
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Plan Date')} type="date" value={shiftPlanForm.data.plan_date} onChange={(v) => shiftPlanForm.setData('plan_date', v)} required />
+                                <SelectField label={t('Planned Shift')} value={shiftPlanForm.data.planned_shift} onChange={(v) => shiftPlanForm.setData('planned_shift', v)} options={resolvedShiftOptions} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Expected Hours')} type="number" value={shiftPlanForm.data.expected_hours} onChange={(v) => shiftPlanForm.setData('expected_hours', v)} required />
+                                <SelectField label={t('Unit')} value={shiftPlanForm.data.unit} onChange={(v) => shiftPlanForm.setData('unit', v)} options={resolvedUnitOptions} includeEmpty emptyLabel={t('Select unit')} helperText={t('Units are derived from Unit Conversion master.')} required />
+                            </div>
+                            <SelectField label={t('Operator')} value={shiftPlanForm.data.operator_name} onChange={(v) => shiftPlanForm.setData('operator_name', v)} options={resolvedOperatorOptions} includeEmpty emptyLabel={t('Select operator')} helperText={t('Operators are listed from your company users.')} disabled={resolvedOperatorOptions.length === 0} disabledReason={t('No operators found. Add company users first.')} />
+                            <Field label={t('Notes')} value={shiftPlanForm.data.notes} onChange={(v) => shiftPlanForm.setData('notes', v)} />
+                            <Button type="submit" disabled={shiftPlanForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Shift Plan')}</Button>
+                        </form>
+                    </TextileFormCard>
+
                     <TextileFormCard title={t('Create Machine Plan')} icon={Factory}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
@@ -1290,6 +1414,90 @@ export default function Index({
                         </form>
                     </TextileFormCard>
 
+                    <TextileFormCard title={t('Create Material Plan')} icon={Factory}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            materialPlanForm.post(route('textile.manufacturing.material-plans.store'), {
+                                onSuccess: () => materialPlanForm.reset('beam_id', 'plan_date', 'required_quantity', 'notes'),
+                            });
+                        }}>
+                            <SelectField label={t('Approved Beam')} value={materialPlanForm.data.beam_id} onChange={(v) => materialPlanForm.setData('beam_id', v)} options={createTextileWorkflowSelectOptions(approvedBeams)} includeEmpty emptyLabel={t('Select approved beam')} helperText={t('Only approved beams are available for material planning.')} disabled={approvedBeams.length === 0} disabledReason={t('No approved beam found. Approve a beam first.')} required />
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Plan Date')} type="date" value={materialPlanForm.data.plan_date} onChange={(v) => materialPlanForm.setData('plan_date', v)} required />
+                                <Field label={t('Required Quantity')} type="number" value={materialPlanForm.data.required_quantity} onChange={(v) => materialPlanForm.setData('required_quantity', v)} required />
+                            </div>
+                            <SelectField label={t('Unit')} value={materialPlanForm.data.unit} onChange={(v) => materialPlanForm.setData('unit', v)} options={resolvedUnitOptions} includeEmpty emptyLabel={t('Select unit')} helperText={t('Units are derived from Unit Conversion master.')} />
+                            <Field label={t('Notes')} value={materialPlanForm.data.notes} onChange={(v) => materialPlanForm.setData('notes', v)} />
+                            <Button type="submit" disabled={materialPlanForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Material Plan')}</Button>
+                        </form>
+                    </TextileFormCard>
+
+                    <TextileFormCard title={t('Create Production Schedule')} icon={Factory}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            productionScheduleForm.post(route('textile.manufacturing.production-schedules.store'), {
+                                onSuccess: () => productionScheduleForm.reset('loom_master_id', 'beam_id', 'scheduled_date', 'scheduled_quantity', 'operator_name', 'notes'),
+                            });
+                        }}>
+                            <SelectField label={t('Loom')} value={productionScheduleForm.data.loom_master_id} onChange={(v) => productionScheduleForm.setData('loom_master_id', v)} options={createTextileWorkflowSelectOptions(actionableLoomMasters)} includeEmpty emptyLabel={t('Select loom')} helperText={t('Only active loom masters are listed.')} disabled={actionableLoomMasters.length === 0} disabledReason={t('No active loom master found. Register loom first.')} required />
+                            <SelectField label={t('Approved Beam')} value={productionScheduleForm.data.beam_id} onChange={(v) => productionScheduleForm.setData('beam_id', v)} options={createTextileWorkflowSelectOptions(approvedBeams)} includeEmpty emptyLabel={t('Select approved beam')} helperText={t('Only approved beams are available for production scheduling.')} disabled={approvedBeams.length === 0} disabledReason={t('No approved beam found. Approve a beam first.')} required />
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Scheduled Date')} type="date" value={productionScheduleForm.data.scheduled_date} onChange={(v) => productionScheduleForm.setData('scheduled_date', v)} required />
+                                <SelectField label={t('Scheduled Shift')} value={productionScheduleForm.data.scheduled_shift} onChange={(v) => productionScheduleForm.setData('scheduled_shift', v)} options={resolvedShiftOptions} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Scheduled Quantity')} type="number" value={productionScheduleForm.data.scheduled_quantity} onChange={(v) => productionScheduleForm.setData('scheduled_quantity', v)} required />
+                                <SelectField label={t('Unit')} value={productionScheduleForm.data.unit} onChange={(v) => productionScheduleForm.setData('unit', v)} options={resolvedUnitOptions} includeEmpty emptyLabel={t('Select unit')} helperText={t('Units are derived from Unit Conversion master.')} />
+                            </div>
+                            <SelectField label={t('Operator')} value={productionScheduleForm.data.operator_name} onChange={(v) => productionScheduleForm.setData('operator_name', v)} options={resolvedOperatorOptions} includeEmpty emptyLabel={t('Select operator')} helperText={t('Operators are listed from your company users.')} disabled={resolvedOperatorOptions.length === 0} disabledReason={t('No operators found. Add company users first.')} />
+                            <Field label={t('Notes')} value={productionScheduleForm.data.notes} onChange={(v) => productionScheduleForm.setData('notes', v)} />
+                            <Button type="submit" disabled={productionScheduleForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Production Schedule')}</Button>
+                        </form>
+                    </TextileFormCard>
+
+                    <TextileDataTableSection
+                        title={t('Production Calendar Records')}
+                        data={productionCalendars}
+                        columns={[
+                            { key: 'document_number', header: t('Number') },
+                            { key: 'plan_date', header: t('Plan Date'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.plan_date ?? '-') },
+                            { key: 'day_type', header: t('Day Type'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.day_type ?? '-') },
+                            { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') },
+                            { key: 'status', header: t('Status') },
+                        ]}
+                        emptyState={<NoRecordsFound icon={Factory} title={t('No production calendar found')} description={t('Create calendar entries to define working, holiday, shutdown, or maintenance days.')} />}
+                    />
+
+                    <TextileDataTableSection
+                        title={t('Capacity Plan Records')}
+                        data={capacityPlans}
+                        columns={[
+                            { key: 'document_number', header: t('Number') },
+                            { key: 'source_reference_id', header: t('Loom ID') },
+                            { key: 'plan_date', header: t('Plan Date'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.plan_date ?? '-') },
+                            { key: 'available_hours', header: t('Hours'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.available_hours ?? '-') },
+                            { key: 'quantity', header: t('Capacity Qty') },
+                            { key: 'efficiency_target', header: t('Eff. %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.efficiency_target ?? '-') },
+                            { key: 'status', header: t('Status') },
+                        ]}
+                        emptyState={<NoRecordsFound icon={Factory} title={t('No capacity plans found')} description={t('Create capacity plans to define loom availability and output expectation.')} />}
+                    />
+
+                    <TextileDataTableSection
+                        title={t('Shift Plan Records')}
+                        data={shiftPlans}
+                        columns={[
+                            { key: 'document_number', header: t('Number') },
+                            { key: 'source_reference_id', header: t('Loom ID') },
+                            { key: 'plan_date', header: t('Plan Date'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.plan_date ?? '-') },
+                            { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') },
+                            { key: 'expected_hours', header: t('Hours'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.expected_hours ?? '-') },
+                            { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') },
+                            { key: 'status', header: t('Status') },
+                        ]}
+                        emptyState={<NoRecordsFound icon={Factory} title={t('No shift plans found')} description={t('Create shift plans to assign loom time and operator coverage.')} />}
+                    />
+
                     <TextileDataTableSection
                         title={t('Machine Plan Records')}
                         data={machinePlans}
@@ -1306,48 +1514,208 @@ export default function Index({
                         ]}
                         emptyState={<NoRecordsFound icon={Factory} title={t('No machine plans found')} description={t('Create machine plans to assign approved beams to looms by date and shift.')} />}
                     />
-                </div>
-                </TabsContent>
 
-                <TabsContent value="weaving-output">
+                    <TextileDataTableSection
+                        title={t('Material Plan Records')}
+                        data={materialPlans}
+                        columns={[
+                            { key: 'document_number', header: t('Number') },
+                            { key: 'beam_number', header: t('Beam'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.beam_number ?? row.lot_reference ?? '-') },
+                            { key: 'plan_date', header: t('Plan Date'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.plan_date ?? '-') },
+                            { key: 'quantity', header: t('Required Qty') },
+                            { key: 'unit', header: t('Unit') },
+                            { key: 'status', header: t('Status') },
+                        ]}
+                        emptyState={<NoRecordsFound icon={Factory} title={t('No material plans found')} description={t('Create material plans to reserve beam-linked quantity requirements for planned runs.')} />}
+                    />
+
+                    <TextileDataTableSection
+                        title={t('Production Schedule Records')}
+                        data={productionSchedules}
+                        columns={[
+                            { key: 'document_number', header: t('Number') },
+                            { key: 'source_reference_id', header: t('Loom ID') },
+                            { key: 'beam_number', header: t('Beam'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.beam_number ?? row.lot_reference ?? '-') },
+                            { key: 'scheduled_date', header: t('Scheduled Date'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.scheduled_date ?? '-') },
+                            { key: 'scheduled_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.scheduled_shift ?? '-') },
+                            { key: 'quantity', header: t('Scheduled Qty') },
+                            { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') },
+                            { key: 'status', header: t('Status') },
+                        ]}
+                        emptyState={<NoRecordsFound icon={Factory} title={t('No production schedules found')} description={t('Create production schedules to lock loom, beam, date, shift, and quantity commitments.')} />}
+                    />
+                </div>
+                </TabsContent> : null}
+
+                {validSections.has('weaving-output') ? <TabsContent value="weaving-output">
                 <div className="grid gap-6 xl:grid-cols-2">
                     <TextileFormCard title={t('Record Weaving Output')} icon={Factory}>
-                            <form className="grid grid-cols-4 gap-3" onSubmit={(e) => {
-                                e.preventDefault();
-                                weavingOutputForm.post(route('textile.manufacturing.weaving-output.store'), {
-                                    onSuccess: () => weavingOutputForm.reset('batch_id', 'quantity'),
-                                });
-                            }}>
-                                <SelectField
-                                    label={t('Batch')}
-                                    value={weavingOutputForm.data.batch_id}
-                                    onChange={(v) => weavingOutputForm.setData('batch_id', v)}
-                                    options={createTextileWorkflowSelectOptions(releasedBatches)}
-                                    includeEmpty
-                                    emptyLabel={t('Select released batch')}
-                                    helperText={t('Only released production batches are listed.')}
-                                    disabled={releasedBatches.length === 0}
-                                    disabledReason={t('No released batch found. Release a production batch first.')}
-                                    required
-                                />
-                                <Field label={t('Output Qty')} type="number" value={weavingOutputForm.data.quantity} onChange={(v) => weavingOutputForm.setData('quantity', v)} required />
-                                <SelectField
-                                    label={t('Unit')}
-                                    value={weavingOutputForm.data.unit}
-                                    onChange={(v) => weavingOutputForm.setData('unit', v)}
-                                    options={resolvedUnitOptions}
-                                    includeEmpty
-                                    emptyLabel={t('Select unit')}
-                                    helperText={t('Units are derived from Unit Conversion master.')}
-                                />
-                                <Button type="submit" disabled={weavingOutputForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Record Output')}</Button>
-                            </form>
+                        <form className="grid grid-cols-4 gap-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            weavingOutputForm.post(route('textile.manufacturing.weaving-output.store'), {
+                                onSuccess: () => weavingOutputForm.reset('batch_id', 'quantity'),
+                            });
+                        }}>
+                            <SelectField label={t('Batch')} value={weavingOutputForm.data.batch_id} onChange={(v) => weavingOutputForm.setData('batch_id', v)} options={createTextileWorkflowSelectOptions(releasedBatches)} includeEmpty emptyLabel={t('Select released batch')} helperText={t('Only released production batches are listed.')} disabled={releasedBatches.length === 0} disabledReason={t('No released batch found. Release a production batch first.')} required />
+                            <Field label={t('Output Qty')} type="number" value={weavingOutputForm.data.quantity} onChange={(v) => weavingOutputForm.setData('quantity', v)} required />
+                            <SelectField label={t('Unit')} value={weavingOutputForm.data.unit} onChange={(v) => weavingOutputForm.setData('unit', v)} options={resolvedUnitOptions} includeEmpty emptyLabel={t('Select unit')} helperText={t('Units are derived from Unit Conversion master.')} />
+                            <Button type="submit" disabled={weavingOutputForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Record Output')}</Button>
+                        </form>
                     </TextileFormCard>
-                    <TextileDataTableCard data={weavingOutputs} columns={createTextileWorkflowColumns(t)} emptyState={<NoRecordsFound icon={Factory} title={t('No weaving output found')} description={t('Record weaving output from released batches.')} />} />
-                </div>
-                </TabsContent>
 
-                <TabsContent value="waste">
+                    <TextileFormCard title={t('Record Shift Production')} icon={Factory}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            shiftProductionForm.post(route('textile.manufacturing.shift-productions.store'), {
+                                onSuccess: () => shiftProductionForm.reset('batch_id', 'loom_master_id', 'quantity', 'operator_name', 'notes'),
+                            });
+                        }}>
+                            <SelectField label={t('Batch')} value={shiftProductionForm.data.batch_id} onChange={(v) => shiftProductionForm.setData('batch_id', v)} options={createTextileWorkflowSelectOptions(releasedBatches)} includeEmpty emptyLabel={t('Select released batch')} helperText={t('Only released production batches are listed.')} disabled={releasedBatches.length === 0} disabledReason={t('No released batch found. Release a production batch first.')} required />
+                            <div className="grid grid-cols-2 gap-3">
+                                <SelectField label={t('Loom')} value={shiftProductionForm.data.loom_master_id} onChange={(v) => shiftProductionForm.setData('loom_master_id', v)} options={createTextileWorkflowSelectOptions(actionableLoomMasters)} includeEmpty emptyLabel={t('Select loom')} helperText={t('Optional loom link for shift execution entry.')} />
+                                <SelectField label={t('Shift')} value={shiftProductionForm.data.planned_shift} onChange={(v) => shiftProductionForm.setData('planned_shift', v)} options={resolvedShiftOptions} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Quantity')} type="number" value={shiftProductionForm.data.quantity} onChange={(v) => shiftProductionForm.setData('quantity', v)} required />
+                                <SelectField label={t('Unit')} value={shiftProductionForm.data.unit} onChange={(v) => shiftProductionForm.setData('unit', v)} options={resolvedUnitOptions} includeEmpty emptyLabel={t('Select unit')} helperText={t('Units are derived from Unit Conversion master.')} />
+                            </div>
+                            <SelectField label={t('Operator')} value={shiftProductionForm.data.operator_name} onChange={(v) => shiftProductionForm.setData('operator_name', v)} options={resolvedOperatorOptions} includeEmpty emptyLabel={t('Select operator')} helperText={t('Operators are listed from your company users.')} disabled={resolvedOperatorOptions.length === 0} disabledReason={t('No operators found. Add company users first.')} />
+                            <Field label={t('Notes')} value={shiftProductionForm.data.notes} onChange={(v) => shiftProductionForm.setData('notes', v)} />
+                            <Button type="submit" disabled={shiftProductionForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Shift Production')}</Button>
+                        </form>
+                    </TextileFormCard>
+
+                    <TextileFormCard title={t('Record Takha Entry')} icon={Factory}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            takhaEntryForm.post(route('textile.manufacturing.takha-entries.store'), {
+                                onSuccess: () => takhaEntryForm.reset('weaving_output_id', 'takha_number', 'quantity', 'operator_name', 'notes'),
+                            });
+                        }}>
+                            <SelectField label={t('Weaving Output')} value={takhaEntryForm.data.weaving_output_id} onChange={(v) => takhaEntryForm.setData('weaving_output_id', v)} options={createTextileWorkflowSelectOptions(completedWeavingOutputs)} includeEmpty emptyLabel={t('Select weaving output')} helperText={t('Only completed weaving outputs are listed.')} disabled={completedWeavingOutputs.length === 0} disabledReason={t('No weaving output found. Record weaving output first.')} required />
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Takha Number')} value={takhaEntryForm.data.takha_number} onChange={(v) => takhaEntryForm.setData('takha_number', v)} required />
+                                <Field label={t('Quantity')} type="number" value={takhaEntryForm.data.quantity} onChange={(v) => takhaEntryForm.setData('quantity', v)} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <SelectField label={t('Unit')} value={takhaEntryForm.data.unit} onChange={(v) => takhaEntryForm.setData('unit', v)} options={resolvedUnitOptions} includeEmpty emptyLabel={t('Select unit')} helperText={t('Units are derived from Unit Conversion master.')} />
+                                <SelectField label={t('Operator')} value={takhaEntryForm.data.operator_name} onChange={(v) => takhaEntryForm.setData('operator_name', v)} options={resolvedOperatorOptions} includeEmpty emptyLabel={t('Select operator')} helperText={t('Operators are listed from your company users.')} disabled={resolvedOperatorOptions.length === 0} disabledReason={t('No operators found. Add company users first.')} />
+                            </div>
+                            <Field label={t('Notes')} value={takhaEntryForm.data.notes} onChange={(v) => takhaEntryForm.setData('notes', v)} />
+                            <Button type="submit" disabled={takhaEntryForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Takha Entry')}</Button>
+                        </form>
+                    </TextileFormCard>
+
+                    <TextileFormCard title={t('Record Loom Efficiency')} icon={Factory}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            loomEfficiencyForm.post(route('textile.manufacturing.loom-efficiencies.store'), {
+                                onSuccess: () => loomEfficiencyForm.reset('loom_master_id', 'planned_quantity', 'actual_quantity', 'runtime_hours', 'downtime_hours', 'operator_name', 'notes'),
+                            });
+                        }}>
+                            <div className="grid grid-cols-2 gap-3">
+                                <SelectField label={t('Loom')} value={loomEfficiencyForm.data.loom_master_id} onChange={(v) => loomEfficiencyForm.setData('loom_master_id', v)} options={createTextileWorkflowSelectOptions(actionableLoomMasters)} includeEmpty emptyLabel={t('Select loom')} helperText={t('Only active loom masters are listed.')} disabled={actionableLoomMasters.length === 0} disabledReason={t('No active loom master found. Register loom first.')} required />
+                                <SelectField label={t('Shift')} value={loomEfficiencyForm.data.planned_shift} onChange={(v) => loomEfficiencyForm.setData('planned_shift', v)} options={resolvedShiftOptions} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Planned Quantity')} type="number" value={loomEfficiencyForm.data.planned_quantity} onChange={(v) => loomEfficiencyForm.setData('planned_quantity', v)} required />
+                                <Field label={t('Actual Quantity')} type="number" value={loomEfficiencyForm.data.actual_quantity} onChange={(v) => loomEfficiencyForm.setData('actual_quantity', v)} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Runtime Hours')} type="number" value={loomEfficiencyForm.data.runtime_hours} onChange={(v) => loomEfficiencyForm.setData('runtime_hours', v)} />
+                                <Field label={t('Downtime Hours')} type="number" value={loomEfficiencyForm.data.downtime_hours} onChange={(v) => loomEfficiencyForm.setData('downtime_hours', v)} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <SelectField label={t('Unit')} value={loomEfficiencyForm.data.unit} onChange={(v) => loomEfficiencyForm.setData('unit', v)} options={resolvedUnitOptions} includeEmpty emptyLabel={t('Select unit')} helperText={t('Units are derived from Unit Conversion master.')} />
+                                <SelectField label={t('Operator')} value={loomEfficiencyForm.data.operator_name} onChange={(v) => loomEfficiencyForm.setData('operator_name', v)} options={resolvedOperatorOptions} includeEmpty emptyLabel={t('Select operator')} helperText={t('Operators are listed from your company users.')} disabled={resolvedOperatorOptions.length === 0} disabledReason={t('No operators found. Add company users first.')} />
+                            </div>
+                            <Field label={t('Notes')} value={loomEfficiencyForm.data.notes} onChange={(v) => loomEfficiencyForm.setData('notes', v)} />
+                            <Button type="submit" disabled={loomEfficiencyForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Loom Efficiency')}</Button>
+                        </form>
+                    </TextileFormCard>
+
+                    <TextileFormCard title={t('Record Operator Efficiency')} icon={Factory}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            operatorEfficiencyForm.post(route('textile.manufacturing.operator-efficiencies.store'), {
+                                onSuccess: () => operatorEfficiencyForm.reset('planned_quantity', 'actual_quantity', 'operator_name', 'notes'),
+                            });
+                        }}>
+                            <div className="grid grid-cols-2 gap-3">
+                                <SelectField label={t('Shift')} value={operatorEfficiencyForm.data.planned_shift} onChange={(v) => operatorEfficiencyForm.setData('planned_shift', v)} options={resolvedShiftOptions} required />
+                                <SelectField label={t('Operator')} value={operatorEfficiencyForm.data.operator_name} onChange={(v) => operatorEfficiencyForm.setData('operator_name', v)} options={resolvedOperatorOptions} includeEmpty emptyLabel={t('Select operator')} helperText={t('Operators are listed from your company users.')} disabled={resolvedOperatorOptions.length === 0} disabledReason={t('No operators found. Add company users first.')} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Planned Quantity')} type="number" value={operatorEfficiencyForm.data.planned_quantity} onChange={(v) => operatorEfficiencyForm.setData('planned_quantity', v)} required />
+                                <Field label={t('Actual Quantity')} type="number" value={operatorEfficiencyForm.data.actual_quantity} onChange={(v) => operatorEfficiencyForm.setData('actual_quantity', v)} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <SelectField label={t('Unit')} value={operatorEfficiencyForm.data.unit} onChange={(v) => operatorEfficiencyForm.setData('unit', v)} options={resolvedUnitOptions} includeEmpty emptyLabel={t('Select unit')} helperText={t('Units are derived from Unit Conversion master.')} />
+                                <Field label={t('Notes')} value={operatorEfficiencyForm.data.notes} onChange={(v) => operatorEfficiencyForm.setData('notes', v)} />
+                            </div>
+                            <Button type="submit" disabled={operatorEfficiencyForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Operator Efficiency')}</Button>
+                        </form>
+                    </TextileFormCard>
+
+                    <TextileFormCard title={t('Record Machine Downtime')} icon={Factory}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            machineDowntimeForm.post(route('textile.manufacturing.machine-downtimes.store'), {
+                                onSuccess: () => machineDowntimeForm.reset('loom_master_id', 'downtime_reason', 'downtime_hours', 'operator_name', 'notes'),
+                            });
+                        }}>
+                            <div className="grid grid-cols-2 gap-3">
+                                <SelectField label={t('Loom')} value={machineDowntimeForm.data.loom_master_id} onChange={(v) => machineDowntimeForm.setData('loom_master_id', v)} options={createTextileWorkflowSelectOptions(actionableLoomMasters)} includeEmpty emptyLabel={t('Select loom')} helperText={t('Only active loom masters are listed.')} disabled={actionableLoomMasters.length === 0} disabledReason={t('No active loom master found. Register loom first.')} required />
+                                <SelectField label={t('Shift')} value={machineDowntimeForm.data.planned_shift} onChange={(v) => machineDowntimeForm.setData('planned_shift', v)} options={resolvedShiftOptions} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <SelectField label={t('Downtime Reason')} value={machineDowntimeForm.data.downtime_reason} onChange={(v) => machineDowntimeForm.setData('downtime_reason', v)} options={resolvedBreakdownReasonOptions} includeEmpty emptyLabel={t('Select reason')} helperText={t('Downtime reasons reuse Loom Setup > Breakdown Reasons.')} required />
+                                <Field label={t('Downtime Hours')} type="number" value={machineDowntimeForm.data.downtime_hours} onChange={(v) => machineDowntimeForm.setData('downtime_hours', v)} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <SelectField label={t('Unit')} value={machineDowntimeForm.data.unit} onChange={(v) => machineDowntimeForm.setData('unit', v)} options={resolvedUnitOptions} includeEmpty emptyLabel={t('Select unit')} helperText={t('Units are derived from Unit Conversion master.')} required />
+                                <SelectField label={t('Operator')} value={machineDowntimeForm.data.operator_name} onChange={(v) => machineDowntimeForm.setData('operator_name', v)} options={resolvedOperatorOptions} includeEmpty emptyLabel={t('Select operator')} helperText={t('Operators are listed from your company users.')} disabled={resolvedOperatorOptions.length === 0} disabledReason={t('No operators found. Add company users first.')} />
+                            </div>
+                            <Field label={t('Notes')} value={machineDowntimeForm.data.notes} onChange={(v) => machineDowntimeForm.setData('notes', v)} />
+                            <Button type="submit" disabled={machineDowntimeForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Downtime')}</Button>
+                        </form>
+                    </TextileFormCard>
+
+                    <TextileFormCard title={t('Record Production Cost')} icon={Factory}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            productionCostForm.post(route('textile.manufacturing.production-costs.store'), {
+                                onSuccess: () => productionCostForm.reset('weaving_output_id', 'cost_center_id', 'cost_amount', 'quantity', 'operator_name', 'notes'),
+                            });
+                        }}>
+                            <SelectField label={t('Weaving Output')} value={productionCostForm.data.weaving_output_id} onChange={(v) => productionCostForm.setData('weaving_output_id', v)} options={createTextileWorkflowSelectOptions(completedWeavingOutputs)} includeEmpty emptyLabel={t('Select weaving output')} helperText={t('Only completed weaving outputs are listed.')} disabled={completedWeavingOutputs.length === 0} disabledReason={t('No weaving output found. Record weaving output first.')} required />
+                            <div className="grid grid-cols-2 gap-3">
+                                <SelectField label={t('Cost Center')} value={productionCostForm.data.cost_center_id} onChange={(v) => productionCostForm.setData('cost_center_id', v)} options={resolvedCostCenterOptions} includeEmpty emptyLabel={t('Select cost center')} helperText={t('Cost centers are managed from Master Setup > Core Setup > Cost Centers.')} />
+                                <Field label={t('Cost Amount')} type="number" value={productionCostForm.data.cost_amount} onChange={(v) => productionCostForm.setData('cost_amount', v)} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Quantity')} type="number" value={productionCostForm.data.quantity} onChange={(v) => productionCostForm.setData('quantity', v)} />
+                                <SelectField label={t('Unit')} value={productionCostForm.data.unit} onChange={(v) => productionCostForm.setData('unit', v)} options={resolvedUnitOptions} includeEmpty emptyLabel={t('Select unit')} helperText={t('Units are derived from Unit Conversion master.')} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <SelectField label={t('Operator')} value={productionCostForm.data.operator_name} onChange={(v) => productionCostForm.setData('operator_name', v)} options={resolvedOperatorOptions} includeEmpty emptyLabel={t('Select operator')} helperText={t('Operators are listed from your company users.')} disabled={resolvedOperatorOptions.length === 0} disabledReason={t('No operators found. Add company users first.')} />
+                                <Field label={t('Notes')} value={productionCostForm.data.notes} onChange={(v) => productionCostForm.setData('notes', v)} />
+                            </div>
+                            <Button type="submit" disabled={productionCostForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Production Cost')}</Button>
+                        </form>
+                    </TextileFormCard>
+
+                    <TextileDataTableSection title={t('Weaving Output Records')} data={weavingOutputs} columns={createTextileWorkflowColumns(t)} emptyState={<NoRecordsFound icon={Factory} title={t('No weaving output found')} description={t('Record weaving output from released batches.')} />} />
+                    <TextileDataTableSection title={t('Shift Production Records')} data={shiftProductions} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Batch ID') }, { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') }, { key: 'quantity', header: t('Qty') }, { key: 'unit', header: t('Unit') }, { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No shift production found')} description={t('Record shift-wise weaving production from released batches.')} />} />
+                    <TextileDataTableSection title={t('Takha Entry Records')} data={takhaEntries} columns={[{ key: 'document_number', header: t('Number') }, { key: 'takha_number', header: t('Takha'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.takha_number ?? row.lot_reference ?? '-') }, { key: 'quantity', header: t('Qty') }, { key: 'unit', header: t('Unit') }, { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No takha entries found')} description={t('Record takha-level production entries from completed weaving output.')} />} />
+                    <TextileDataTableSection title={t('Loom Efficiency Records')} data={loomEfficiencies} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Loom ID') }, { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') }, { key: 'planned_quantity', header: t('Planned Qty'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_quantity ?? '-') }, { key: 'actual_quantity', header: t('Actual Qty'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.actual_quantity ?? '-') }, { key: 'efficiency_percent', header: t('Efficiency %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.efficiency_percent ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No loom efficiency found')} description={t('Record planned vs actual loom output to track efficiency.')} />} />
+                    <TextileDataTableSection title={t('Operator Efficiency Records')} data={operatorEfficiencies} columns={[{ key: 'document_number', header: t('Number') }, { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') }, { key: 'planned_quantity', header: t('Planned Qty'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_quantity ?? '-') }, { key: 'actual_quantity', header: t('Actual Qty'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.actual_quantity ?? '-') }, { key: 'efficiency_percent', header: t('Efficiency %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.efficiency_percent ?? '-') }, { key: 'party_name', header: t('Operator') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No operator efficiency found')} description={t('Record operator planned vs actual production to track efficiency.')} />} />
+                    <TextileDataTableSection title={t('Machine Downtime Records')} data={machineDowntimes} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Loom ID') }, { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') }, { key: 'downtime_reason', header: t('Reason'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.downtime_reason ?? '-') }, { key: 'downtime_hours', header: t('Downtime Hrs'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.downtime_hours ?? '-') }, { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No machine downtime found')} description={t('Record weaving-stage machine downtime by shift and loom.')} />} />
+                    <TextileDataTableSection title={t('Production Cost Records')} data={productionCosts} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Weaving Output ID') }, { key: 'cost_amount', header: t('Cost Amount'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_amount ?? '-') }, { key: 'cost_per_unit', header: t('Cost/Unit'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_per_unit ?? '-') }, { key: 'quantity', header: t('Qty') }, { key: 'unit', header: t('Unit') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No production cost found')} description={t('Record weaving production cost against completed output.')} />} />
+                </div>
+                </TabsContent> : null}
+
+                {validSections.has('waste') ? <TabsContent value="waste">
                 <div className="grid gap-6 xl:grid-cols-2">
                     <TextileFormCard title={t('Record Waste')} icon={Factory}>
                             <form className="grid grid-cols-4 gap-3" onSubmit={(e) => {
@@ -1383,9 +1751,9 @@ export default function Index({
                     </TextileFormCard>
                     <TextileDataTableCard data={wastes} columns={createTextileWorkflowColumns(t)} emptyState={<NoRecordsFound icon={Factory} title={t('No waste records found')} description={t('Record waste from released batches.')} />} />
                 </div>
-                </TabsContent>
+                </TabsContent> : null}
 
-                <TabsContent value="rework">
+                {validSections.has('rework') ? <TabsContent value="rework">
                 <div className="grid gap-6 xl:grid-cols-2">
                     <TextileFormCard title={t('Record Rework')} icon={Factory}>
                             <form className="grid grid-cols-4 gap-3" onSubmit={(e) => {
@@ -1421,7 +1789,7 @@ export default function Index({
                     </TextileFormCard>
                     <TextileDataTableCard data={reworks} columns={createTextileWorkflowColumns(t)} emptyState={<NoRecordsFound icon={Factory} title={t('No rework records found')} description={t('Record rework linked to weaving output.')} />} />
                 </div>
-                </TabsContent>
+                </TabsContent> : null}
             </Tabs>
         </AuthenticatedLayout>
     );

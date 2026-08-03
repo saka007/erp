@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { ShieldCheck, Plus, Check } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
@@ -11,6 +11,7 @@ import { TextileSelectField as SelectField } from '@/components/textile/textile-
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { buildUnitOptions, formatTextileOptionLabel, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
+import { PageProps } from '@/types';
 
 interface WorkflowDocument {
     id: number;
@@ -29,6 +30,11 @@ interface TextileLot {
 
 export default function Index({ inspections, holds, lots, sourceTypeOptions, sourceActionOptions, unitOptions, partyOptions, lotReferenceOptions }: { inspections: WorkflowDocument[]; holds: WorkflowDocument[]; lots: TextileLot[]; sourceTypeOptions: string[]; sourceActionOptions: string[]; unitOptions: string[]; partyOptions: string[]; lotReferenceOptions: string[] }) {
     const { t } = useTranslation();
+    const { auth } = usePage<PageProps>().props;
+    const textileCapabilities = auth.user?.textile_capabilities || {};
+    const hasFineGrainedCapabilities = Object.keys(textileCapabilities).some((key) => key.startsWith('quality_'));
+    const canInspection = !hasFineGrainedCapabilities || textileCapabilities.quality_inspection;
+    const canHoldRelease = !hasFineGrainedCapabilities || textileCapabilities.quality_hold_release;
     const resolvedSourceTypeOptions = sourceTypeOptions.length > 0
         ? sourceTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }))
         : textileSourceTypeOptions;
@@ -65,6 +71,7 @@ export default function Index({ inspections, holds, lots, sourceTypeOptions, sou
             <Head title={t('Textile Quality')} />
 
             <div className="grid gap-6 xl:grid-cols-2">
+                {canInspection ? (
                 <TextileFormCard title={t('Inspection')} icon={ShieldCheck}>
                         <form
                             className="space-y-3"
@@ -135,7 +142,9 @@ export default function Index({ inspections, holds, lots, sourceTypeOptions, sou
                         </form>
 
                 </TextileFormCard>
+                ) : null}
 
+                {canHoldRelease ? (
                 <TextileFormCard title={t('Hold and Release')} icon={ShieldCheck}>
                         <form
                             className="grid grid-cols-[1fr_1fr_auto] gap-3"
@@ -169,9 +178,11 @@ export default function Index({ inspections, holds, lots, sourceTypeOptions, sou
                             </Button>
                         </form>
                 </TextileFormCard>
+                ) : null}
             </div>
 
             <div className="mt-6 grid gap-6 xl:grid-cols-2">
+                {canInspection ? (
                 <TextileDataTableCard
                     data={inspections}
                     columns={createTextileWorkflowColumns(t, {
@@ -187,11 +198,14 @@ export default function Index({ inspections, holds, lots, sourceTypeOptions, sou
                     })}
                     emptyState={<NoRecordsFound icon={ShieldCheck} title={t('No inspections found')} description={t('Create inspection records for lot-level quality checks.')} />}
                 />
+                ) : null}
+                {canHoldRelease ? (
                 <TextileDataTableCard
                     data={holds}
                     columns={createTextileWorkflowColumns(t)}
                     emptyState={<NoRecordsFound icon={ShieldCheck} title={t('No hold/release records found')} description={t('Hold and release events will appear here.')} />}
                 />
+                ) : null}
             </div>
         </AuthenticatedLayout>
     );

@@ -5,6 +5,7 @@ namespace DigitalFuzed\TextileCore\Http\Controllers;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
 use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
+use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextileQualityService;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use Illuminate\Http\Request;
@@ -18,9 +19,14 @@ use Workdo\Account\Models\Vendor;
 
 class TextileQualityController extends Controller
 {
+    public function __construct(protected TextileOperatingPolicyService $policyService)
+    {
+    }
+
     public function index()
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapabilityOrAbort('quality');
 
         return Inertia::render('DigitalFuzedTextileCore/Quality/Index', [
             'inspections' => $this->documents('inspection'),
@@ -37,6 +43,7 @@ class TextileQualityController extends Controller
     public function storeInspection(Request $request, TextileQualityService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('quality_inspection', 'lot_reference');
 
         $validated = $request->validate([
             'source_reference_type' => ['nullable', 'string', 'max:100'],
@@ -60,6 +67,7 @@ class TextileQualityController extends Controller
     public function finalizeInspection(Request $request, TextileQualityService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('quality_inspection', 'inspection_id');
 
         $validated = $request->validate([
             'inspection_id' => ['required', 'integer', 'min:1'],
@@ -78,6 +86,7 @@ class TextileQualityController extends Controller
     public function holdLot(Request $request, TextileQualityService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('quality_hold_release', 'lot_reference');
 
         $validated = $request->validate([
             'lot_reference' => ['required', 'string', 'max:100'],
@@ -96,6 +105,7 @@ class TextileQualityController extends Controller
     public function releaseLot(Request $request, TextileQualityService $service)
     {
         $this->authorizeTextileAccess();
+        $this->authorizeCapability('quality_hold_release', 'lot_reference');
 
         $validated = $request->validate([
             'lot_reference' => ['required', 'string', 'max:100'],
@@ -253,5 +263,25 @@ class TextileQualityController extends Controller
         $user = Auth::user();
 
         abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+    }
+
+    private function authorizeCapability(string $capability, string $errorKey): void
+    {
+        try {
+            $this->policyService->assertCapability($capability);
+        } catch (RuntimeException $exception) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                $errorKey => __($exception->getMessage()),
+            ]);
+        }
+    }
+
+    private function authorizeCapabilityOrAbort(string $capability): void
+    {
+        try {
+            $this->policyService->assertCapability($capability);
+        } catch (RuntimeException $exception) {
+            abort(403, __($exception->getMessage()));
+        }
     }
 }

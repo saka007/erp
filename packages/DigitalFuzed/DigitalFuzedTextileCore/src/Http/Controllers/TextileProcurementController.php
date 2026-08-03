@@ -42,7 +42,7 @@ class TextileProcurementController extends Controller
     public function storeRequisition(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('procurement', 'party_name');
+        $this->authorizeCapability('procurement_requisition', 'party_name');
 
         $validated = $request->validate([
             'party_name' => ['nullable', 'string', 'max:100'],
@@ -59,7 +59,7 @@ class TextileProcurementController extends Controller
     public function approveRequisition(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('procurement', 'requisition_id');
+        $this->authorizeCapability('procurement_requisition', 'requisition_id');
 
         $validated = $request->validate([
             'requisition_id' => ['required', 'integer', 'min:1'],
@@ -77,7 +77,7 @@ class TextileProcurementController extends Controller
     public function storeRfq(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('procurement', 'requisition_id');
+        $this->authorizeCapability('procurement_rfq', 'requisition_id');
 
         $validated = $request->validate([
             'requisition_id' => ['required', 'integer', 'min:1'],
@@ -95,7 +95,7 @@ class TextileProcurementController extends Controller
     public function sendRfq(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('procurement', 'rfq_id');
+        $this->authorizeCapability('procurement_rfq', 'rfq_id');
 
         $validated = $request->validate([
             'rfq_id' => ['required', 'integer', 'min:1'],
@@ -113,7 +113,7 @@ class TextileProcurementController extends Controller
     public function closeRfq(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('procurement', 'rfq_id');
+        $this->authorizeCapability('procurement_rfq', 'rfq_id');
 
         $validated = $request->validate([
             'rfq_id' => ['required', 'integer', 'min:1'],
@@ -131,7 +131,7 @@ class TextileProcurementController extends Controller
     public function storePurchaseOrder(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('procurement', 'requisition_id');
+        $this->authorizeCapability('procurement_purchase_order', 'requisition_id');
 
         $validated = $request->validate([
             'source_type' => ['required', 'in:requisition,rfq'],
@@ -153,7 +153,7 @@ class TextileProcurementController extends Controller
     public function approvePurchaseOrder(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('procurement', 'purchase_order_id');
+        $this->authorizeCapability('procurement_purchase_order', 'purchase_order_id');
 
         $validated = $request->validate([
             'purchase_order_id' => ['required', 'integer', 'min:1'],
@@ -171,7 +171,7 @@ class TextileProcurementController extends Controller
     public function storeGrn(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('procurement', 'purchase_order_id');
+        $this->authorizeCapability('procurement_grn', 'purchase_order_id');
 
         $validated = $request->validate([
             'purchase_order_id' => ['required', 'integer', 'min:1'],
@@ -189,7 +189,7 @@ class TextileProcurementController extends Controller
     public function releaseGrn(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('procurement', 'grn_id');
+        $this->authorizeCapability('procurement_grn', 'grn_id');
 
         $validated = $request->validate([
             'grn_id' => ['required', 'integer', 'min:1'],
@@ -229,7 +229,7 @@ class TextileProcurementController extends Controller
     public function storeIncomingQc(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('procurement', 'grn_id');
+        $this->authorizeCapability('procurement_incoming_qc', 'grn_id');
 
         $validated = $request->validate([
             'grn_id' => ['required', 'integer', 'min:1'],
@@ -247,7 +247,7 @@ class TextileProcurementController extends Controller
     public function finalizeIncomingQc(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('procurement', 'incoming_qc_id');
+        $this->authorizeCapability('procurement_incoming_qc', 'incoming_qc_id');
 
         $validated = $request->validate([
             'incoming_qc_id' => ['required', 'integer', 'min:1'],
@@ -266,7 +266,7 @@ class TextileProcurementController extends Controller
     public function storeSupplierClaim(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('procurement', 'grn_id');
+        $this->authorizeCapability('procurement_supplier_claims', 'grn_id');
 
         $validated = $request->validate([
             'grn_id' => ['required', 'integer', 'min:1'],
@@ -288,7 +288,7 @@ class TextileProcurementController extends Controller
     public function approveSupplierClaim(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('procurement', 'supplier_claim_id');
+        $this->authorizeCapability('procurement_supplier_claims', 'supplier_claim_id');
 
         $validated = $request->validate([
             'supplier_claim_id' => ['required', 'integer', 'min:1'],
@@ -306,7 +306,7 @@ class TextileProcurementController extends Controller
     public function settleSupplierClaim(Request $request, TextileProcurementService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('procurement', 'supplier_claim_id');
+        $this->authorizeCapability('procurement_supplier_claims', 'supplier_claim_id');
 
         $validated = $request->validate([
             'supplier_claim_id' => ['required', 'integer', 'min:1'],
