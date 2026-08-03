@@ -848,6 +848,18 @@ UI Verification (Domain 19)
 | Freight Types | Master Setup > Transport Setup > Freight Types | `/textile/master-setup/transport/freight-types` |
 | Maintenance Types | Master Setup > Transport Setup > Maintenance Types | `/textile/master-setup/transport/maintenance-types` |
 | Own/Vendor Transport Policy | Master Setup > Core Setup > Operating Model | `/textile/operating-policy` |
+
+Progress note (2026-08-04):
+
+- Sitewide 500s fixed: pending textile migrations (000007-000014) were applied to the real MySQL DB (`migrate:status` => 0 pending); root cause was tests using a separate test DB masking missing tables.
+- `TextileApprovalAdminTest` fixed: seeds a jobwork operating policy (sales disabled) for companyA and asserts `auth.user.textile_capabilities.sales_order` is `false` via `assertInertia`; suite now passes (18 assertions).
+- Frontend type-checking enabled for packages: root `tsconfig.json` now includes `packages/DigitalFuzed/DigitalFuzedTextileCore` and `DigitalFuzedTextileInventory` JS (scoped to textile packages to keep the `tsc` build step green; legacy packages were never type-checked and are out of scope). `npx tsc --noEmit` => 0 errors; `npm run build` => pass.
+- 33 real type errors fixed in textile packages: `TextileWorkflowActionRule.statuses` widened to `readonly string[]`, `TextileField` gained `min/max/step` props, `TextileDataTableSection` gained `children` support, Processing page `WorkflowDocument` gained `metadata`, duplicate global `route` declarations removed from both textile `company-menu.ts` files (already declared in `resources/js/types/global.d.ts`).
+- Hrm `EmployeeFilters` fixed: dotted `user.name` (a copy-paste from the sort key) corrected to `user_name`, matching the filter state used by the page.
+- Blank-UI/Ziggy crash fixed: 8 `textile.master-domains.*` route groups referenced by the menu were never registered (cost-types, inspection-results, fabric-defects, fabric-grades, dispatch-truck-numbers, dispatch-container-numbers, dispatch-lr-numbers, dispatch-eway-bills — all with index/store/update/archive). Added to `src/Routes/web.php`; verified via diff of all menu `route()` calls against `php artisan route:list` => zero missing.
+- "5600" investigated: chart-of-accounts code for Tax Expense in AccountUtility, not an application error.
+- Verification: `npx tsc --noEmit` => 0 errors; `npm run build` => pass; route diff menu vs `route:list` => empty; all Textile feature tests pass (`php artisan test tests/Feature/Textile/`).
+
 ### Domain 20: Maintenance (6 features)
 
 | Task | Classification | Priority | Status |
