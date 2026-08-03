@@ -34,6 +34,7 @@ export default function Index({
     yarnAllocations,
     warpSheets,
     warpProductions,
+    warpCosts,
     sizingRecipes,
     chemicalConsumptions,
     loomMasters,
@@ -82,6 +83,7 @@ export default function Index({
     yarnAllocations: WorkflowDocument[];
     warpSheets: WorkflowDocument[];
     warpProductions: WorkflowDocument[];
+    warpCosts: WorkflowDocument[];
     sizingRecipes: WorkflowDocument[];
     chemicalConsumptions: WorkflowDocument[];
     loomMasters: WorkflowDocument[];
@@ -160,6 +162,7 @@ export default function Index({
     const yarnAllocationForm = useForm({ warp_plan_id: '' });
     const warpSheetForm = useForm({ yarn_allocation_id: '' });
     const warpProductionForm = useForm({ warp_sheet_id: '' });
+    const warpCostForm = useForm({ warp_production_id: '', cost_type: '', cost_amount: '', quantity: '', unit: 'kg', notes: '' });
     const sizingRecipeForm = useForm({ warp_production_id: '' });
     const chemicalConsumptionForm = useForm({
         sizing_recipe_id: '',
@@ -259,7 +262,7 @@ export default function Index({
     const resolvedInspectionResultOptions = inspectionResultOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedOperatorOptions = operatorOptions.map((value) => ({ value, label: value }));
 
-    const allDocuments = [...warpPlans, ...yarnAllocations, ...warpSheets, ...warpProductions, ...sizingRecipes, ...chemicalConsumptions, ...loomMasters, ...loomBreakdowns, ...loomMaintenances, ...productionCalendars, ...capacityPlans, ...shiftPlans, ...machinePlans, ...materialPlans, ...productionSchedules, ...beams, ...beamIssues, ...beamReturns, ...beamInspections, ...beamCosts, ...productionBatches, ...weavingOutputs, ...shiftProductions, ...takhaEntries, ...loomEfficiencies, ...operatorEfficiencies, ...machineDowntimes, ...productionCosts, ...wastes, ...reworks];
+    const allDocuments = [...warpPlans, ...yarnAllocations, ...warpSheets, ...warpProductions, ...warpCosts, ...sizingRecipes, ...chemicalConsumptions, ...loomMasters, ...loomBreakdowns, ...loomMaintenances, ...productionCalendars, ...capacityPlans, ...shiftPlans, ...machinePlans, ...materialPlans, ...productionSchedules, ...beams, ...beamIssues, ...beamReturns, ...beamInspections, ...beamCosts, ...productionBatches, ...weavingOutputs, ...shiftProductions, ...takhaEntries, ...loomEfficiencies, ...operatorEfficiencies, ...machineDowntimes, ...productionCosts, ...wastes, ...reworks];
     const draftCount = allDocuments.filter((row) => row.status === 'draft').length;
     const approvedCount = allDocuments.filter((row) => row.status === 'approved').length;
     const releasedCount = allDocuments.filter((row) => row.status === 'released').length;
@@ -275,6 +278,7 @@ export default function Index({
 
     const beamIssueById = new Map<number, WorkflowDocument>(beamIssues.map((row) => [row.id, row]));
     const beamById = new Map<number, WorkflowDocument>(beams.map((row) => [row.id, row]));
+    const warpProductionById = new Map<number, WorkflowDocument>(warpProductions.map((row) => [row.id, row]));
     const issuedByBeamId = new Map<number, number>();
     const returnedByBeamId = new Map<number, number>();
 
@@ -371,7 +375,7 @@ export default function Index({
                 title={t('Manufacturing Overview')}
                 className="mb-6"
                 items={[
-                    { label: t('Total Documents'), value: allDocuments.length, hint: t('Warp + Yarn Allocation + Warp Sheet + Warp Production + Sizing Recipe + Loom + Beam + Batch + Output + Waste + Rework') },
+                    { label: t('Total Documents'), value: allDocuments.length, hint: t('Warp + Yarn Allocation + Warp Sheet + Warp Production + Warp Cost + Sizing Recipe + Loom + Beam + Batch + Output + Waste + Rework') },
                     { label: t('Chemical Records'), value: chemicalConsumptions.length, hint: t('Sizing chemical usage entries') },
                     { label: t('Loom Breakdowns'), value: loomBreakdowns.length, hint: t('Loom stoppage and downtime entries') },
                     { label: t('Loom Maintenance'), value: loomMaintenances.length, hint: t('Preventive/corrective maintenance entries') },
@@ -381,6 +385,7 @@ export default function Index({
                     { label: t('Production Cost Records'), value: productionCosts.length, hint: t('Weaving cost capture entries') },
                     { label: t('Beam Inspections'), value: beamInspections.length, hint: t('Sizing and beam quality checkpoints') },
                     { label: t('Beam Cost Records'), value: beamCosts.length, hint: t('Sizing and beam cost capture entries') },
+                    { label: t('Warp Cost Records'), value: warpCosts.length, hint: t('Warp batch cost capture entries') },
                     { label: t('Draft'), value: draftCount, hint: t('Waiting for review') },
                     { label: t('Approved'), value: approvedCount, hint: t('Ready for release actions') },
                     { label: t('Released'), value: releasedCount, hint: t('Ready for production execution') },
@@ -536,6 +541,55 @@ export default function Index({
                                 required
                             />
                             <Button type="submit" disabled={warpProductionForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Warp Production')}</Button>
+                        </form>
+                    </TextileFormCard>
+
+                    <TextileFormCard title={t('Record Warp Cost from Warp Production')} icon={Check}>
+                        <form className="space-y-3" onSubmit={(e) => {
+                            e.preventDefault();
+                            warpCostForm.post(route('textile.manufacturing.warp-costs.store'), {
+                                onSuccess: () => warpCostForm.reset('warp_production_id', 'cost_type', 'cost_amount', 'quantity', 'notes'),
+                            });
+                        }}>
+                            <SelectField
+                                label={t('Warp Production')}
+                                value={warpCostForm.data.warp_production_id}
+                                onChange={(v) => warpCostForm.setData('warp_production_id', v)}
+                                options={createTextileWorkflowSelectOptions(actionableWarpProductions)}
+                                includeEmpty
+                                emptyLabel={t('Select warp production')}
+                                helperText={t('Only completed warp production entries are listed for cost capture.')}
+                                disabled={actionableWarpProductions.length === 0}
+                                disabledReason={t('No completed warp production found. Create warp production first.')}
+                                required
+                            />
+                            <div className="grid grid-cols-2 gap-3">
+                                <SelectField
+                                    label={t('Cost Type')}
+                                    value={warpCostForm.data.cost_type}
+                                    onChange={(v) => warpCostForm.setData('cost_type', v)}
+                                    options={resolvedCostTypeOptions}
+                                    includeEmpty
+                                    emptyLabel={t('Select cost type')}
+                                    helperText={t('Cost types are controlled from Master Setup > Manufacturing Setup > Cost Types.')}
+                                    required
+                                />
+                                <Field label={t('Cost Amount')} type="number" value={warpCostForm.data.cost_amount} onChange={(v) => warpCostForm.setData('cost_amount', v)} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label={t('Quantity')} type="number" value={warpCostForm.data.quantity} onChange={(v) => warpCostForm.setData('quantity', v)} />
+                                <SelectField
+                                    label={t('Unit')}
+                                    value={warpCostForm.data.unit}
+                                    onChange={(v) => warpCostForm.setData('unit', v)}
+                                    options={resolvedUnitOptions}
+                                    includeEmpty
+                                    emptyLabel={t('Select unit')}
+                                    helperText={t('Units are derived from Unit Conversion master.')}
+                                />
+                            </div>
+                            <Field label={t('Notes')} value={warpCostForm.data.notes} onChange={(v) => warpCostForm.setData('notes', v)} />
+                            <Button type="submit" disabled={warpCostForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Warp Cost')}</Button>
                         </form>
                     </TextileFormCard>
 
@@ -727,6 +781,30 @@ export default function Index({
                         data={warpProductions}
                         columns={createTextileWorkflowColumns(t)}
                         emptyState={<NoRecordsFound icon={Factory} title={t('No warp production found')} description={t('Create warp production entries from completed warp sheets.')} />}
+                    />
+                    <TextileDataTableSection
+                        title={t('Warp Cost Records')}
+                        data={warpCosts}
+                        columns={[
+                            { key: 'document_number', header: t('Number') },
+                            {
+                                key: 'source_reference_id',
+                                header: t('Warp Production'),
+                                render: (value: unknown) => {
+                                    const warpProductionId = Number(value ?? 0);
+                                    const warpProductionRecord = warpProductionById.get(warpProductionId);
+
+                                    return warpProductionRecord?.document_number ?? String(value ?? '-');
+                                },
+                            },
+                            { key: 'cost_type', header: t('Cost Type'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_type ?? '-') },
+                            { key: 'cost_amount', header: t('Cost Amount'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_amount ?? '-') },
+                            { key: 'cost_per_unit', header: t('Cost/Unit'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_per_unit ?? '-') },
+                            { key: 'quantity', header: t('Quantity') },
+                            { key: 'unit', header: t('Unit') },
+                            { key: 'status', header: t('Status') },
+                        ]}
+                        emptyState={<NoRecordsFound icon={Factory} title={t('No warp cost found')} description={t('Record warp cost entries from completed warp production.')} />}
                     />
                     <TextileDataTableSection
                         title={t('Sizing Recipe Records')}

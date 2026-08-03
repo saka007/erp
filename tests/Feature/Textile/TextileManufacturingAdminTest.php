@@ -579,6 +579,30 @@ class TextileManufacturingAdminTest extends TestCase
         $this->assertSame($warpSheet->id, $warpProduction->source_reference_id);
 
         $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.warp-costs.store'), [
+                'warp_production_id' => $warpProduction->id,
+                'cost_type' => 'labor',
+                'cost_amount' => 1800,
+                'quantity' => 120,
+                'unit' => 'kg',
+                'notes' => 'Labor and overhead capture for warp batch run',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $warpCost = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'warp_cost')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($warpCost);
+        $this->assertSame('approved', $warpCost->status);
+        $this->assertSame($warpProduction->id, $warpCost->source_reference_id);
+        $this->assertSame('labor', $warpCost->metadata['cost_type']);
+        $this->assertSame(1800.0, (float) $warpCost->metadata['cost_amount']);
+        $this->assertSame(15.0, (float) $warpCost->metadata['cost_per_unit']);
+
+        $this->actingAs($companyA)
             ->post(route('textile.manufacturing.sizing-recipes.store'), [
                 'warp_production_id' => $warpProduction->id,
             ])
@@ -702,6 +726,7 @@ class TextileManufacturingAdminTest extends TestCase
             ->assertDontSee($beamFromSizing->document_number)
             ->assertDontSee($warpSheet->document_number)
             ->assertDontSee($warpProduction->document_number)
+            ->assertDontSee($warpCost->document_number)
             ->assertDontSee($sizingRecipe->document_number)
             ->assertDontSee($chemicalConsumption->document_number)
             ->assertDontSee($beamInspection->document_number)
@@ -735,6 +760,7 @@ class TextileManufacturingAdminTest extends TestCase
                 ->assertSee($productionCost->document_number)
                 ->assertSee($warpSheet->document_number)
                 ->assertSee($warpProduction->document_number)
+                ->assertSee($warpCost->document_number)
                 ->assertSee($sizingRecipe->document_number)
                 ->assertSee($chemicalConsumption->document_number)
                 ->assertSee($beamInspection->document_number)

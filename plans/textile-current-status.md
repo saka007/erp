@@ -527,11 +527,14 @@ Progress note (2026-08-03):
 | Yarn Allocation | 🟡 Extend Existing | P2 | `[x]` |
 | Warp Sheet | 🆕 New Module Required | P1 | `[x]` |
 | Warp Production | 🆕 New Module Required | P1 | `[x]` |
-| Warp Cost | 🔵 Modify Existing | P2 | `[~]` |
+| Warp Cost | 🔵 Modify Existing | P2 | `[x]` |
 
 - Warp Planning + Yarn Allocation admin slice now supports create/approve warp-plan and approved-plan yarn-allocation flow in Textile Manufacturing, with tenant isolation verification in TextileManufacturingAdminTest.
 - Warp Sheet slice now supports create-from-yarn-allocation flow in Textile Manufacturing (web + API + shared UX), with tenant isolation verification extended in TextileManufacturingAdminTest.
 - Warp Production slice now supports create-from-warp-sheet flow in Textile Manufacturing (web + API + shared UX), with tenant isolation verification extended in TextileManufacturingAdminTest.
+- Warp Cost slice now supports record-from-completed-warp-production flow in Textile Manufacturing (web + API + shared UX) with controlled cost-type selector, cost amount, quantity/unit capture, and computed cost-per-unit metadata; verified in TextileManufacturingAdminTest.
+- Verification: `php artisan test tests/Feature/Textile/TextileManufacturingAdminTest.php` => `1 passed (199 assertions)` (was 87); `npm run build` => pass (existing chunk-size warnings only).
+- Environment unblock: added `app()->environment('testing')` early-out to `CheckInstallation` and `HandleInertiaRequests::isInstalled()` so web-route feature tests no longer redirect to `/install` when the `storage/installed` marker is absent; this surfaced and fixed a pre-existing fragile assertion in TextileApprovalAdminTest (assertDontSee('sales_order') now asserts on the tenant-scoped `rules` Inertia prop instead of raw HTML, since the shared auth payload always contains the sales_order capability key).
 ### Domain 9: Sizing (5 features)
 
 | Task | Classification | Priority | Status |

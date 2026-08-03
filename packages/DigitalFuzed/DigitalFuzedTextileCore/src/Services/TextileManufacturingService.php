@@ -173,6 +173,37 @@ class TextileManufacturingService
         ]);
     }
 
+    public function createWarpCost(int $warpProductionId, array $payload = []): TextileWorkflowDocument
+    {
+        $warpProduction = $this->findTenantDocument($warpProductionId, 'warp_production');
+        if (! in_array($warpProduction->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Warp production must be completed before warp cost capture.');
+        }
+
+        $quantity = (float) ($payload['quantity'] ?? $warpProduction->quantity ?? 0);
+        $costAmount = (float) ($payload['cost_amount'] ?? 0);
+        $costPerUnit = $quantity > 0 ? round($costAmount / $quantity, 4) : null;
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'warp_cost',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $warpProduction->id,
+            'source_action' => 'warp_cost_capture',
+            'party_name' => $payload['party_name'] ?? $warpProduction->party_name,
+            'lot_reference' => $payload['lot_reference'] ?? $warpProduction->lot_reference,
+            'quantity' => $quantity,
+            'unit' => $payload['unit'] ?? $warpProduction->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'cost_type' => $payload['cost_type'] ?? null,
+                'cost_amount' => $costAmount,
+                'cost_per_unit' => $costPerUnit,
+                'notes' => $payload['notes'] ?? null,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+    }
+
     public function createBeamIssue(int $beamId, array $payload = []): TextileWorkflowDocument
     {
         $beam = $this->findTenantDocument($beamId, 'beam');

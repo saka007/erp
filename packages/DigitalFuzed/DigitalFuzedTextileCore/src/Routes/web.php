@@ -139,6 +139,7 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/manufacturing/yarn-allocations', [TextileManufacturingController::class, 'storeYarnAllocation'])->name('textile.manufacturing.yarn-allocations.store');
     Route::post('/textile/manufacturing/warp-sheets', [TextileManufacturingController::class, 'storeWarpSheet'])->name('textile.manufacturing.warp-sheets.store');
     Route::post('/textile/manufacturing/warp-productions', [TextileManufacturingController::class, 'storeWarpProduction'])->name('textile.manufacturing.warp-productions.store');
+    Route::post('/textile/manufacturing/warp-costs', [TextileManufacturingController::class, 'storeWarpCost'])->name('textile.manufacturing.warp-costs.store');
     Route::post('/textile/manufacturing/sizing-recipes', [TextileManufacturingController::class, 'storeSizingRecipe'])->name('textile.manufacturing.sizing-recipes.store');
     Route::post('/textile/manufacturing/chemical-consumptions', [TextileManufacturingController::class, 'storeChemicalConsumption'])->name('textile.manufacturing.chemical-consumptions.store');
     Route::post('/textile/manufacturing/beams/from-sizing-recipe', [TextileManufacturingController::class, 'storeBeamFromSizingRecipe'])->name('textile.manufacturing.beams.from-sizing-recipe');
