@@ -35,7 +35,7 @@ jobs:
       - name: Validate secrets
         if: secrets.SERVER_HOST == '' || secrets.SERVER_USER == '' || secrets.SERVER_SSH_KEY == ''
         run: |
-          echo "::error::Missing deployment secrets. Set SERVER_HOST, SERVER_USER and SERVER_SSH_KEY in GitHub repo Settings -> Secrets and variables -> Actions." >&2
+          echo "::error::Missing deployment secrets. Set SERVER_HOST, SERVER_USER (the app user 'digitalfuzed-erp-cp', NOT root) and SERVER_SSH_KEY in GitHub repo Settings -> Secrets and variables -> Actions." >&2
           exit 1
 
       - name: Prepare SSH key
@@ -76,45 +76,55 @@ jobs:
             APP_USER="digitalfuzed-erp-cp"
             export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
 
-            mkdir -p "$APP_PATH/storage/logs" "$APP_PATH/bootstrap/cache" \
-              "$APP_PATH/storage/framework/sessions" "$APP_PATH/storage/framework/views" \
-              "$APP_PATH/storage/framework/cache/data"
-            if [ -f "$APP_PATH/.env.example" ] && [ ! -f "$APP_PATH/.env" ]; then
-              cp "$APP_PATH/.env.example" "$APP_PATH/.env"
+            # We SSH in as $APP_USER (NOT root), so synced/installed files are
+            # owned by the app user. Root is only used via passwordless sudo for
+            # the service commands that genuinely need it (see sudoers note below).
+            cd "$APP_PATH"
+
+            mkdir -p storage/logs bootstrap/cache \
+              storage/framework/sessions storage/framework/views \
+              storage/framework/cache/data
+            if [ -f .env.example ] && [ ! -f .env ]; then
+              cp .env.example .env
             fi
 
-            chown -R "$APP_USER:$APP_USER" /home/digitalfuzed-erp-cp
-            chmod -R ug+rwx "$APP_PATH/storage" "$APP_PATH/bootstrap/cache"
+            chmod -R ug+rwx storage bootstrap/cache
+
+            # One-time ownership repair for files left by older root-based deploys.
+            # Requires: sudoers entry "$APP_USER ALL=(root) NOPASSWD: ALL" or a
+            # narrow rule covering chown/systemctl/nginx/php-fpm8.4.
+            sudo -n chown -R "$APP_USER:$APP_USER" .
 
             # Keep root-style serving compatible with Laravel build and media URLs.
-            [ -e "$APP_PATH/build" ] || ln -s "$APP_PATH/public/build" "$APP_PATH/build"
-            mkdir -p "$APP_PATH/storage/app/public/media"
-            if [ -e "$APP_PATH/storage/media" ] && [ ! -L "$APP_PATH/storage/media" ]; then
-              rm -rf "$APP_PATH/storage/media"
+            [ -e build ] || ln -s public/build build
+            mkdir -p storage/app/public/media
+            if [ -e storage/media ] && [ ! -L storage/media ]; then
+              rm -rf storage/media
             fi
-            [ -e "$APP_PATH/storage/media" ] || ln -s app/public/media "$APP_PATH/storage/media"
+            [ -e storage/media ] || ln -s app/public/media storage/media
 
             # Publish LandingPage package images expected by storage/media URL paths.
-            LP_DST="$APP_PATH/storage/app/public/media/packages/workdo/LandingPage/src/Resources/assets/img"
+            LP_DST="storage/app/public/media/packages/workdo/LandingPage/src/Resources/assets/img"
             mkdir -p "$LP_DST"
-            cp -f "$APP_PATH/packages/DigitalFuzed/LandingPage/src/Resources/assets/img/hero.png" "$LP_DST/hero.png"
-            cp -f "$APP_PATH/packages/DigitalFuzed/LandingPage/src/Resources/assets/img/hrm.png" "$LP_DST/hrm.png"
-            cp -f "$APP_PATH/packages/DigitalFuzed/LandingPage/src/Resources/assets/img/gallery1.jpeg" "$LP_DST/gallery1.jpeg"
+            cp -f packages/DigitalFuzed/LandingPage/src/Resources/assets/img/hero.png "$LP_DST/hero.png"
+            cp -f packages/DigitalFuzed/LandingPage/src/Resources/assets/img/hrm.png "$LP_DST/hrm.png"
+            cp -f packages/DigitalFuzed/LandingPage/src/Resources/assets/img/gallery1.jpeg "$LP_DST/gallery1.jpeg"
 
-            su -s /bin/bash -c "cd '$APP_PATH' && composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader" "$APP_USER"
-            su -s /bin/bash -c "cd '$APP_PATH' && php artisan migrate --force" "$APP_USER"
-            su -s /bin/bash -c "cd '$APP_PATH' && php artisan optimize:clear || true" "$APP_USER"
-            su -s /bin/bash -c "cd '$APP_PATH' && php artisan config:cache" "$APP_USER"
-            su -s /bin/bash -c "cd '$APP_PATH' && php artisan route:cache" "$APP_USER"
-            su -s /bin/bash -c "cd '$APP_PATH' && php artisan view:cache" "$APP_USER"
+            composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+            php artisan migrate --force
+            php artisan optimize:clear || true
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
 
-            chown -h "$APP_USER:$APP_USER" "$APP_PATH/build" "$APP_PATH/storage/media" || true
-            chown -R "$APP_USER:$APP_USER" "$APP_PATH/storage/app/public/media"
+            chown -h "$APP_USER:$APP_USER" build storage/media || true
+            chown -R "$APP_USER:$APP_USER" storage/app/public/media || true
 
-            php-fpm8.4 -t
-            nginx -t
-            systemctl restart php8.4-fpm
-            systemctl reload nginx
+            # Only these need root, via passwordless sudo.
+            sudo -n php-fpm8.4 -t
+            sudo -n nginx -t
+            sudo -n systemctl restart php8.4-fpm
+            sudo -n systemctl reload nginx
 
             # Health check: site must answer on /login (200, or a redirect such as
             # 301/302/307). Otherwise the deploy is considered failed.
