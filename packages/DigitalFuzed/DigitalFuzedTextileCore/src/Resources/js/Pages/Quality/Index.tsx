@@ -77,7 +77,6 @@ export default function Index({
     inspectionResultOptions,
     fabricDefectOptions,
     unitOptions,
-    partyOptions,
     lotReferenceOptions,
     recentActivity,
 }: {
@@ -91,7 +90,6 @@ export default function Index({
     inspectionResultOptions: string[];
     fabricDefectOptions: string[];
     unitOptions: string[];
-    partyOptions: string[];
     lotReferenceOptions: string[];
     recentActivity: ActivityItem[];
 }) {
@@ -152,7 +150,6 @@ export default function Index({
 
     const resolvedInspectionResultOptions = inspectionResultOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedFabricDefectOptions = fabricDefectOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
-    const resolvedPartyOptions = partyOptions.map((value) => ({ value, label: value }));
     const resolvedLotReferenceOptions = lotReferenceOptions.map((value) => ({ value, label: value }));
     const resolvedUnitOptions = buildUnitOptions(unitOptions);
 
@@ -189,10 +186,6 @@ export default function Index({
     ];
 
     const inspectionForm = useForm({
-        source_reference_type: defaultQcStage,
-        source_reference_id: '',
-        source_action: defaultQcStage,
-        party_name: '',
         lot_reference: '',
         quantity: '',
         unit: 'mtr',
@@ -348,42 +341,19 @@ export default function Index({
                             onSubmit={(event) => {
                                 event.preventDefault();
                                 inspectionForm.post(route('textile.quality.inspections.store'), {
-                                    onSuccess: () => inspectionForm.reset('source_reference_id', 'party_name', 'lot_reference', 'quantity', 'defects', 'shade_reference', 'notes'),
+                                    onSuccess: () => inspectionForm.reset('lot_reference', 'quantity', 'defects', 'shade_reference', 'notes'),
                                 });
                             }}
                         >
                             <SelectField
                                 label={t('QC Stage')}
                                 value={inspectionForm.data.qc_stage}
-                                onChange={(value: string) => {
-                                    inspectionForm.setData('qc_stage', value);
-                                    inspectionForm.setData('source_reference_type', value);
-                                    inspectionForm.setData('source_action', value);
-                                }}
+                                onChange={(value: string) => inspectionForm.setData('qc_stage', value)}
                                 options={resolvedQcStageOptions}
                                 includeEmpty
                                 emptyLabel={t('Select QC stage')}
                                 helperText={t('Stage links directly to Process QC, Final QC, and Shade Matching screens.')}
                                 required
-                            />
-                            <SelectField
-                                label={t('Source Type')}
-                                value={inspectionForm.data.source_reference_type}
-                                onChange={(value: string) => inspectionForm.setData('source_reference_type', value)}
-                                options={resolvedSourceTypeOptions}
-                                includeEmpty
-                                emptyLabel={t('Select source type')}
-                                helperText={t('Source types are managed from Master Setup > Quality Setup > Source Types.')}
-                            />
-                            <Field label={t('Source ID')} type="number" value={inspectionForm.data.source_reference_id} onChange={(value: string) => inspectionForm.setData('source_reference_id', value)} />
-                            <SelectField
-                                label={t('Source Action')}
-                                value={inspectionForm.data.source_action}
-                                onChange={(value: string) => inspectionForm.setData('source_action', value)}
-                                options={resolvedSourceActionOptions}
-                                includeEmpty
-                                emptyLabel={t('Select source action')}
-                                helperText={t('Source actions are managed from Master Setup > Quality Setup > Source Actions.')}
                             />
                             <SelectField
                                 label={t('Inspection Result')}
@@ -409,17 +379,6 @@ export default function Index({
                             {inspectionForm.data.qc_stage === 'shade_matching' ? (
                                 <Field label={t('Shade Reference')} value={inspectionForm.data.shade_reference} onChange={(value: string) => inspectionForm.setData('shade_reference', value)} required />
                             ) : null}
-                            <SelectField
-                                label={t('Party')}
-                                value={inspectionForm.data.party_name}
-                                onChange={(value: string) => inspectionForm.setData('party_name', value)}
-                                options={resolvedPartyOptions}
-                                includeEmpty
-                                emptyLabel={t('Select party')}
-                                helperText={t('Party options are derived from customer/vendor profiles and workflow records.')}
-                                disabled={resolvedPartyOptions.length === 0}
-                                disabledReason={t('No party options available yet. Create customer/vendor profile first.')}
-                            />
                             <SelectField
                                 label={t('Lot Reference')}
                                 value={inspectionForm.data.lot_reference}
