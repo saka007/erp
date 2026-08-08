@@ -58,28 +58,78 @@ export function DataTable<T = any>({
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [internalSortKey, setInternalSortKey] = useState<string | null>(null);
+  const [internalSortDirection, setInternalSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const activeSortKey = sortKey ?? internalSortKey;
+  const activeSortDirection = sortDirection ?? internalSortDirection;
+
   const getSortIcon = (field: string) => {
-      if (sortKey !== field) return <ArrowUpDown className="h-4 w-4" />;
-      return sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />;
+      if (activeSortKey !== field) return <ArrowUpDown className="h-4 w-4" />;
+      return activeSortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />;
   };
 
   const handleSort = (key: string, sortable?: boolean) => {
-    if (sortable && onSort) {
+    if (!sortable) return;
+    if (onSort) {
       onSort(key);
+      return;
     }
+    if (internalSortKey === key) {
+      setInternalSortDirection((dir) => (dir === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setInternalSortKey(key);
+      setInternalSortDirection('asc');
+    }
+    setCurrentPage(1);
   };
 
   const filteredData = useMemo(() => {
     // Ensure data is always an array
     const safeData = Array.isArray(data) ? data : [];
-    if (!searchable || !searchTerm) return safeData;
-    return safeData.filter((row: any) => 
-      columns.some(column => {
-        const value = row[column.key];
-        return value?.toString().toLowerCase().includes(searchTerm.toLowerCase());
-      })
-    );
-  }, [data, searchTerm, columns, searchable]);
+    let rows = safeData;
+
+    // Cell text from a custom renderer, used for search and sort fallback.
+    const renderedCell = (column: Column, row: any): string => {
+      if (!column.render) return '';
+      const rendered = column.render(row[column.key], row, 0);
+      return typeof rendered === 'string' || typeof rendered === 'number' ? String(rendered) : '';
+    };
+
+    if (searchable && searchTerm) {
+      const term = searchTerm.toLowerCase();
+      rows = safeData.filter((row: any) =>
+        columns.some((column) => {
+          const raw = row[column.key];
+          if (raw?.toString().toLowerCase().includes(term)) return true;
+          return renderedCell(column, row).toLowerCase().includes(term);
+        })
+      );
+    }
+
+    if (activeSortKey) {
+      const column = columns.find((c) => c.key === activeSortKey);
+      rows = [...rows].sort((a: any, b: any) => {
+        let av = a[activeSortKey];
+        let bv = b[activeSortKey];
+        if (column?.render) {
+          if (av == null || av === '') av = renderedCell(column, a);
+          if (bv == null || bv === '') bv = renderedCell(column, b);
+        }
+        const aNum = Number(av);
+        const bNum = Number(bv);
+        if (av != null && bv != null && av !== '' && bv !== '' && !Number.isNaN(aNum) && !Number.isNaN(bNum)) {
+          return aNum - bNum;
+        }
+        return String(av ?? '').localeCompare(String(bv ?? ''), undefined, { numeric: true });
+      });
+      if (activeSortDirection === 'desc') {
+        rows.reverse();
+      }
+    }
+
+    return rows;
+  }, [data, searchTerm, columns, searchable, activeSortKey, activeSortDirection]);
 
   const paginatedData = useMemo(() => {
     if (!showPagination) return filteredData;

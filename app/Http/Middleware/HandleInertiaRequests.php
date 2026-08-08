@@ -9,6 +9,8 @@ use Inertia\Middleware;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Classes\Module;
 use Throwable;
 
@@ -62,6 +64,32 @@ class HandleInertiaRequests extends Middleware
             $industryType = $this->detectIndustryType($request->user());
             $activatedPackages = $this->filterActivatedPackagesForIndustry($request->user(), $activatedPackages, $industryType);
             $textileCapabilities = $this->resolveTextileCapabilitiesForUser($request->user(), $industryType);
+
+            if ($textileCapabilities === [] && $industryType === 'textile') {
+                $companyContextUser = $this->resolveCompanyContextUser($request->user());
+
+                if ($companyContextUser) {
+                    try {
+                        /** @var TextileOperatingPolicyService $policyService */
+                        $policyService = app(TextileOperatingPolicyService::class);
+                        $textileCapabilities = $policyService->capabilities($policyService->resolveForTenant($companyContextUser->id));
+                    } catch (Throwable $exception) {
+                        report($exception);
+                    }
+                }
+            }
+        }
+
+        $branchContext = [
+            'active_branch_id' => null,
+            'can_manage_all_branches' => false,
+            'branches' => [],
+        ];
+
+        if ($request->user()) {
+            $branchContext['can_manage_all_branches'] = $this->canManageAllBranches($request->user());
+            $branchContext['branches'] = $this->branchOptions((int) creatorId());
+            $branchContext['active_branch_id'] = $this->resolveActiveBranchIdForUser($request);
         }
 
         return [
@@ -94,6 +122,7 @@ class HandleInertiaRequests extends Middleware
             'currencies' => config('default_currency.currencies', []),
             'defaultLanguages' => $defaultLanguages,
             'is_demo' => config('app.is_demo', false),
+            'branchContext' => $branchContext,
         ];
     }
 
@@ -197,6 +226,62 @@ class HandleInertiaRequests extends Middleware
         return $user->type === 'superadmin' || (method_exists($user, 'hasRole') && $user->hasRole('superadmin'));
     }
 
+    private function canManageAllBranches($user): bool
+    {
+        return in_array($user->type, ['company', 'superadmin'], true)
+            || (method_exists($user, 'can') && $user->can('manage-any-branches'));
+    }
+
+    private function resolveActiveBranchIdForUser(Request $request): ?int
+    {
+        $user = $request->user();
+        if (! $user || ! Schema::hasTable('branches')) {
+            return null;
+        }
+
+        if ($this->canManageAllBranches($user)) {
+            $activeBranchId = $request->session()->get('active_branch_id');
+            if (! is_numeric($activeBranchId)) {
+                return null;
+            }
+
+            return DB::table('branches')
+                ->where('created_by', creatorId())
+                ->where('id', (int) $activeBranchId)
+                ->exists()
+                ? (int) $activeBranchId
+                : null;
+        }
+
+        if (! Schema::hasTable('employees')) {
+            return null;
+        }
+
+        $branchId = DB::table('employees')
+            ->where('user_id', $user->id)
+            ->value('branch_id');
+
+        return $branchId ? (int) $branchId : null;
+    }
+
+    private function branchOptions(int $tenantId): array
+    {
+        if ($tenantId <= 0 || ! Schema::hasTable('branches')) {
+            return [];
+        }
+
+        return DB::table('branches')
+            ->where('created_by', $tenantId)
+            ->orderBy('branch_name')
+            ->get(['id', 'branch_name'])
+            ->map(fn($branch) => [
+                'id' => (int) $branch->id,
+                'name' => $branch->branch_name,
+            ])
+            ->values()
+            ->all();
+    }
+
     private function hasTenantTextileModule(int $companyUserId): bool
     {
         return \App\Models\UserActiveModule::query()
@@ -234,9 +319,8 @@ class HandleInertiaRequests extends Middleware
         try {
             /** @var TextileOperatingPolicyService $policyService */
             $policyService = app(TextileOperatingPolicyService::class);
-            $policy = $policyService->resolveForTenant($companyContextUser->id);
 
-            return $policyService->capabilities($policy);
+                return $policyService->capabilitiesForUser($user);
         } catch (Throwable $exception) {
             // Fail open for menu rendering if policy storage is not migrated yet.
             return [];

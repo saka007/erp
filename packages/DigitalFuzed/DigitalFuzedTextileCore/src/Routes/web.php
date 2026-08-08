@@ -150,6 +150,7 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::get('/textile/procurement', [TextileProcurementController::class, 'index'])->name('textile.procurement.index');
     Route::post('/textile/procurement/requisitions', [TextileProcurementController::class, 'storeRequisition'])->name('textile.procurement.requisitions.store');
     Route::post('/textile/procurement/requisitions/approve', [TextileProcurementController::class, 'approveRequisition'])->name('textile.procurement.requisitions.approve');
+    Route::delete('/textile/procurement/requisitions/{requisition}', [TextileProcurementController::class, 'destroyRequisition'])->name('textile.procurement.requisitions.destroy');
     Route::post('/textile/procurement/rfqs', [TextileProcurementController::class, 'storeRfq'])->name('textile.procurement.rfqs.store');
     Route::post('/textile/procurement/rfqs/send', [TextileProcurementController::class, 'sendRfq'])->name('textile.procurement.rfqs.send');
     Route::post('/textile/procurement/rfqs/close', [TextileProcurementController::class, 'closeRfq'])->name('textile.procurement.rfqs.close');
@@ -224,6 +225,7 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/manufacturing/warp-productions', [TextileManufacturingController::class, 'storeWarpProduction'])->name('textile.manufacturing.warp-productions.store');
     Route::post('/textile/manufacturing/sizing-recipes', [TextileManufacturingController::class, 'storeSizingRecipe'])->name('textile.manufacturing.sizing-recipes.store');
     Route::post('/textile/manufacturing/chemical-consumptions', [TextileManufacturingController::class, 'storeChemicalConsumption'])->name('textile.manufacturing.chemical-consumptions.store');
+    Route::post('/textile/manufacturing/beams/from-yarn-allocation', [TextileManufacturingController::class, 'storeBeamFromYarnAllocation'])->name('textile.manufacturing.beams.from-yarn-allocation');
     Route::post('/textile/manufacturing/beams/from-sizing-recipe', [TextileManufacturingController::class, 'storeBeamFromSizingRecipe'])->name('textile.manufacturing.beams.from-sizing-recipe');
     Route::post('/textile/manufacturing/beam-issues', [TextileManufacturingController::class, 'storeBeamIssue'])->name('textile.manufacturing.beam-issues.store');
     Route::post('/textile/manufacturing/beam-returns', [TextileManufacturingController::class, 'storeBeamReturn'])->name('textile.manufacturing.beam-returns.store');
@@ -242,6 +244,7 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/manufacturing/beams/approve', [TextileManufacturingController::class, 'approveBeam'])->name('textile.manufacturing.beams.approve');
     Route::post('/textile/manufacturing/batches', [TextileManufacturingController::class, 'storeProductionBatch'])->name('textile.manufacturing.batches.store');
     Route::post('/textile/manufacturing/batches/release', [TextileManufacturingController::class, 'releaseProductionBatch'])->name('textile.manufacturing.batches.release');
+    Route::post('/textile/manufacturing/production-assignments', [TextileManufacturingController::class, 'storeProductionAssignment'])->name('textile.manufacturing.production-assignments.store');
     Route::post('/textile/manufacturing/weaving-output', [TextileManufacturingController::class, 'storeWeavingOutput'])->name('textile.manufacturing.weaving-output.store');
     Route::post('/textile/manufacturing/shift-productions', [TextileManufacturingController::class, 'storeShiftProduction'])->name('textile.manufacturing.shift-productions.store');
     Route::post('/textile/manufacturing/takha-entries', [TextileManufacturingController::class, 'storeTakhaEntry'])->name('textile.manufacturing.takha-entries.store');

@@ -110,6 +110,13 @@ class VendorPaymentController extends Controller
             $payment->vendor_id = $request->vendor_id;
             $payment->bank_account_id = $request->bank_account_id;
             $payment->reference_number = $request->reference_number;
+            $payment->payment_mode = $request->payment_mode;
+            $payment->cheque_number = $request->cheque_number;
+            $payment->cheque_date = $request->cheque_date;
+            $payment->bank_name = $request->bank_name;
+            $payment->tds_rate = $request->tds_rate;
+            $payment->tds_amount = $request->tds_amount;
+            $payment->tds_section = $request->tds_section;
             $payment->payment_amount = $request->payment_amount;
             $payment->notes = $request->notes;
             $payment->creator_id = Auth::id();

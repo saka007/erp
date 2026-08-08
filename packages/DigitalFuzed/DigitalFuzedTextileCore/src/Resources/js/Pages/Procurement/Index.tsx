@@ -1,21 +1,26 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ShoppingCart, Plus, Check, Truck, FileText } from 'lucide-react';
+import { ShoppingCart, Plus, Check, Truck, FileText, ListChecks, FileEdit, CheckCircle2, Send, LayoutDashboard, Receipt, Trash2 } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import NoRecordsFound from '@/components/no-records-found';
 import { TextileField as Field } from '@/components/textile/textile-field';
-import { TextileFormCard } from '@/components/textile/textile-form-card';
 import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
-import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
+import { TextileSection } from '@/components/textile/textile-section';
+import { TextileWorkspace, countSectionStatuses } from '@/components/textile/textile-workspace';
+import { TextileInfoPanel, WorkflowStage, SupplierSummary, ActivityItem } from '@/components/textile/textile-info-panel';
+import { getTextileWorkspace } from '@/components/textile/textile-workspaces';
 import { buildUnitOptions, formatTextileLabel } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 import { PageProps } from '@/types';
 
 interface WorkflowDocument {
     id: number;
+    document_type?: string | null;
     document_number: string;
     party_name?: string | null;
     lot_reference?: string | null;
@@ -26,6 +31,18 @@ interface WorkflowDocument {
     metadata?: Record<string, unknown>;
 }
 
+interface PurchaseInvoiceRecord {
+    id: number;
+    invoice_number: string;
+    vendor_name: string;
+    invoice_date: string;
+    due_date: string;
+    total_amount: string;
+    paid_amount: string;
+    balance_amount: string;
+    status: string;
+}
+
 export default function Index({
     requisitions,
     rfqs,
@@ -33,9 +50,12 @@ export default function Index({
     grns,
     incomingQcs,
     supplierClaims,
+    purchaseInvoices,
     unitOptions,
     partyOptions,
     lotReferenceOptions,
+    suppliers,
+    recentActivity,
 }: {
     requisitions: WorkflowDocument[];
     rfqs: WorkflowDocument[];
@@ -43,37 +63,43 @@ export default function Index({
     grns: WorkflowDocument[];
     incomingQcs: WorkflowDocument[];
     supplierClaims: WorkflowDocument[];
+    purchaseInvoices: PurchaseInvoiceRecord[];
     unitOptions: string[];
     partyOptions: string[];
     lotReferenceOptions: string[];
+    suppliers: SupplierSummary[];
+    recentActivity: ActivityItem[];
 }) {
     const { t } = useTranslation();
     const { auth } = usePage<PageProps>().props;
+    const userPermissions = auth.user?.permissions || [];
+    const userType = auth.user?.type || '';
+    const canSelectAnyWarehouse = userType !== 'staff' && userPermissions.includes('manage-any-warehouses');
     const textileCapabilities = auth.user?.textile_capabilities || {};
-    const hasFineGrainedCapabilities = Object.keys(textileCapabilities).some((key) => key.startsWith('procurement_'));
+    const procurementWorkspace = getTextileWorkspace('procurement')!;
     const sectionParam = new URLSearchParams(window.location.search).get('section');
-    const visibleSections = hasFineGrainedCapabilities
-        ? [
-            textileCapabilities.procurement_requisition ? 'requisitions' : null,
-            textileCapabilities.procurement_rfq ? 'rfqs' : null,
-            textileCapabilities.procurement_purchase_order ? 'purchase-orders' : null,
-            textileCapabilities.procurement_grn ? 'grns' : null,
-            textileCapabilities.procurement_incoming_qc ? 'incoming-qc' : null,
-            textileCapabilities.procurement_supplier_claims ? 'supplier-claims' : null,
-        ].filter((value): value is string => value !== null)
-        : ['requisitions', 'rfqs', 'purchase-orders', 'grns', 'incoming-qc', 'supplier-claims'];
-    const validSections = new Set(visibleSections);
-    const activeSection = sectionParam && validSections.has(sectionParam) ? sectionParam : (visibleSections[0] ?? 'requisitions');
+    const activeMenuSection = procurementWorkspace.sections.find((section) => section.id === sectionParam);
+    const [viewingRfq, setViewingRfq] = useState<WorkflowDocument | null>(null);
+    const [viewingProforma, setViewingProforma] = useState<WorkflowDocument | null>(null);
+    const [viewingIncomingQc, setViewingIncomingQc] = useState<WorkflowDocument | null>(null);
+    const [viewingSupplierClaim, setViewingSupplierClaim] = useState<WorkflowDocument | null>(null);
+    const [deletingRequisition, setDeletingRequisition] = useState<WorkflowDocument | null>(null);
 
     const requisitionForm = useForm({
         party_name: '',
         lot_reference: '',
         quantity: '',
         unit: 'kg',
+        requisition_type: 'yarn',
+        priority: 'medium',
+        required_for: '',
+        expected_date: '',
+        remarks: '',
+        warehouse: '',
     });
 
     const rfqForm = useForm({ requisition_id: '' });
-    const purchaseOrderForm = useForm({ source_type: 'requisition', source_id: '' });
+    const purchaseOrderForm = useForm({ source_id: '' });
     const grnForm = useForm({ purchase_order_id: '' });
     const incomingQcForm = useForm({ grn_id: '' });
     const supplierClaimForm = useForm({
@@ -84,9 +110,9 @@ export default function Index({
         claim_note: '',
     });
     const approvedRequisitions = requisitions.filter((row) => row.status === 'approved');
-    const actionableRfqs = rfqs.filter((row) => row.status === 'approved' || row.status === 'released');
     const approvedPurchaseOrders = purchaseOrders.filter((row) => row.status === 'approved');
     const releasedGrns = grns.filter((row) => row.status === 'released');
+    const accessibleInvoiceIds = new Set(purchaseInvoices.map((invoice) => invoice.id));
     const resolvedPartyOptions = partyOptions.map((value) => ({ value, label: value }));
     const resolvedLotReferenceOptions = lotReferenceOptions.map((value) => ({ value, label: value }));
     const resolvedUnitOptions = buildUnitOptions(unitOptions);
@@ -100,6 +126,17 @@ export default function Index({
         router.post(route('textile.procurement.requisitions.approve'), { requisition_id: id }, { preserveScroll: true });
     };
 
+    const deleteRequisition = () => {
+        if (!deletingRequisition) {
+            return;
+        }
+
+        router.delete(route('textile.procurement.requisitions.destroy', deletingRequisition.id), {
+            preserveScroll: true,
+            onSuccess: () => setDeletingRequisition(null),
+        });
+    };
+
     const sendRfq = (id: number) => {
         router.post(route('textile.procurement.rfqs.send'), { rfq_id: id }, { preserveScroll: true });
     };
@@ -108,6 +145,16 @@ export default function Index({
         router.post(route('textile.procurement.rfqs.close'), { rfq_id: id }, { preserveScroll: true });
     };
 
+    const sectionRows: Record<string, WorkflowDocument[]> = {
+        overview: allDocuments,
+        requisitions,
+        rfqs,
+        'purchase-orders': purchaseOrders,
+        grns,
+        'incoming-qc': incomingQcs,
+        'supplier-claims': supplierClaims,
+        bills: [],
+    }
     const approvePurchaseOrder = (id: number) => {
         router.post(route('textile.procurement.purchase-orders.approve'), { purchase_order_id: id }, { preserveScroll: true });
     };
@@ -133,101 +180,211 @@ export default function Index({
     };
 
     return (
-        <AuthenticatedLayout breadcrumbs={[{ label: t('Textile') }, { label: t('Procurement') }]} pageTitle={t('Textile Procurement')}>
+        <AuthenticatedLayout
+            breadcrumbs={[
+                { label: t('Textile') },
+                { label: t('Procurement'), url: route('textile.procurement.index') },
+                ...(activeMenuSection ? [{ label: t(activeMenuSection.label) }] : []),
+            ]}
+            pageTitle={t('Textile Procurement')}
+            pageActions={
+                <Button
+                    onClick={() => router.get(route('textile.procurement.index', { section: 'requisitions' }))}
+                    className="bg-emerald-500 text-white hover:bg-emerald-600"
+                >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {t('New Requisition')}
+                </Button>
+            }
+        >
             <Head title={t('Textile Procurement')} />
 
-            <TextileKpiOverview
-                title={t('Procurement Overview')}
-                className="mb-6"
-                items={[
-                    { label: t('Total Documents'), value: allDocuments.length, hint: t('Requisition + RFQ + PO + GRN + Incoming QC + Claims') },
-                    { label: t('Draft'), value: draftCount, hint: t('Waiting action') },
-                    { label: t('Approved'), value: approvedCount, hint: t('Ready for next stage') },
-                    { label: t('Released'), value: releasedCount, hint: t('Operationally posted') },
-                ]}
-            />
-
-            <Tabs
-                value={activeSection}
-                onValueChange={(value) => router.get(route('textile.procurement.index', { section: value }), {}, { preserveState: true, replace: true })}
-                className="space-y-6"
+            <TextileWorkspace
+                workspace={procurementWorkspace}
+                capabilities={textileCapabilities}
+                kpis={(section) => {
+                    const counts = countSectionStatuses(sectionRows[section.id] ?? []);
+                    return [
+                        { label: t('Total'), value: counts.total, hint: t('Records in this section'), icon: ListChecks },
+                        { label: t('Draft'), value: counts.draft, hint: t('Waiting action'), icon: FileEdit },
+                        { label: t('Approved'), value: counts.approved, hint: t('Ready for next stage'), icon: CheckCircle2 },
+                        { label: t('Released'), value: counts.released, hint: t('Operationally posted'), icon: Send },
+                    ];
+                }}
+                aside={(section) => {
+                    const stages: WorkflowStage[] = [
+                        { id: 'requisitions', label: t('Requisition'), count: requisitions.length, active: section.id === 'requisitions' },
+                        { id: 'approval', label: t('Approval'), count: approvedRequisitions.length, active: false },
+                        { id: 'rfqs', label: t('RFQ (Request for Quotation)'), count: rfqs.length, active: section.id === 'rfqs' },
+                        { id: 'purchase-orders', label: t('Purchase Order'), count: purchaseOrders.length, active: section.id === 'purchase-orders' },
+                        { id: 'grns', label: t('GRN (Goods Received Note)'), count: grns.length, active: section.id === 'grns' },
+                        { id: 'incoming-qc', label: t('Incoming QC'), count: incomingQcs.length, active: section.id === 'incoming-qc' },
+                        { id: 'invoice', label: t('Invoice'), count: grns.filter((row) => row.purchase_invoice_id).length, active: false },
+                        { id: 'bills', label: t('Purchase Bills'), count: purchaseInvoices.length, active: section.id === 'bills' },
+                    ];
+                    return <TextileInfoPanel stages={stages} supplier={suppliers[0] ?? null} activities={recentActivity} />;
+                }}
             >
-                <TabsList className="grid w-full grid-cols-2 gap-2 h-auto p-1 md:grid-cols-6">
-                    {validSections.has('requisitions') ? <TabsTrigger value="requisitions">{t('Requisitions')}</TabsTrigger> : null}
-                    {validSections.has('rfqs') ? <TabsTrigger value="rfqs">{t('RFQ')}</TabsTrigger> : null}
-                    {validSections.has('purchase-orders') ? <TabsTrigger value="purchase-orders">{t('Purchase Orders')}</TabsTrigger> : null}
-                    {validSections.has('grns') ? <TabsTrigger value="grns">{t('GRN')}</TabsTrigger> : null}
-                    {validSections.has('incoming-qc') ? <TabsTrigger value="incoming-qc">{t('Incoming QC')}</TabsTrigger> : null}
-                    {validSections.has('supplier-claims') ? <TabsTrigger value="supplier-claims">{t('Supplier Claims')}</TabsTrigger> : null}
-                </TabsList>
+                {(section) => {
+                    switch (section.id) {
+                        case 'overview': return (
+                            <TextileSection
+                                table={
+                                    <TextileDataTableCard
+                                        data={allDocuments}
+                                        columns={[
+                                            { key: 'document_type', header: t('Type'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(row.document_type ?? '') },
+                                            { key: 'document_number', header: t('Document') },
+                                            { key: 'party_name', header: t('Party') },
+                                            { key: 'lot_reference', header: t('Lot') },
+                                            { key: 'quantity', header: t('Qty') },
+                                            { key: 'unit', header: t('Unit') },
+                                            { key: 'status', header: t('Status'), render: formatTextileLabel },
+                                        ]}
+                                        emptyState={<NoRecordsFound icon={LayoutDashboard} title={t('No procurement records yet')} description={t('Create requisitions to start the procurement pipeline.')} />}
+                                    />
+                                }
+                            />
+                        );
 
-                {validSections.has('requisitions') ? <TabsContent value="requisitions">
-                    <div className="grid gap-6 xl:grid-cols-2">
-                        <TextileFormCard title={t('Create Requisition')} icon={ShoppingCart}>
-                                <form className="space-y-3" onSubmit={(e) => {
+                        case 'requisitions': return (
+                            <TextileSection
+                                formTitle={t('Create Requisition')}
+                                formIcon={ShoppingCart}
+                                form={
+                                <form className="space-y-4" onSubmit={(e) => {
                                     e.preventDefault();
                                     requisitionForm.post(route('textile.procurement.requisitions.store'), {
-                                        onSuccess: () => requisitionForm.reset('party_name', 'lot_reference', 'quantity'),
+                                        onSuccess: () => requisitionForm.reset('party_name', 'lot_reference', 'quantity', 'required_for', 'expected_date', 'remarks', 'warehouse'),
                                     });
                                 }}>
-                                    <SelectField
-                                        label={t('Supplier/Party')}
-                                        value={requisitionForm.data.party_name}
-                                        onChange={(v) => requisitionForm.setData('party_name', v)}
-                                        options={resolvedPartyOptions}
-                                        includeEmpty
-                                        emptyLabel={t('Select supplier/party')}
-                                        helperText={t('Party options are derived from vendor profiles and existing workflow records.')}
-                                        disabled={resolvedPartyOptions.length === 0}
-                                        disabledReason={t('No party options available yet. Create vendor profile first.')}
-                                    />
-                                    <SelectField
-                                        label={t('Lot Reference')}
-                                        value={requisitionForm.data.lot_reference}
-                                        onChange={(v) => requisitionForm.setData('lot_reference', v)}
-                                        options={resolvedLotReferenceOptions}
-                                        includeEmpty
-                                        emptyLabel={t('Select lot reference')}
-                                        helperText={t('Lot references are derived from active inventory lots and workflow records.')}
-                                        disabled={resolvedLotReferenceOptions.length === 0}
-                                        disabledReason={t('No lot options available yet. Create active inventory lots first.')}
-                                        required
-                                    />
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <Field label={t('Quantity')} type="number" value={requisitionForm.data.quantity} onChange={(v) => requisitionForm.setData('quantity', v)} required />
-                                        <SelectField
-                                            label={t('Unit')}
-                                            value={requisitionForm.data.unit}
-                                            onChange={(v) => requisitionForm.setData('unit', v)}
-                                            options={resolvedUnitOptions}
-                                            includeEmpty
-                                            emptyLabel={t('Select unit')}
-                                            helperText={t('Units are derived from Unit Conversion master.')}
-                                        />
+                                    <div className="grid gap-4 md:grid-cols-3">
+                                        <div className="space-y-3">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Supplier Information')}</p>
+                                            <SelectField
+                                                label={t('Supplier/Party')}
+                                                value={requisitionForm.data.party_name}
+                                                onChange={(v) => requisitionForm.setData('party_name', v)}
+                                                options={resolvedPartyOptions}
+                                                includeEmpty
+                                                emptyLabel={t('Select supplier/party')}
+                                                helperText={t('Party options are derived from vendor profiles and existing workflow records.')}
+                                                disabled={resolvedPartyOptions.length === 0}
+                                                disabledReason={t('No party options available yet. Create vendor profile first.')}
+                                            />
+                                            <SelectField
+                                                label={t('Lot Reference')}
+                                                value={requisitionForm.data.lot_reference}
+                                                onChange={(v) => requisitionForm.setData('lot_reference', v)}
+                                                options={resolvedLotReferenceOptions}
+                                                includeEmpty
+                                                emptyLabel={t('Select lot reference (optional)')}
+                                                helperText={t('Optional. If left blank, system auto-generates a lot reference on requisition creation.')}
+                                                disabled={resolvedLotReferenceOptions.length === 0}
+                                                disabledReason={t('No lot options available yet. You can still submit this requisition without a lot reference.')}
+                                            />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Material Details')}</p>
+                                            <SelectField
+                                                label={t('Requisition Type')}
+                                                value={requisitionForm.data.requisition_type}
+                                                onChange={(v) => requisitionForm.setData('requisition_type', v)}
+                                                options={[
+                                                    { value: 'yarn', label: t('Yarn') },
+                                                    { value: 'beam', label: t('Beam') },
+                                                    { value: 'grey_fabric', label: t('Grey Fabric') },
+                                                    { value: 'finished_fabric', label: t('Finished Fabric') },
+                                                    { value: 'chemical', label: t('Chemical') },
+                                                    { value: 'packing_material', label: t('Packing Material') },
+                                                    { value: 'spare_part', label: t('Spare Part') },
+                                                    { value: 'service', label: t('Service') },
+                                                    { value: 'general', label: t('General') },
+                                                ]}
+                                                required
+                                                helperText={t('Helps manager identify request purpose before lot creation.')}
+                                            />
+                                            <Field label={t('Quantity')} type="number" value={requisitionForm.data.quantity} onChange={(v) => requisitionForm.setData('quantity', v)} required />
+                                            <SelectField
+                                                label={t('Unit')}
+                                                value={requisitionForm.data.unit}
+                                                onChange={(v) => requisitionForm.setData('unit', v)}
+                                                options={resolvedUnitOptions}
+                                                includeEmpty
+                                                emptyLabel={t('Select unit')}
+                                                helperText={t('Units are derived from Unit Conversion master.')}
+                                            />
+                                            {canSelectAnyWarehouse ? (
+                                                <Field label={t('Warehouse')} value={requisitionForm.data.warehouse} onChange={(v) => requisitionForm.setData('warehouse', v)} />
+                                            ) : null}
+                                            <Field label={t('Expected Date')} type="date" value={requisitionForm.data.expected_date} onChange={(v) => requisitionForm.setData('expected_date', v)} />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Other Details')}</p>
+                                            <SelectField
+                                                label={t('Priority')}
+                                                value={requisitionForm.data.priority}
+                                                onChange={(v) => requisitionForm.setData('priority', v)}
+                                                options={[
+                                                    { value: 'high', label: t('High') },
+                                                    { value: 'medium', label: t('Medium') },
+                                                    { value: 'low', label: t('Low') },
+                                                ]}
+                                                required
+                                            />
+                                            <Field label={t('Required For')} value={requisitionForm.data.required_for} onChange={(v) => requisitionForm.setData('required_for', v)} />
+                                            <Field label={t('Remarks')} value={requisitionForm.data.remarks} onChange={(v) => requisitionForm.setData('remarks', v)} />
+                                        </div>
                                     </div>
                                     <Button type="submit" disabled={requisitionForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Requisition')}</Button>
                                 </form>
-                        </TextileFormCard>
+                                }
+                                table={
+                                    <TextileDataTableCard
+                                        data={requisitions}
+                                        columns={[
+                                            { key: 'document_number', header: t('Document') },
+                                            { key: 'party_name', header: t('Party') },
+                                            { key: 'lot_reference', header: t('Lot') },
+                                            { key: 'requisition_type', header: t('Type'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.requisition_type ?? 'general')) },
+                                            { key: 'quantity', header: t('Qty') },
+                                            { key: 'unit', header: t('Unit') },
+                                            { key: 'priority', header: t('Priority'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.priority ?? '-')) },
+                                            { key: 'status', header: t('Status'), render: formatTextileLabel },
+                                            {
+                                                key: 'actions',
+                                                header: t('Actions'),
+                                                render: (_value: unknown, row: WorkflowDocument) => (
+                                                    <div className="flex items-center gap-2">
+                                                        {row.status === 'draft' ? (
+                                                            <>
+                                                                <Button type="button" variant="outline" size="sm" onClick={() => approveRequisition(row.id)}>
+                                                                    <Check className="mr-1 h-3.5 w-3.5" />
+                                                                    {t('Approve')}
+                                                                </Button>
+                                                                <Button type="button" variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeletingRequisition(row)}>
+                                                                    <Trash2 className="mr-1 h-3.5 w-3.5" />
+                                                                    {t('Delete')}
+                                                                </Button>
+                                                            </>
+                                                        ) : (
+                                                            <span className="text-xs text-muted-foreground">{t('No action')}</span>
+                                                        )}
+                                                    </div>
+                                                ),
+                                            },
+                                        ]}
+                                        emptyState={<NoRecordsFound icon={ShoppingCart} title={t('No requisitions found')} description={t('Create procurement requisitions to begin material planning.')} />}
+                                    />
+                                }
+                            />
+                        );
 
-                        <TextileDataTableCard
-                            className="xl:col-span-2"
-                            data={requisitions}
-                            columns={createTextileWorkflowColumns(t, {
-                                actions: createTextileWorkflowActions([
-                                    {
-                                        statuses: textileActionableStatuses.draft,
-                                        actions: [{ label: t('Approve'), icon: Check, onClick: (row) => approveRequisition(row.id) }],
-                                    },
-                                ]),
-                            })}
-                            emptyState={<NoRecordsFound icon={ShoppingCart} title={t('No requisitions found')} description={t('Create procurement requisitions to begin material planning.')} />}
-                        />
-                    </div>
-                </TabsContent> : null}
-
-                {validSections.has('rfqs') ? <TabsContent value="rfqs">
-                    <div className="grid gap-6 xl:grid-cols-2">
-                        <TextileFormCard title={t('Create RFQ')} icon={FileText}>
+                case 'rfqs': return (
+                    <TextileSection
+                        formTitle={t('Create RFQ (Request for Quotation)')}
+                        formIcon={FileText}
+                        form={
                             <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
                                 e.preventDefault();
                                 rfqForm.post(route('textile.procurement.rfqs.store'), {
@@ -248,11 +405,10 @@ export default function Index({
                                 />
                                 <Button type="submit" disabled={rfqForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create RFQ')}</Button>
                             </form>
-                        </TextileFormCard>
-
-                        <TextileDataTableCard
-                            className="xl:col-span-2"
-                            data={rfqs}
+                                }
+                                table={
+                                    <TextileDataTableCard
+                                        data={rfqs}
                             columns={createTextileWorkflowColumns(t, {
                                 actions: createTextileWorkflowActions([
                                     {
@@ -261,18 +417,28 @@ export default function Index({
                                     },
                                     {
                                         statuses: ['approved'],
-                                        actions: [{ label: t('Close RFQ'), icon: Check, onClick: (row) => closeRfq(row.id) }],
+                                        actions: [
+                                            { label: t('View RFQ'), icon: FileText, onClick: (row) => setViewingRfq(row as WorkflowDocument) },
+                                            { label: t('Close RFQ'), icon: Check, onClick: (row) => closeRfq(row.id) },
+                                        ],
+                                    },
+                                    {
+                                        statuses: ['released', 'closed'],
+                                        actions: [{ label: t('View RFQ'), icon: FileText, onClick: (row) => setViewingRfq(row as WorkflowDocument) }],
                                     },
                                 ]),
                             })}
-                            emptyState={<NoRecordsFound icon={FileText} title={t('No RFQs found')} description={t('Create RFQ records from approved requisitions.')} />}
-                        />
-                    </div>
-                </TabsContent> : null}
+                                emptyState={<NoRecordsFound icon={FileText} title={t('No RFQs found')} description={t('Create RFQ records from approved requisitions.')} />}
+                            />
+                                }
+                            />
+                        );
 
-                {validSections.has('purchase-orders') ? <TabsContent value="purchase-orders">
-                    <div className="grid gap-6 xl:grid-cols-2">
-                        <TextileFormCard title={t('Create Purchase Order')} icon={ShoppingCart}>
+                case 'purchase-orders': return (
+                    <TextileSection
+                        formTitle={t('Create Purchase Order')}
+                        formIcon={ShoppingCart}
+                        form={
                                 <form className="space-y-3" onSubmit={(e) => {
                                     e.preventDefault();
                                     purchaseOrderForm.post(route('textile.procurement.purchase-orders.store'), {
@@ -280,52 +446,46 @@ export default function Index({
                                     });
                                 }}>
                                     <SelectField
-                                        label={t('Source Type')}
-                                        value={purchaseOrderForm.data.source_type}
-                                        onChange={(v) => {
-                                            purchaseOrderForm.setData('source_type', v);
-                                            purchaseOrderForm.setData('source_id', '');
-                                        }}
-                                        options={[
-                                            { value: 'requisition', label: t('Approved Requisition') },
-                                            { value: 'rfq', label: t('Sent RFQ') },
-                                        ]}
-                                        required
-                                    />
-                                    <SelectField
-                                        label={purchaseOrderForm.data.source_type === 'rfq' ? t('From Sent RFQ') : t('From Approved Requisition')}
+                                        label={t('From Approved Requisition')}
                                         value={purchaseOrderForm.data.source_id}
                                         onChange={(v) => purchaseOrderForm.setData('source_id', v)}
-                                        options={createTextileWorkflowSelectOptions(purchaseOrderForm.data.source_type === 'rfq' ? actionableRfqs : approvedRequisitions)}
+                                        options={createTextileWorkflowSelectOptions(approvedRequisitions)}
                                         includeEmpty
-                                        emptyLabel={purchaseOrderForm.data.source_type === 'rfq' ? t('Select sent RFQ') : t('Select approved requisition')}
-                                        helperText={purchaseOrderForm.data.source_type === 'rfq' ? t('Only sent RFQs are listed.') : t('Only approved requisitions are listed.')}
-                                        disabled={(purchaseOrderForm.data.source_type === 'rfq' ? actionableRfqs.length : approvedRequisitions.length) === 0}
-                                        disabledReason={purchaseOrderForm.data.source_type === 'rfq' ? t('No sent RFQ found. Send an RFQ first.') : t('No approved requisition found. Approve a requisition first.')}
+                                        emptyLabel={t('Select approved requisition')}
+                                        helperText={t('Single flow enabled: purchase order is created from approved requisition.')}
+                                        disabled={approvedRequisitions.length === 0}
+                                        disabledReason={t('No approved requisition found. Approve a requisition first.')}
                                         required
                                     />
                                     <Button type="submit" disabled={purchaseOrderForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create PO')}</Button>
                                 </form>
-                        </TextileFormCard>
-                        <TextileDataTableCard
-                            className="xl:col-span-2"
-                            data={purchaseOrders}
+                                }
+                                table={
+                                    <TextileDataTableCard
+                                        data={purchaseOrders}
                             columns={createTextileWorkflowColumns(t, {
                                 actions: createTextileWorkflowActions([
                                     {
                                         statuses: textileActionableStatuses.draft,
-                                        actions: [{ label: t('Approve'), icon: Check, onClick: (row) => approvePurchaseOrder(row.id) }],
+                                        actions: [{ label: t('Send Proforma'), icon: Send, onClick: (row) => approvePurchaseOrder(row.id) }],
+                                    },
+                                    {
+                                        statuses: ['approved', 'released', 'closed'],
+                                        actions: [{ label: t('View Proforma'), icon: FileText, onClick: (row) => setViewingProforma(row as WorkflowDocument) }],
                                     },
                                 ]),
                             })}
-                            emptyState={<NoRecordsFound icon={ShoppingCart} title={t('No purchase orders found')} description={t('Convert approved requisitions into purchase orders.')} />}
-                        />
-                    </div>
-                </TabsContent> : null}
+                                    emptyState={<NoRecordsFound icon={ShoppingCart} title={t('No purchase orders found')} description={t('Convert approved requisitions into purchase orders.')} />}
+                                />
+                                }
+                            />
+                        );
 
-                {validSections.has('grns') ? <TabsContent value="grns">
-                    <div className="grid gap-6 xl:grid-cols-2">
-                        <TextileFormCard title={t('Create GRN')} icon={Truck}>
+                case 'grns': return (
+                    <TextileSection
+                        formTitle={t('Create GRN (Goods Received Note)')}
+                        formIcon={Truck}
+                        form={
                                 <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
                                     e.preventDefault();
                                     grnForm.post(route('textile.procurement.grns.store'), {
@@ -341,15 +501,15 @@ export default function Index({
                                         emptyLabel={t('Select approved PO')}
                                         helperText={t('Only approved purchase orders are listed.')}
                                         disabled={approvedPurchaseOrders.length === 0}
-                                        disabledReason={t('No approved PO found. Approve a purchase order first.')}
+                                        disabledReason={t('No approved PO found. Send proforma on a purchase order first.')}
                                         required
                                     />
                                     <Button type="submit" disabled={grnForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create GRN')}</Button>
                                 </form>
-                        </TextileFormCard>
-                        <TextileDataTableCard
-                            className="xl:col-span-2"
-                            data={grns}
+                                }
+                                table={
+                                    <TextileDataTableCard
+                                        data={grns}
                             columns={createTextileWorkflowColumns(t, {
                                 includeInvoiceId: true,
                                 actions: createTextileWorkflowActions([
@@ -361,18 +521,33 @@ export default function Index({
                                         statuses: ['released'],
                                         noVisibleActionContent: (row) =>
                                             row.purchase_invoice_id ? t('Invoice already synced') : t('No action'),
-                                        actions: [{ label: t('Sync Invoice'), icon: Plus, onClick: (row) => syncInvoiceFromGrn(row.id), when: (row) => !row.purchase_invoice_id }],
+                                        actions: [
+                                            { label: t('Sync Invoice'), icon: Plus, onClick: (row) => syncInvoiceFromGrn(row.id), when: (row) => !row.purchase_invoice_id },
+                                            {
+                                                label: t('View Invoice'),
+                                                icon: Receipt,
+                                                onClick: (row) => {
+                                                    if (row.purchase_invoice_id && accessibleInvoiceIds.has(row.purchase_invoice_id)) {
+                                                        router.get(route('purchase-invoices.show', row.purchase_invoice_id));
+                                                    }
+                                                },
+                                                when: (row) => Boolean(row.purchase_invoice_id && accessibleInvoiceIds.has(row.purchase_invoice_id)),
+                                            },
+                                        ],
                                     },
                                 ]),
                             })}
-                            emptyState={<NoRecordsFound icon={Truck} title={t('No GRNs found')} description={t('Create and release GRNs against approved purchase orders.')} />}
-                        />
-                    </div>
-                </TabsContent> : null}
+                                    emptyState={<NoRecordsFound icon={Truck} title={t('No GRNs found')} description={t('Create and release GRNs (Goods Received Notes) against approved purchase orders.')} />}
+                                />
+                                }
+                            />
+                        );
 
-                {validSections.has('incoming-qc') ? <TabsContent value="incoming-qc">
-                    <div className="grid gap-6 xl:grid-cols-2">
-                        <TextileFormCard title={t('Create Incoming QC')} icon={Plus}>
+                case 'incoming-qc': return (
+                    <TextileSection
+                        formTitle={t('Create Incoming QC')}
+                        formIcon={Plus}
+                        form={
                                 <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
                                     e.preventDefault();
                                     incomingQcForm.post(route('textile.procurement.incoming-qc.store'), {
@@ -393,10 +568,10 @@ export default function Index({
                                     />
                                     <Button type="submit" disabled={incomingQcForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Incoming QC')}</Button>
                                 </form>
-                        </TextileFormCard>
-                        <TextileDataTableCard
-                            className="xl:col-span-2"
-                            data={incomingQcs}
+                                }
+                                table={
+                                    <TextileDataTableCard
+                                        data={incomingQcs}
                             columns={createTextileWorkflowColumns(t, {
                                 actions: createTextileWorkflowActions([
                                     {
@@ -406,16 +581,23 @@ export default function Index({
                                             { label: t('Fail'), icon: Check, onClick: (row) => finalizeIncomingQc(row.id, 'fail') },
                                         ],
                                     },
+                                    {
+                                        statuses: ['approved', 'rejected', 'released', 'closed'],
+                                        actions: [{ label: t('View QC'), icon: FileText, onClick: (row) => setViewingIncomingQc(row as WorkflowDocument) }],
+                                    },
                                 ]),
                             })}
-                            emptyState={<NoRecordsFound icon={Check} title={t('No incoming QC records found')} description={t('Create incoming QC entries from released GRNs.')} />}
-                        />
-                    </div>
-                </TabsContent> : null}
+                                    emptyState={<NoRecordsFound icon={Check} title={t('No incoming QC records found')} description={t('Create incoming QC entries from released GRNs.')} />}
+                                />
+                                }
+                            />
+                        );
 
-                {validSections.has('supplier-claims') ? <TabsContent value="supplier-claims">
-                    <div className="grid gap-6 xl:grid-cols-2">
-                        <TextileFormCard title={t('Create Supplier Claim')} icon={FileText}>
+                case 'supplier-claims': return (
+                    <TextileSection
+                        formTitle={t('Create Supplier Claim')}
+                        formIcon={FileText}
+                        form={
                             <form className="space-y-3" onSubmit={(e) => {
                                 e.preventDefault();
                                 supplierClaimForm.post(route('textile.procurement.supplier-claims.store'), {
@@ -463,11 +645,10 @@ export default function Index({
                                 <Field label={t('Claim Note')} value={supplierClaimForm.data.claim_note} onChange={(v) => supplierClaimForm.setData('claim_note', v)} />
                                 <Button type="submit" disabled={supplierClaimForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Claim')}</Button>
                             </form>
-                        </TextileFormCard>
-
-                        <TextileDataTableCard
-                            className="xl:col-span-2"
-                            data={supplierClaims}
+                                }
+                                table={
+                                    <TextileDataTableCard
+                                        data={supplierClaims}
                             columns={[
                                 { key: 'document_number', header: t('Document') },
                                 { key: 'party_name', header: t('Party') },
@@ -482,27 +663,191 @@ export default function Index({
                                     render: (_value: unknown, row: WorkflowDocument) => (
                                         <div className="flex items-center gap-2">
                                             {row.status === 'draft' ? (
-                                                <Button type="button" variant="outline" size="sm" onClick={() => approveSupplierClaim(row.id)}>
-                                                    <Check className="mr-1 h-3.5 w-3.5" />
-                                                    {t('Approve')}
-                                                </Button>
+                                                <>
+                                                    <Button type="button" variant="outline" size="sm" onClick={() => setViewingSupplierClaim(row)}>
+                                                        <FileText className="mr-1 h-3.5 w-3.5" />
+                                                        {t('View Claim')}
+                                                    </Button>
+                                                    <Button type="button" variant="outline" size="sm" onClick={() => approveSupplierClaim(row.id)}>
+                                                        <Check className="mr-1 h-3.5 w-3.5" />
+                                                        {t('Approve')}
+                                                    </Button>
+                                                </>
                                             ) : null}
                                             {row.status === 'approved' ? (
-                                                <Button type="button" variant="outline" size="sm" onClick={() => settleSupplierClaim(row.id)}>
-                                                    <Check className="mr-1 h-3.5 w-3.5" />
-                                                    {t('Settle')}
+                                                <>
+                                                    <Button type="button" variant="outline" size="sm" onClick={() => setViewingSupplierClaim(row)}>
+                                                        <FileText className="mr-1 h-3.5 w-3.5" />
+                                                        {t('View Claim')}
+                                                    </Button>
+                                                    <Button type="button" variant="outline" size="sm" onClick={() => settleSupplierClaim(row.id)}>
+                                                        <Check className="mr-1 h-3.5 w-3.5" />
+                                                        {t('Settle')}
+                                                    </Button>
+                                                </>
+                                            ) : null}
+                                            {row.status !== 'draft' && row.status !== 'approved' ? (
+                                                <Button type="button" variant="outline" size="sm" onClick={() => setViewingSupplierClaim(row)}>
+                                                    <FileText className="mr-1 h-3.5 w-3.5" />
+                                                    {t('View Claim')}
                                                 </Button>
                                             ) : null}
-                                            {row.status !== 'draft' && row.status !== 'approved' ? <span className="text-xs text-muted-foreground">{t('No action')}</span> : null}
                                         </div>
                                     ),
                                 },
                             ]}
-                            emptyState={<NoRecordsFound icon={FileText} title={t('No supplier claims found')} description={t('Create supplier claims from released GRNs for quality and settlement tracking.')} />}
-                        />
-                    </div>
-                </TabsContent> : null}
-            </Tabs>
+                                emptyState={<NoRecordsFound icon={FileText} title={t('No supplier claims found')} description={t('Create supplier claims from released GRNs for quality and settlement tracking.')} />}
+                            />
+                                }
+                            />
+                        );
+
+                        case 'bills': return (
+                            <TextileSection
+                                table={
+                                    <TextileDataTableCard
+                                        data={purchaseInvoices}
+                                        columns={[
+                                            { key: 'invoice_number', header: t('Invoice #') },
+                                            { key: 'vendor_name', header: t('Vendor') },
+                                            { key: 'invoice_date', header: t('Invoice Date') },
+                                            { key: 'due_date', header: t('Due Date') },
+                                            { key: 'total_amount', header: t('Total') },
+                                            { key: 'paid_amount', header: t('Paid') },
+                                            { key: 'balance_amount', header: t('Balance') },
+                                            { key: 'status', header: t('Status'), render: formatTextileLabel },
+                                            {
+                                                key: 'actions',
+                                                header: t('Actions'),
+                                                render: (_value: unknown, row: PurchaseInvoiceRecord) => (
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => router.get(route('purchase-invoices.show', row.id))}
+                                                    >
+                                                        {t('Open')}
+                                                    </Button>
+                                                ),
+                                            },
+                                        ]}
+                                        emptyState={<NoRecordsFound icon={Receipt} title={t('No purchase bills found')} description={t('Bills are auto-created when you sync invoices from GRNs.')} />}
+                                    />
+                                }
+                            />
+                        );
+
+                        default: return null;
+                    }
+                }}
+            </TextileWorkspace>
+            <Dialog open={viewingRfq !== null} onOpenChange={(open) => !open && setViewingRfq(null)}>
+                <DialogContent className="max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle>{t('Request for Quotation')}</DialogTitle>
+                        <DialogDescription>
+                            {viewingRfq?.document_number ?? '-'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    {viewingRfq ? (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            {[
+                                [t('Supplier'), viewingRfq.party_name || '-'],
+                                [t('Status'), formatTextileLabel(viewingRfq.status)],
+                                [t('Lot Reference'), viewingRfq.lot_reference || '-'],
+                                [t('Quantity'), `${viewingRfq.quantity} ${viewingRfq.unit || ''}`.trim()],
+                            ].map(([label, value]) => (
+                                <div key={label} className="border-b border-border pb-3">
+                                    <p className="text-xs text-muted-foreground">{label}</p>
+                                    <p className="mt-1 text-sm font-medium">{value}</p>
+                                </div>
+                            ))}
+                        </div>
+                    ) : null}
+                </DialogContent>
+            </Dialog>
+            <Dialog open={viewingProforma !== null} onOpenChange={(open) => !open && setViewingProforma(null)}>
+                <DialogContent className="max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle>{t('Purchase Proforma')}</DialogTitle>
+                        <DialogDescription>
+                            {viewingProforma?.document_number ?? '-'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    {viewingProforma ? (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            {[
+                                [t('Supplier'), viewingProforma.party_name || '-'],
+                                [t('Status'), formatTextileLabel(viewingProforma.status)],
+                                [t('Lot Reference'), viewingProforma.lot_reference || '-'],
+                                [t('Quantity'), `${viewingProforma.quantity} ${viewingProforma.unit || ''}`.trim()],
+                            ].map(([label, value]) => (
+                                <div key={label} className="border-b border-border pb-3">
+                                    <p className="text-xs text-muted-foreground">{label}</p>
+                                    <p className="mt-1 text-sm font-medium">{value}</p>
+                                </div>
+                            ))}
+                        </div>
+                    ) : null}
+                </DialogContent>
+            </Dialog>
+            <Dialog open={viewingIncomingQc !== null} onOpenChange={(open) => !open && setViewingIncomingQc(null)}>
+                <DialogContent className="max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle>{t('Incoming Quality Check')}</DialogTitle>
+                        <DialogDescription>{viewingIncomingQc?.document_number ?? '-'}</DialogDescription>
+                    </DialogHeader>
+                    {viewingIncomingQc ? (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            {[
+                                [t('Supplier'), viewingIncomingQc.party_name || '-'],
+                                [t('Decision'), formatTextileLabel(viewingIncomingQc.status)],
+                                [t('Lot Reference'), viewingIncomingQc.lot_reference || '-'],
+                                [t('Inspected Quantity'), `${viewingIncomingQc.quantity} ${viewingIncomingQc.unit || ''}`.trim()],
+                            ].map(([label, value]) => (
+                                <div key={label} className="border-b border-border pb-3">
+                                    <p className="text-xs text-muted-foreground">{label}</p>
+                                    <p className="mt-1 text-sm font-medium">{value}</p>
+                                </div>
+                            ))}
+                        </div>
+                    ) : null}
+                </DialogContent>
+            </Dialog>
+            <Dialog open={viewingSupplierClaim !== null} onOpenChange={(open) => !open && setViewingSupplierClaim(null)}>
+                <DialogContent className="max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle>{t('Supplier Claim')}</DialogTitle>
+                        <DialogDescription>{viewingSupplierClaim?.document_number ?? '-'}</DialogDescription>
+                    </DialogHeader>
+                    {viewingSupplierClaim ? (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            {[
+                                [t('Supplier'), viewingSupplierClaim.party_name || '-'],
+                                [t('Status'), formatTextileLabel(viewingSupplierClaim.status)],
+                                [t('Lot Reference'), viewingSupplierClaim.lot_reference || '-'],
+                                [t('Claim Type'), formatTextileLabel(String(viewingSupplierClaim.metadata?.claim_type ?? '-'))],
+                                [t('Claim Amount'), String(viewingSupplierClaim.metadata?.claim_amount ?? '-')],
+                                [t('Resolution'), formatTextileLabel(String(viewingSupplierClaim.metadata?.resolution_type ?? '-'))],
+                            ].map(([label, value]) => (
+                                <div key={label} className="border-b border-border pb-3">
+                                    <p className="text-xs text-muted-foreground">{label}</p>
+                                    <p className="mt-1 text-sm font-medium">{value}</p>
+                                </div>
+                            ))}
+                        </div>
+                    ) : null}
+                </DialogContent>
+            </Dialog>
+            <ConfirmationDialog
+                open={deletingRequisition !== null}
+                onOpenChange={(open) => !open && setDeletingRequisition(null)}
+                title={t('Delete Purchase Requisition')}
+                message={t('Delete this accidental draft requisition? This cannot be undone.')}
+                confirmText={t('Delete')}
+                onConfirm={deleteRequisition}
+                variant="destructive"
+            />
         </AuthenticatedLayout>
     );
 }

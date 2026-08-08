@@ -74,7 +74,7 @@ class VendorSupplierTypeTest extends TestCase
 
         $this->actingAs($company)
             ->put(route('account.vendors.update', $vendor->id), [
-                'supplier_type' => 'chemical',
+                'supplier_type' => 'powerloom',
                 'company_name' => 'Sunrise Yarns',
                 'contact_person_name' => 'Amit Shah',
                 'contact_person_email' => 'amit@example.test',
@@ -100,20 +100,20 @@ class VendorSupplierTypeTest extends TestCase
                     'zip_code' => '395001',
                 ],
                 'same_as_billing' => false,
-                'notes' => 'Chemical supplier',
+                'notes' => 'Powerloom vendor',
             ])
             ->assertRedirect();
 
         $vendor->refresh();
-        $this->assertSame('chemical', $vendor->supplier_type);
+        $this->assertSame('powerloom', $vendor->supplier_type);
 
         $this->actingAs($company)
-            ->get(route('account.vendors.index', ['supplier_type' => 'chemical']))
+            ->get(route('account.vendors.index', ['supplier_type' => 'powerloom']))
             ->assertOk()
             ->assertInertia(function (Assert $page): void {
-                $page->where('vendors.data.0.supplier_type', 'chemical');
+                $page->where('vendors.data.0.supplier_type', 'powerloom');
 
-                $this->assertSame('chemical', $page->toArray()['props']['vendors']['data'][0]['supplier_type'] ?? null);
+                $this->assertSame('powerloom', $page->toArray()['props']['vendors']['data'][0]['supplier_type'] ?? null);
             });
     }
 

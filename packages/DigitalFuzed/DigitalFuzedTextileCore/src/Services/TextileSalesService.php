@@ -3,6 +3,10 @@
 namespace DigitalFuzed\TextileCore\Services;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Support\TextileBranchScope;
+use DigitalFuzed\TextileInventory\Models\TextileLot;
+use DigitalFuzed\TextileInventory\Services\TextileAvailabilityService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Workdo\Account\Models\Customer;
@@ -11,17 +15,19 @@ use Workdo\Account\Models\CustomerPriceList;
 
 class TextileSalesService
 {
-    public function __construct(protected TextileWorkflowService $workflowService)
+    public function __construct(
+        protected TextileWorkflowService $workflowService,
+        protected TextileAvailabilityService $availabilityService
+    )
     {
     }
 
     public function createSalesOrder(array $payload): TextileWorkflowDocument
     {
-        if (empty($payload['source_reference_type']) || empty($payload['source_reference_id'])) {
-            throw new RuntimeException('Sales order requires a commercial source reference.');
-        }
-
         $profile = $this->resolveCustomerProfile($payload);
+        if (empty($profile['customer_id']) && empty($payload['source_reference_id'])) {
+            throw new RuntimeException('Select a valid customer profile for the sales order.');
+        }
         if ($this->isJobWorkOnlyProfile($profile['operating_model'] ?? null)) {
             throw new RuntimeException('Selected customer profile is job-work only. Use Manufacturing or Processing workflows instead of Sales Order.');
         }
@@ -29,12 +35,64 @@ class TextileSalesService
         $this->enforceSalesOrderProfileRules($profile);
 
         $metadata = array_merge($payload['metadata'] ?? [], $profile);
+        $lotSelections = collect($payload['lot_selections'] ?? []);
+        if ($lotSelections->isNotEmpty()) {
+            $validatedLots = $lotSelections->map(function (array $line) {
+                $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
+                $lot = TextileLot::query()
+                    ->where('created_by', $tenantId)
+                    ->where('lot_reference', $line['lot_reference'])
+                    ->where('is_active', true)
+                    ->where('material_type', TextileLot::TYPE_GREY_FABRIC)
+                    ->where('source_document_type', 'takha_entry')
+                    ->first();
+
+                if (! $lot || ! $lot->source_document_id) {
+                    throw new RuntimeException('Selected Takha lot is not available for sale.');
+                }
+
+                $sourceQuery = TextileWorkflowDocument::query()
+                    ->where('id', $lot->source_document_id)
+                    ->where('created_by', $tenantId)
+                    ->where('document_type', 'takha_entry');
+                TextileBranchScope::applyWorkflowScope($sourceQuery);
+                $source = $sourceQuery->first();
+                if (! $source) {
+                    throw new RuntimeException('Selected Takha lot belongs to another branch.');
+                }
+
+                $quantity = (float) ($line['quantity'] ?? 0);
+                if ($quantity <= 0 || $quantity > (float) $lot->available_quantity) {
+                    throw new RuntimeException('Requested Takha quantity exceeds available stock.');
+                }
+
+                return [
+                    'lot_reference' => $lot->lot_reference,
+                    'quantity' => $quantity,
+                    'unit' => $source->unit,
+                    'takha_number' => $source->metadata['takha_number'] ?? $source->lot_reference,
+                ];
+            })->values();
+
+            $units = $validatedLots->pluck('unit')->filter()->unique();
+            if ($units->count() > 1) {
+                throw new RuntimeException('Selected Takha lots must use the same unit.');
+            }
+
+            $payload['quantity'] = (float) $validatedLots->sum('quantity');
+            $payload['unit'] = $units->first() ?? $payload['unit'] ?? null;
+            $payload['lot_reference'] = $validatedLots->count() === 1
+                ? $validatedLots->first()['lot_reference']
+                : sprintf('%d Takha lots', $validatedLots->count());
+            $metadata['requested_lots'] = $validatedLots->all();
+            $metadata['order_value'] = (float) ($metadata['rate'] ?? 0) * (float) $payload['quantity'];
+        }
 
         return $this->workflowService->createDocument([
             'document_type' => 'sales_order',
-            'source_reference_type' => $payload['source_reference_type'],
-            'source_reference_id' => (int) $payload['source_reference_id'],
-            'source_action' => $payload['source_action'] ?? 'convert',
+            'source_reference_type' => $payload['source_reference_type'] ?? null,
+            'source_reference_id' => ! empty($payload['source_reference_id']) ? (int) $payload['source_reference_id'] : null,
+            'source_action' => ! empty($payload['source_reference_id']) ? ($payload['source_action'] ?? 'convert') : null,
             'party_name' => $payload['party_name'] ?? ($profile['party_name'] ?? null),
             'lot_reference' => $payload['lot_reference'] ?? null,
             'quantity' => $payload['quantity'] ?? 0,
@@ -64,19 +122,95 @@ class TextileSalesService
             throw new RuntimeException('Allocation is not allowed for job-work customer profiles. Continue through manufacturing/processing flow.');
         }
 
-        return $this->workflowService->createDocument([
-            'document_type' => 'allocation',
-            'source_reference_type' => 'textile_workflow_document',
-            'source_reference_id' => $salesOrder->id,
-            'source_action' => 'allocate_for_dispatch',
-            'party_name' => $payload['party_name'] ?? $salesOrder->party_name,
-            'lot_reference' => $payload['lot_reference'] ?? $salesOrder->lot_reference,
-            'quantity' => $payload['quantity'] ?? $salesOrder->quantity,
-            'unit' => $payload['unit'] ?? $salesOrder->unit,
-            'status' => 'draft',
-            'metadata' => array_merge($metadata, $payload['metadata'] ?? []),
-            'idempotency_key' => $payload['idempotency_key'] ?? null,
-        ]);
+        $lotAllocations = collect($payload['lot_allocations'] ?? []);
+        if ($lotAllocations->isEmpty()) {
+            return $this->workflowService->createDocument([
+                'document_type' => 'allocation',
+                'source_reference_type' => 'textile_workflow_document',
+                'source_reference_id' => $salesOrder->id,
+                'source_action' => 'allocate_for_dispatch',
+                'party_name' => $salesOrder->party_name,
+                'lot_reference' => $salesOrder->lot_reference,
+                'quantity' => $salesOrder->quantity,
+                'unit' => $salesOrder->unit,
+                'status' => 'draft',
+                'metadata' => $metadata,
+            ]);
+        }
+
+        $allocatedQuantity = (float) $lotAllocations->sum(fn ($line) => (float) ($line['quantity'] ?? 0));
+        if (abs($allocatedQuantity - (float) $salesOrder->quantity) > 0.01) {
+            throw new RuntimeException('Allocated lot quantity must equal the sales order quantity.');
+        }
+
+        $existingQuery = TextileWorkflowDocument::query()
+            ->where('created_by', $salesOrder->created_by)
+            ->where('document_type', 'allocation')
+            ->where('source_reference_type', 'textile_workflow_document')
+            ->where('source_reference_id', $salesOrder->id);
+        TextileBranchScope::applyWorkflowScope($existingQuery);
+        if ($existingQuery->exists()) {
+            throw new RuntimeException('This sales order already has an allocation.');
+        }
+
+        return DB::transaction(function () use ($salesOrder, $payload, $metadata, $lotAllocations, $allocatedQuantity) {
+            $validatedLines = $lotAllocations->map(function (array $line) use ($salesOrder) {
+                $lot = TextileLot::query()
+                    ->where('created_by', $salesOrder->created_by)
+                    ->where('lot_reference', $line['lot_reference'])
+                    ->where('is_active', true)
+                    ->whereIn('material_type', [TextileLot::TYPE_GREY_FABRIC, TextileLot::TYPE_FINISHED_FABRIC])
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $lot || ! $lot->source_document_id) {
+                    throw new RuntimeException('Selected fabric lot is not available for this branch.');
+                }
+
+                $sourceQuery = TextileWorkflowDocument::query()
+                    ->where('id', $lot->source_document_id)
+                    ->where('created_by', $salesOrder->created_by);
+                TextileBranchScope::applyWorkflowScope($sourceQuery);
+                if (! $sourceQuery->exists()) {
+                    throw new RuntimeException('Selected fabric lot belongs to another branch.');
+                }
+
+                $quantity = (float) $line['quantity'];
+                if ($quantity <= 0 || $quantity > (float) $lot->available_quantity) {
+                    throw new RuntimeException('Allocated quantity exceeds available fabric stock.');
+                }
+
+                return [
+                    'lot_reference' => $lot->lot_reference,
+                    'quantity' => $quantity,
+                    'material_type' => $lot->material_type,
+                ];
+            })->values()->all();
+
+            $allocation = $this->workflowService->createDocument([
+                'document_type' => 'allocation',
+                'source_reference_type' => 'textile_workflow_document',
+                'source_reference_id' => $salesOrder->id,
+                'source_action' => 'allocate_for_dispatch',
+                'party_name' => $salesOrder->party_name,
+                'lot_reference' => count($validatedLines) === 1 ? $validatedLines[0]['lot_reference'] : sprintf('%d fabric lots', count($validatedLines)),
+                'quantity' => $allocatedQuantity,
+                'unit' => $salesOrder->unit,
+                'status' => 'draft',
+                'metadata' => array_merge($metadata, $payload['metadata'] ?? [], ['lot_allocations' => $validatedLines]),
+            ]);
+
+            foreach ($validatedLines as $line) {
+                $this->availabilityService->reserve(
+                    $line['lot_reference'],
+                    (float) $line['quantity'],
+                    'allocation',
+                    $allocation->id
+                );
+            }
+
+            return $allocation;
+        });
     }
 
     public function releaseAllocation(int $allocationId): TextileWorkflowDocument
@@ -314,11 +448,13 @@ class TextileSalesService
     {
         $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
 
-        $document = TextileWorkflowDocument::query()
+        $query = TextileWorkflowDocument::query()
             ->where('id', $documentId)
             ->where('document_type', $documentType)
-            ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId))
-            ->first();
+            ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId));
+
+        TextileBranchScope::applyWorkflowScope($query);
+        $document = $query->first();
 
         if ($document === null) {
             throw new RuntimeException('Document not found for tenant context.');

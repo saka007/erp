@@ -227,7 +227,18 @@ export default function Login({
                         >
                             {t('Fill Company Login')}
                         </Button>
+                        <Button
+                            type="button"
+                            onClick={() => handleQuickLogin('john.smith@company.com', '1234')}
+                            disabled={processing}
+                            className="group h-auto relative py-2 px-4 border text-[13px] font-medium text-white transition-all duration-200 rounded-md shadow-sm hover:shadow-md transform hover:scale-[1.02] bg-primary disabled:opacity-50"
+                        >
+                            {t('Fill Manager Login')}
+                        </Button>
                     </div>
+                    <p className="mt-3 text-center text-xs text-gray-500 dark:text-gray-400">
+                        {t('Manager login uses a seeded staff account: john.smith@company.com / 1234')}
+                    </p>
                 </div>
             </form>
         </AuthLayout>

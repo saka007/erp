@@ -1,17 +1,21 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Plus, QrCode, Check } from 'lucide-react';
+import { Box, Check, Package, PackageCheck, PackageOpen, Plus, QrCode, TicketCheck } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import NoRecordsFound from '@/components/no-records-found';
 import { TextileField as Field } from '@/components/textile/textile-field';
 import { TextileFormCard } from '@/components/textile/textile-form-card';
 import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { TextileDataTableSection } from '@/components/textile/textile-data-table-section';
-import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
-import { buildUnitOptions, formatTextileOptionLabel } from '@/components/textile/textile-form-options';
+import { TextileSection } from '@/components/textile/textile-section';
+import { TextileWorkspace } from '@/components/textile/textile-workspace';
+import { getTextileWorkspace } from '@/components/textile/textile-workspaces';
+import { TextileInfoPanel, MetricSummaryCard, type ActivityItem } from '@/components/textile/textile-info-panel';
+import { TextileWorkflowSteps, type WorkflowStep } from '@/components/textile/textile-workflow-steps';
+import { buildUnitOptions, formatTextileLabel, formatTextileOptionLabel } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 import { PageProps } from '@/types';
 
@@ -32,9 +36,6 @@ interface WorkflowDocument {
     } | null;
 }
 
-const PACKING_SECTIONS = ['roll-packing', 'bundle-packing', 'bale-packing', 'labels'] as const;
-type PackingSection = typeof PACKING_SECTIONS[number];
-
 function metadataLabel(value?: string | null) {
     return value ? formatTextileOptionLabel(value) : '-';
 }
@@ -50,6 +51,7 @@ export default function Index({
     labelTypeOptions,
     unitOptions,
     lotReferenceOptions,
+    recentActivity,
 }: {
     rollPackings: WorkflowDocument[];
     bundlePackings: WorkflowDocument[];
@@ -61,6 +63,7 @@ export default function Index({
     labelTypeOptions: string[];
     unitOptions: string[];
     lotReferenceOptions: string[];
+    recentActivity: ActivityItem[];
 }) {
     const { t } = useTranslation();
     const { auth } = usePage<PageProps>().props;
@@ -68,11 +71,11 @@ export default function Index({
     const hasFineGrainedCapabilities = Object.keys(textileCapabilities).some((key) => key.startsWith('sales_'));
     const canPacking = !hasFineGrainedCapabilities || textileCapabilities.sales_challan_pod;
 
-    const sectionParam = new URLSearchParams(window.location.search).get('section');
-    const visibleSections: PackingSection[] = canPacking ? [...PACKING_SECTIONS] : [];
-    const activeSection = sectionParam && visibleSections.includes(sectionParam as PackingSection)
-        ? sectionParam as PackingSection
-        : (visibleSections[0] ?? 'roll-packing');
+    const queryParams = new URLSearchParams(window.location.search);
+    const sectionParam = queryParams.get('section');
+    const packingWorkspace = getTextileWorkspace('packing')!;
+    const activeMenuSection = packingWorkspace.sections.find((section) => section.id === sectionParam);
+    const [openStep, setOpenStep] = useState<string | null>(queryParams.get('sub'));
 
     const resolvedSourceTypeOptions = sourceTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedPackingMaterialOptions = packingMaterialOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
@@ -133,38 +136,142 @@ export default function Index({
 
     const allDocuments = [...rollPackings, ...bundlePackings, ...balePackings, ...labels];
     const issuedLabels = labels.filter((row) => row.status === 'approved').length;
+    const pendingLabels = labels.length - issuedLabels;
+
+    const packingRows = [
+        ...rollPackings.map((row) => ({ type: t('Roll Packing'), ...row })),
+        ...bundlePackings.map((row) => ({ type: t('Bundle Packing'), ...row })),
+        ...balePackings.map((row) => ({ type: t('Bale Packing'), ...row })),
+        ...labels.map((row) => ({ type: t('Label'), ...row })),
+    ];
 
     return (
-        <AuthenticatedLayout breadcrumbs={[{ label: t('Textile') }, { label: t('Packing') }]} pageTitle={t('Textile Packing')}>
+        <AuthenticatedLayout
+            breadcrumbs={[
+                { label: t('Textile') },
+                { label: t('Packing') },
+                ...(activeMenuSection ? [{ label: t(activeMenuSection.label) }] : []),
+            ]}
+            pageTitle={t('Textile Packing')}
+            pageActions={(
+                <Button
+                    className="bg-emerald-600 text-white hover:bg-emerald-700"
+                    onClick={() => router.get(route('textile.packing.index', { section: 'roll-packing' }), {}, { preserveState: true, replace: true })}
+                >
+                    <Plus className="h-4 w-4" />
+                    {t('New Roll Packing')}
+                </Button>
+            )}
+        >
             <Head title={t('Textile Packing')} />
 
-            <TextileKpiOverview
-                title={t('Packing Overview')}
-                className="mb-6"
-                items={[
-                    { label: t('Total Packing Docs'), value: allDocuments.length, hint: t('Roll + Bundle + Bale + Label') },
-                    { label: t('Roll Packings'), value: rollPackings.length, hint: t('Roll-wise packed quantity records') },
-                    { label: t('Bundle Packings'), value: bundlePackings.length, hint: t('Bundle-level dispatch preparation') },
-                    { label: t('Issued Labels'), value: issuedLabels, hint: t('Barcode/QR labels approved') },
-                ]}
-            />
-
             {canPacking ? (
-                <Tabs
-                    value={activeSection}
-                    onValueChange={(value: string) => router.get(route('textile.packing.index', { section: value }), {}, { preserveState: true, replace: true })}
-                    className="space-y-6"
+                <TextileWorkspace
+                    workspace={packingWorkspace}
+                    capabilities={textileCapabilities}
+                    kpis={(section) => {
+                        if (section.id === 'overview') {
+                            return [
+                                { label: t('Total Packing Docs'), value: allDocuments.length, hint: t('Roll + Bundle + Bale + Label'), icon: Package },
+                                { label: t('Roll Packings'), value: rollPackings.length, hint: t('Roll-wise packed quantity records'), icon: PackageOpen },
+                                { label: t('Bundle Packings'), value: bundlePackings.length, hint: t('Bundle-level dispatch preparation'), icon: Box },
+                                { label: t('Issued Labels'), value: issuedLabels, hint: t('Barcode/QR labels approved'), icon: QrCode },
+                            ];
+                        }
+                        if (section.id === 'roll-packing') {
+                            return [
+                                { label: t('Roll Packings'), value: rollPackings.length, hint: t('Roll-wise packed quantity records'), icon: Package },
+                                { label: t('Total Packing Docs'), value: allDocuments.length, hint: t('Roll + Bundle + Bale + Label'), icon: PackageOpen },
+                                { label: t('Issued Labels'), value: issuedLabels, hint: t('Barcode/QR labels approved'), icon: QrCode },
+                                { label: t('Released Challans'), value: challans.length, hint: t('Challans available for packing'), icon: TicketCheck },
+                            ];
+                        }
+                        if (section.id === 'bundle-packing') {
+                            return [
+                                { label: t('Bundle Packings'), value: bundlePackings.length, hint: t('Bundle-level dispatch preparation'), icon: PackageOpen },
+                                { label: t('Total Packing Docs'), value: allDocuments.length, hint: t('Roll + Bundle + Bale + Label'), icon: Package },
+                                { label: t('Issued Labels'), value: issuedLabels, hint: t('Barcode/QR labels approved'), icon: QrCode },
+                                { label: t('Released Challans'), value: challans.length, hint: t('Challans available for packing'), icon: TicketCheck },
+                            ];
+                        }
+                        if (section.id === 'bale-packing') {
+                            return [
+                                { label: t('Bale Packings'), value: balePackings.length, hint: t('Bale packing for shipping units'), icon: Box },
+                                { label: t('Total Packing Docs'), value: allDocuments.length, hint: t('Roll + Bundle + Bale + Label'), icon: Package },
+                                { label: t('Issued Labels'), value: issuedLabels, hint: t('Barcode/QR labels approved'), icon: QrCode },
+                                { label: t('Released Challans'), value: challans.length, hint: t('Challans available for packing'), icon: TicketCheck },
+                            ];
+                        }
+                        return [
+                            { label: t('Labels'), value: labels.length, hint: t('Total label records'), icon: QrCode },
+                            { label: t('Issued Labels'), value: issuedLabels, hint: t('Barcode/QR labels approved'), icon: PackageCheck },
+                            { label: t('Pending Labels'), value: pendingLabels, hint: t('Labels not yet issued'), icon: TicketCheck },
+                            { label: t('Total Packing Docs'), value: allDocuments.length, hint: t('Roll + Bundle + Bale + Label'), icon: Package },
+                        ];
+                    }}
+                    aside={(section) => (
+                        <>
+                            <TextileInfoPanel
+                                stages={[
+                                    { id: 'roll', label: t('Roll Packing'), count: rollPackings.length, active: section.id === 'roll-packing' },
+                                    { id: 'bundle', label: t('Bundle Packing'), count: bundlePackings.length, active: section.id === 'bundle-packing' },
+                                    { id: 'bale', label: t('Bale Packing'), count: balePackings.length, active: section.id === 'bale-packing' },
+                                    { id: 'labels', label: t('Labels'), count: labels.length, active: section.id === 'labels' },
+                                ]}
+                                activities={recentActivity}
+                            />
+                            <MetricSummaryCard
+                                title={t('Packing Summary')}
+                                rows={[
+                                    { label: t('Total Docs'), value: allDocuments.length },
+                                    { label: t('Roll Packings'), value: rollPackings.length },
+                                    { label: t('Bundle Packings'), value: bundlePackings.length },
+                                    { label: t('Bale Packings'), value: balePackings.length },
+                                ]}
+                            />
+                            <MetricSummaryCard
+                                title={t('Labels')}
+                                rows={[
+                                    { label: t('Total'), value: labels.length },
+                                    { label: t('Issued'), value: issuedLabels },
+                                    { label: t('Pending'), value: pendingLabels },
+                                    { label: t('Released Challans'), value: challans.length },
+                                ]}
+                            />
+                        </>
+                    )}
                 >
-                    <TabsList className="grid w-full grid-cols-2 gap-2 h-auto p-1 md:grid-cols-4">
-                        <TabsTrigger value="roll-packing">{t('Roll Packing')}</TabsTrigger>
-                        <TabsTrigger value="bundle-packing">{t('Bundle Packing')}</TabsTrigger>
-                        <TabsTrigger value="bale-packing">{t('Bale Packing')}</TabsTrigger>
-                        <TabsTrigger value="labels">{t('Labels')}</TabsTrigger>
-                    </TabsList>
+                    {(section) => {
+                        switch (section.id) {
+                            case 'overview':
+                                return (
+                                    <TextileSection
+                                        table={
+                                            <TextileDataTableCard
+                                                data={packingRows}
+                                                columns={[
+                                                    { key: 'type', header: t('Type'), render: (_value: unknown, row: WorkflowDocument & { type: string }) => formatTextileLabel(row.type) },
+                                                    { key: 'document_number', header: t('Document') },
+                                                    { key: 'party_name', header: t('Party'), render: optional },
+                                                    { key: 'lot_reference', header: t('Lot'), render: optional },
+                                                    { key: 'quantity', header: t('Qty') },
+                                                    { key: 'unit', header: t('Unit'), render: optional },
+                                                    { key: 'status', header: t('Status'), render: (_value: unknown, row: WorkflowDocument & { type: string }) => formatTextileLabel(row.status) },
+                                                ]}
+                                                emptyState={<NoRecordsFound icon={Box} title={t('No packing records yet')} description={t('Create roll, bundle, bale or label records to start packing.')} />}
+                                            />
+                                        }
+                                    />
+                                );
 
-                    <TabsContent value="roll-packing">
-                        <div className="grid gap-6 xl:grid-cols-2">
-                            <TextileFormCard title={t('Create Roll Packing')} icon={Plus}>
+                            case 'roll-packing': {
+                                const steps: WorkflowStep[] = [{
+                                    id: 'roll-packing',
+                                    title: t('Roll Packing'),
+                                    icon: Package,
+                                    count: rollPackings.length,
+                                    form: (
+                                        <TextileFormCard title={t('Create Roll Packing')} icon={Plus}>
                                 <form
                                     className="space-y-3"
                                     onSubmit={(event) => {
@@ -188,23 +295,36 @@ export default function Index({
                                     <Field label={t('Notes')} value={rollForm.data.notes} onChange={(value: string) => rollForm.setData('notes', value)} />
                                     <Button type="submit" disabled={rollForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Roll Packing')}</Button>
                                 </form>
-                            </TextileFormCard>
+                                    </TextileFormCard>
+                                ),
+                            }];
+                            return (
+                                <div className="space-y-6">
+                                    <TextileWorkflowSteps steps={steps} openId={openStep} onOpenChange={setOpenStep} records={
+                                        <TextileDataTableSection title={t('Roll Packing Records')}>
+                                            <TextileDataTableCard
+                                                data={rollPackings}
+                                                columns={[
+                                                    ...createTextileWorkflowColumns(t),
+                                                    { key: 'packing_material', header: t('Material'), render: (_value: unknown, row: WorkflowDocument) => metadataLabel(row.metadata?.packing_material) },
+                                                    { key: 'weight', header: t('Weight'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.weight ?? '-' },
+                                                ]}
+                                                emptyState={<NoRecordsFound icon={Box} title={t('No roll packing found')} description={t('Create roll packing after challan release.')} />}
+                                            />
+                                        </TextileDataTableSection>
+                                    } />
+                                </div>
+                            );
+                        }
 
-                            <TextileDataTableCard
-                                data={rollPackings}
-                                columns={[
-                                    ...createTextileWorkflowColumns(t),
-                                    { key: 'packing_material', header: t('Material'), render: (_value: unknown, row: WorkflowDocument) => metadataLabel(row.metadata?.packing_material) },
-                                    { key: 'weight', header: t('Weight'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.weight ?? '-' },
-                                ]}
-                                emptyState={<NoRecordsFound icon={Box} title={t('No roll packing found')} description={t('Create roll packing after challan release.')} />}
-                            />
-                        </div>
-                    </TabsContent>
-
-                    <TabsContent value="bundle-packing">
-                        <div className="grid gap-6 xl:grid-cols-2">
-                            <TextileFormCard title={t('Create Bundle Packing')} icon={Plus}>
+                            case 'bundle-packing': {
+                                const steps: WorkflowStep[] = [{
+                                    id: 'bundle-packing',
+                                    title: t('Bundle Packing'),
+                                    icon: PackageOpen,
+                                    count: bundlePackings.length,
+                                    form: (
+                                        <TextileFormCard title={t('Create Bundle Packing')} icon={Plus}>
                                 <form
                                     className="space-y-3"
                                     onSubmit={(event) => {
@@ -228,23 +348,36 @@ export default function Index({
                                     <Field label={t('Notes')} value={bundleForm.data.notes} onChange={(value: string) => bundleForm.setData('notes', value)} />
                                     <Button type="submit" disabled={bundleForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Bundle Packing')}</Button>
                                 </form>
-                            </TextileFormCard>
+                                    </TextileFormCard>
+                                ),
+                            }];
+                            return (
+                                <div className="space-y-6">
+                                    <TextileWorkflowSteps steps={steps} openId={openStep} onOpenChange={setOpenStep} records={
+                                        <TextileDataTableSection title={t('Bundle Packing Records')}>
+                                            <TextileDataTableCard
+                                                data={bundlePackings}
+                                                columns={[
+                                                    ...createTextileWorkflowColumns(t),
+                                                    { key: 'packing_material', header: t('Material'), render: (_value: unknown, row: WorkflowDocument) => metadataLabel(row.metadata?.packing_material) },
+                                                    { key: 'weight', header: t('Weight'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.weight ?? '-' },
+                                                ]}
+                                                emptyState={<NoRecordsFound icon={Box} title={t('No bundle packing found')} description={t('Create bundle packing from released challan lots.')} />}
+                                            />
+                                        </TextileDataTableSection>
+                                    } />
+                                </div>
+                            );
+                        }
 
-                            <TextileDataTableCard
-                                data={bundlePackings}
-                                columns={[
-                                    ...createTextileWorkflowColumns(t),
-                                    { key: 'packing_material', header: t('Material'), render: (_value: unknown, row: WorkflowDocument) => metadataLabel(row.metadata?.packing_material) },
-                                    { key: 'weight', header: t('Weight'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.weight ?? '-' },
-                                ]}
-                                emptyState={<NoRecordsFound icon={Box} title={t('No bundle packing found')} description={t('Create bundle packing from released challan lots.')} />}
-                            />
-                        </div>
-                    </TabsContent>
-
-                    <TabsContent value="bale-packing">
-                        <div className="grid gap-6 xl:grid-cols-2">
-                            <TextileFormCard title={t('Create Bale Packing')} icon={Plus}>
+                            case 'bale-packing': {
+                                const steps: WorkflowStep[] = [{
+                                    id: 'bale-packing',
+                                    title: t('Bale Packing'),
+                                    icon: Box,
+                                    count: balePackings.length,
+                                    form: (
+                                        <TextileFormCard title={t('Create Bale Packing')} icon={Plus}>
                                 <form
                                     className="space-y-3"
                                     onSubmit={(event) => {
@@ -268,23 +401,36 @@ export default function Index({
                                     <Field label={t('Notes')} value={baleForm.data.notes} onChange={(value: string) => baleForm.setData('notes', value)} />
                                     <Button type="submit" disabled={baleForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Bale Packing')}</Button>
                                 </form>
-                            </TextileFormCard>
+                                    </TextileFormCard>
+                                ),
+                            }];
+                            return (
+                                <div className="space-y-6">
+                                    <TextileWorkflowSteps steps={steps} openId={openStep} onOpenChange={setOpenStep} records={
+                                        <TextileDataTableSection title={t('Bale Packing Records')}>
+                                            <TextileDataTableCard
+                                                data={balePackings}
+                                                columns={[
+                                                    ...createTextileWorkflowColumns(t),
+                                                    { key: 'packing_material', header: t('Material'), render: (_value: unknown, row: WorkflowDocument) => metadataLabel(row.metadata?.packing_material) },
+                                                    { key: 'weight', header: t('Weight'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.weight ?? '-' },
+                                                ]}
+                                                emptyState={<NoRecordsFound icon={Box} title={t('No bale packing found')} description={t('Create bale packing for shipping units.')} />}
+                                            />
+                                        </TextileDataTableSection>
+                                    } />
+                                </div>
+                            );
+                        }
 
-                            <TextileDataTableCard
-                                data={balePackings}
-                                columns={[
-                                    ...createTextileWorkflowColumns(t),
-                                    { key: 'packing_material', header: t('Material'), render: (_value: unknown, row: WorkflowDocument) => metadataLabel(row.metadata?.packing_material) },
-                                    { key: 'weight', header: t('Weight'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.weight ?? '-' },
-                                ]}
-                                emptyState={<NoRecordsFound icon={Box} title={t('No bale packing found')} description={t('Create bale packing for shipping units.')} />}
-                            />
-                        </div>
-                    </TabsContent>
-
-                    <TabsContent value="labels">
-                        <div className="grid gap-6 xl:grid-cols-2">
-                            <TextileFormCard title={t('Generate Label')} icon={QrCode}>
+                            case 'labels': {
+                                const steps: WorkflowStep[] = [{
+                                    id: 'labels',
+                                    title: t('Labels'),
+                                    icon: QrCode,
+                                    count: labels.length,
+                                    form: (
+                                        <TextileFormCard title={t('Generate Label')} icon={QrCode}>
                                 <form
                                     className="space-y-3"
                                     onSubmit={(event) => {
@@ -310,41 +456,51 @@ export default function Index({
                                     <Field label={t('Notes')} value={labelForm.data.notes} onChange={(value: string) => labelForm.setData('notes', value)} />
                                     <Button type="submit" disabled={labelForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Generate Label')}</Button>
                                 </form>
-                            </TextileFormCard>
-
-                            <TextileDataTableSection
-                                title={t('Label Records')}
-                                data={labels}
-                                columns={[
-                                    ...createTextileWorkflowColumns(t, {
-                                        actions: createTextileWorkflowActions([
-                                            {
-                                                statuses: textileActionableStatuses.draftOrApproved,
-                                                actions: [
+                                    </TextileFormCard>
+                                ),
+                            }];
+                            return (
+                                <div className="space-y-6">
+                                    <TextileWorkflowSteps steps={steps} openId={openStep} onOpenChange={setOpenStep} records={
+                                        <TextileDataTableSection title={t('Label Records')} data={labels} columns={[
+                                            ...createTextileWorkflowColumns(t, {
+                                                actions: createTextileWorkflowActions([
                                                     {
-                                                        label: t('Issue Label'),
-                                                        icon: Check,
-                                                        onClick: (row) => issueLabel(row.id),
-                                                        when: (row) => row.status !== 'approved',
+                                                        statuses: textileActionableStatuses.draftOrApproved,
+                                                        actions: [
+                                                            {
+                                                                label: t('Issue Label'),
+                                                                icon: Check,
+                                                                onClick: (row) => issueLabel(row.id),
+                                                                when: (row) => row.status !== 'approved',
+                                                            },
+                                                        ],
+                                                        noVisibleActionContent: t('Label already issued'),
                                                     },
-                                                ],
-                                                noVisibleActionContent: t('Label already issued'),
-                                            },
-                                        ]),
-                                    }),
-                                    { key: 'label_type', header: t('Type'), render: (_value: unknown, row: WorkflowDocument) => metadataLabel(row.metadata?.label_type) },
-                                    { key: 'label_code', header: t('Code'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.label_code || '-' },
-                                    { key: 'packing_material', header: t('Material'), render: (_value: unknown, row: WorkflowDocument) => metadataLabel(row.metadata?.packing_material) },
-                                    { key: 'weight', header: t('Weight'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.weight ?? '-' },
-                                ]}
-                                emptyState={<NoRecordsFound icon={QrCode} title={t('No labels found')} description={t('Generate barcode or QR labels for packed material.')} />}
-                            />
-                        </div>
-                    </TabsContent>
-                </Tabs>
+                                                ]),
+                                            }),
+                                            { key: 'label_type', header: t('Type'), render: (_value: unknown, row: WorkflowDocument) => metadataLabel(row.metadata?.label_type) },
+                                            { key: 'label_code', header: t('Code'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.label_code || '-' },
+                                            { key: 'packing_material', header: t('Material'), render: (_value: unknown, row: WorkflowDocument) => metadataLabel(row.metadata?.packing_material) },
+                                            { key: 'weight', header: t('Weight'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.weight ?? '-' },
+                                        ]} emptyState={<NoRecordsFound icon={QrCode} title={t('No labels found')} description={t('Generate barcode or QR labels for packed material.')} />} />
+                                    } />
+                                </div>
+                            );
+                        }
+
+                        default:
+                            return null;
+                    }
+                }}
+                </TextileWorkspace>
             ) : (
                 <NoRecordsFound icon={Box} title={t('Packing is not enabled')} description={t('Enable Sales Challan/POD capability in Textile Operating Model to use packing workflows.')} />
             )}
         </AuthenticatedLayout>
     );
+}
+
+function optional(value: string | null | undefined) {
+    return value || '-';
 }

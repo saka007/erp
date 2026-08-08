@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HasBranchWarehouseScope;
 use App\Models\PurchaseReturn;
 use App\Models\PurchaseReturnItem;
 use App\Models\PurchaseReturnItemTax;
@@ -20,6 +21,8 @@ use Illuminate\Support\Facades\DB;
 
 class PurchaseReturnController extends Controller
 {
+    use HasBranchWarehouseScope;
+
     private function checkReturnAccess(PurchaseReturn $return)
     {
         if(Auth::user()->can('manage-any-purchase-return-invoices')) {
@@ -38,6 +41,7 @@ class PurchaseReturnController extends Controller
     public function index(Request $request)
     {
         if(Auth::user()->can('manage-purchase-return-invoices')){
+            $user = Auth::user();
             $query = PurchaseReturn::with(['vendor', 'vendorDetails', 'originalInvoice', 'items.product', 'warehouse'])
                 ->where(function($q) {
                     if(Auth::user()->can('manage-any-purchase-return-invoices')) {
@@ -51,6 +55,8 @@ class PurchaseReturnController extends Controller
                         $q->whereRaw('1 = 0');
                     }
                 });
+
+            $this->applyWarehouseScope($query, 'warehouse_id', $user, true);
 
         // Apply filters
         if ($request->vendor_id) {
@@ -97,7 +103,7 @@ class PurchaseReturnController extends Controller
         });
 
         $vendors = User::where('type', 'vendor')->select('id', 'name', 'email')->where('created_by', creatorId())->get();
-        $warehouses = Warehouse::where('is_active', true)->select('id', 'name')->where('created_by', creatorId())->get();
+        $warehouses = $this->scopedWarehouseQuery($user)->select('id', 'name')->get();
 
             return Inertia::render('PurchaseReturns/Index', [
                 'returns' => $returns,
@@ -114,13 +120,16 @@ class PurchaseReturnController extends Controller
     public function create()
     {
         if(Auth::user()->can('create-purchase-return-invoices')){
-            $invoices = PurchaseInvoice::with(['vendor', 'warehouse', 'items.product', 'items.taxes', 'purchaseReturns.items'])
-            ->where('created_by', creatorId())
-            ->where('status', '!=', 'draft')
-            ->when(Auth::user()->type == 'vendor', function($q) {
-                $q->where('vendor_id', Auth::id());
-            })
-            ->get();
+            $user = Auth::user();
+            $query = PurchaseInvoice::with(['vendor', 'warehouse', 'items.product', 'items.taxes', 'purchaseReturns.items'])
+                ->where('created_by', creatorId())
+                ->where('status', '!=', 'draft')
+                ->when(Auth::user()->type == 'vendor', function($q) {
+                    $q->where('vendor_id', Auth::id());
+                });
+
+            $this->applyWarehouseScope($query, 'warehouse_id', $user);
+            $invoices = $query->get();
 
         // Calculate available quantities for each item
         foreach ($invoices as $invoice) {
@@ -135,7 +144,7 @@ class PurchaseReturnController extends Controller
             }
         }
 
-        $warehouses = \App\Models\Warehouse::where('created_by', creatorId())->where('is_active', true)->get();
+        $warehouses = $this->scopedWarehouseQuery($user)->get();
 
             return Inertia::render('PurchaseReturns/Create', [
                 'invoices' => $invoices,
@@ -150,6 +159,9 @@ class PurchaseReturnController extends Controller
     public function store(StorePurchaseReturnRequest $request)
     {
         if(Auth::user()->can('create-purchase-return-invoices')){
+        if (!$this->isWarehouseAccessible($request->warehouse_id, Auth::user(), true)) {
+            return redirect()->route('purchase-returns.index')->with('error', __('Selected warehouse is not accessible for this user.'));
+        }
 
         $totals = $this->calculateReturnTotals($request->items, $request->original_invoice_id);
         $return = new PurchaseReturn();
@@ -190,6 +202,10 @@ class PurchaseReturnController extends Controller
                 return redirect()->route('purchase-returns.index')->with('error', __('Permission denied'));
             }
 
+            if (!$this->isWarehouseAccessible($return->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('purchase-returns.index')->with('error', __('Permission denied'));
+            }
+
             $return->load(['vendor', 'vendorDetails', 'warehouse', 'originalInvoice', 'items.product']);
 
             return Inertia::render('PurchaseReturns/View', [
@@ -204,6 +220,10 @@ class PurchaseReturnController extends Controller
     public function approve(PurchaseReturn $return)
     {
         if(Auth::user()->can('approve-purchase-returns-invoices')){
+            if (!$this->isWarehouseAccessible($return->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('purchase-returns.index')->with('error', __('Permission denied'));
+            }
+
             if ($return->status !== 'draft') {
                 return redirect()->back()->with('error', __('Only draft returns can be approved.'));
             }
@@ -226,6 +246,10 @@ class PurchaseReturnController extends Controller
     public function complete(PurchaseReturn $return)
     {
         if(Auth::user()->can('complete-purchase-returns-invoices')){
+            if (!$this->isWarehouseAccessible($return->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('purchase-returns.index')->with('error', __('Permission denied'));
+            }
+
             if ($return->status !== 'approved') {
             return redirect()->back()->with('error', __('Only approved returns can be completed.'));
         }
@@ -244,6 +268,10 @@ class PurchaseReturnController extends Controller
     public function destroy(PurchaseReturn $return)
     {
         if(Auth::user()->can('delete-purchase-return-invoices')){
+            if (!$this->isWarehouseAccessible($return->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('purchase-returns.index')->with('error', __('Permission denied'));
+            }
+
             if ($return->status !== 'draft') {
             return redirect()->back()->with('error', __('Only draft returns can be deleted.'));
         }

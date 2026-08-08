@@ -9,6 +9,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\BranchContextController;
 use App\Http\Controllers\ModuleGovernanceController;
 use App\Http\Controllers\TranslationController;
 use App\Http\Controllers\ModuleController;
@@ -54,6 +55,7 @@ Route::middleware(['auth', 'verified', 'PlanModuleCheck'])->group(function () {
     Route::post('users/leave-impersonation', [UserController::class, 'leaveImpersonation'])->name('users.leave-impersonation');
     Route::get('users/login/history', [UserController::class, 'loginHistory'])->name('users.login-history');
     Route::resource('warehouses', WarehouseController::class);
+    Route::post('branch-context', [BranchContextController::class, 'update'])->name('branch-context.update');
     Route::resource('transfers', TransferController::class)->except(['edit', 'update']);
 
 

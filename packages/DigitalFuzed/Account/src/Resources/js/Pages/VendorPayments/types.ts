@@ -59,6 +59,13 @@ export interface CreateVendorPaymentFormData {
     vendor_id: string;
     bank_account_id: string;
     reference_number: string;
+    payment_mode: string;
+    cheque_number: string;
+    cheque_date: string;
+    bank_name: string;
+    tds_rate: string;
+    tds_amount: string;
+    tds_section: string;
     payment_amount: string;
     notes: string;
     allocations: {

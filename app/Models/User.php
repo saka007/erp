@@ -10,6 +10,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Spatie\Permission\Models\Permission as ModelsPermission;
 use Spatie\Permission\Models\Role;
+use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -167,6 +168,34 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public static function MakeRole($userId)
     {
+        $staffPermissionNames = [
+            'manage-dashboard',
+            'manage-media',
+            'manage-own-media',
+            'create-media',
+            'download-media',
+            'delete-media',
+            'manage-media-directories',
+            'manage-own-media-directories',
+            'create-media-directories',
+            'edit-media-directories',
+            'delete-media-directories',
+            'manage-profile',
+            'edit-profile',
+            'change-password-profile',
+            'manage-messenger',
+            'send-messages',
+            'view-messages',
+            'toggle-favorite-messages',
+            'toggle-pinned-messages',
+            'manage-warehouses',
+            'manage-own-warehouses',
+            'manage-any-warehouses',
+            'manage-branches',
+            'manage-own-branches',
+            'manage-any-branches',
+        ];
+
         // Create staff role
         $staffRole = Role::where('name','staff')->where('created_by',$userId)->where('guard_name','web')->first();
         if(empty($staffRole))
@@ -178,30 +207,11 @@ class User extends Authenticatable implements MustVerifyEmail
             $staffRole->editable         = false;
             $staffRole->created_by       = $userId;
             $staffRole->save();
+        }
 
-            $permissions = ModelsPermission::whereIn('name', [
-                'manage-dashboard',
-                'manage-media',
-                'manage-own-media',
-                'create-media',
-                'download-media',
-                'delete-media',
-                'manage-media-directories',
-                'manage-own-media-directories',
-                'create-media-directories',
-                'edit-media-directories',
-                'delete-media-directories',
-                'manage-profile',
-                'edit-profile',
-                'change-password-profile',
-                'manage-messenger',
-                'send-messages',
-                'view-messages',
-                'toggle-favorite-messages',
-                'toggle-pinned-messages'
-            ])->get();
-
-            $staffRole->givePermissionTo($permissions);
+        $staffPermissions = ModelsPermission::whereIn('name', $staffPermissionNames)->get();
+        if ($staffPermissions->isNotEmpty()) {
+            $staffRole->givePermissionTo($staffPermissions);
         }
 
         // Create client role
@@ -296,6 +306,10 @@ class User extends Authenticatable implements MustVerifyEmail
             ])->get();
 
             $vendorRole->givePermissionTo($permissions);
+        }
+
+        if (class_exists(TextileOperatingPolicyService::class)) {
+            app(TextileOperatingPolicyService::class)->syncDefaultRoleCapabilitiesForTenant($userId);
         }
     }
 }

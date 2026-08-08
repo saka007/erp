@@ -9,6 +9,8 @@ use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileCore\Services\TextileManufacturingService;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
+use DigitalFuzed\TextileCore\Support\TextileBranchScope;
+use DigitalFuzed\TextileCore\Traits\ProvidesRecentActivity;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -17,11 +19,14 @@ use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use RuntimeException;
 use Workdo\Account\Models\Customer;
+use Workdo\Account\Models\Vendor;
 use Workdo\ProductService\Models\ProductServiceItem;
 use App\Models\User;
 
 class TextileManufacturingController extends Controller
 {
+    use ProvidesRecentActivity;
+
     public function __construct(protected TextileOperatingPolicyService $policyService)
     {
     }
@@ -47,6 +52,7 @@ class TextileManufacturingController extends Controller
             'machinePlans' => $this->documents('machine_plan'),
             'materialPlans' => $this->documents('material_plan'),
             'productionSchedules' => $this->documents('production_schedule'),
+            'productionAssignments' => $this->documents('production_assignment'),
             'beams' => $this->documents('beam'),
             'beamIssues' => $this->documents('beam_issue'),
             'beamReturns' => $this->documents('beam_return'),
@@ -84,6 +90,10 @@ class TextileManufacturingController extends Controller
             'operatorOptions' => $this->operatorOptions(),
             'partyOptions' => $this->partyOptions(),
             'lotReferenceOptions' => $this->lotReferenceOptions(),
+            'sizingVendorOptions' => $this->sizingVendorOptions(),
+            'powerloomVendorOptions' => $this->powerloomVendorOptions(),
+            'yarnLotOptions' => $this->yarnLotOptions(),
+            'recentActivity' => $this->recentActivity(),
         ]);
     }
 
@@ -325,6 +335,25 @@ class TextileManufacturingController extends Controller
         }
 
         return back()->with('success', __('Beam created successfully.'));
+    }
+
+    public function storeBeamFromYarnAllocation(Request $request, TextileManufacturingService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('manufacturing_beam', 'yarn_allocation_id');
+
+        $validated = $request->validate([
+            'yarn_allocation_id' => ['required', 'integer', 'min:1'],
+            'quantity' => ['required', 'numeric', 'gt:0'],
+        ]);
+
+        try {
+            $service->createBeamFromYarnAllocation((int) $validated['yarn_allocation_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['yarn_allocation_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Beam received from sizing vendor successfully.'));
     }
 
     public function storeBeamFromSizingRecipe(Request $request, TextileManufacturingService $service)
@@ -617,6 +646,43 @@ class TextileManufacturingController extends Controller
         return back()->with('success', __('Production batch released successfully.'));
     }
 
+    public function storeProductionAssignment(Request $request, TextileManufacturingService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('manufacturing_weaving', 'batch_id');
+
+        $validated = $request->validate([
+            'batch_id' => ['required', 'integer', 'min:1'],
+            'production_mode' => ['required', Rule::in(['own_unit', 'powerloom_vendor'])],
+            'assigned_quantity' => ['required', 'numeric', 'gt:0'],
+            'assignment_date' => ['required', 'date'],
+            'expected_completion_date' => ['nullable', 'date', 'after_or_equal:assignment_date'],
+            'loom_allocations' => ['nullable', 'required_if:production_mode,own_unit', 'array', 'min:1'],
+            'loom_allocations.*.loom_master_id' => ['required', 'integer', 'min:1', 'distinct'],
+            'loom_allocations.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'powerloom_vendor_id' => ['nullable', 'required_if:production_mode,powerloom_vendor', 'integer', 'min:1'],
+            'planned_shift' => ['nullable', 'string', Rule::in($this->shiftOptions())],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        if ($validated['production_mode'] === 'powerloom_vendor') {
+            $vendor = Vendor::query()
+                ->where('created_by', creatorId())
+                ->where('supplier_type', 'powerloom')
+                ->findOrFail((int) $validated['powerloom_vendor_id']);
+            $validated['powerloom_vendor_name'] = $vendor->company_name;
+        }
+
+        try {
+            $service->createProductionAssignment((int) $validated['batch_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['batch_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Beam assigned for production successfully.'));
+    }
+
     public function storeWeavingOutput(Request $request, TextileManufacturingService $service)
     {
         $this->authorizeTextileAccess();
@@ -664,21 +730,35 @@ class TextileManufacturingController extends Controller
     public function storeTakhaEntry(Request $request, TextileManufacturingService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('manufacturing_weaving', 'weaving_output_id');
+        $this->authorizeCapability('manufacturing_weaving', 'production_assignment_id');
 
         $validated = $request->validate([
-            'weaving_output_id' => ['required', 'integer', 'min:1'],
-            'takha_number' => ['required', 'string', 'max:100'],
-            'quantity' => ['required', 'numeric', 'gt:0'],
+            'production_assignment_id' => ['nullable', 'required_without:weaving_output_id', 'integer', 'min:1'],
+            'weaving_output_id' => ['nullable', 'required_without:production_assignment_id', 'integer', 'min:1'],
+            'takha_number' => ['nullable', 'required_without:takhas', 'string', 'max:100'],
+            'quantity' => ['nullable', 'required_without:takhas', 'numeric', 'gt:0'],
+            'takhas' => ['nullable', 'required_without:takha_number', 'array', 'min:1'],
+            'takhas.*.takha_number' => ['required', 'string', 'max:100', 'distinct'],
+            'takhas.*.quantity' => ['required', 'numeric', 'gt:0'],
             'unit' => ['nullable', 'string', 'max:50'],
+            'production_date' => ['nullable', 'date'],
+            'loom_master_id' => ['nullable', 'integer', 'min:1'],
             'operator_name' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
         try {
-            $service->createTakhaEntry((int) $validated['weaving_output_id'], $validated);
+            if (! empty($validated['production_assignment_id'])) {
+                if (! empty($validated['takhas'])) {
+                    $service->createTakhasFromAssignment((int) $validated['production_assignment_id'], $validated);
+                } else {
+                    $service->createTakhaFromAssignment((int) $validated['production_assignment_id'], $validated);
+                }
+            } else {
+                $service->createTakhaEntry((int) $validated['weaving_output_id'], $validated);
+            }
         } catch (RuntimeException $exception) {
-            return back()->withErrors(['weaving_output_id' => __($exception->getMessage())]);
+            return back()->withErrors(['production_assignment_id' => __($exception->getMessage())]);
         }
 
         return back()->with('success', __('Takha entry recorded successfully.'));
@@ -883,11 +963,13 @@ class TextileManufacturingController extends Controller
 
     private function documents(string $type)
     {
-        return TextileWorkflowDocument::query()
+        $query = TextileWorkflowDocument::query()
             ->where('created_by', creatorId())
-            ->where('document_type', $type)
-            ->latest()
-            ->get();
+            ->where('document_type', $type);
+
+        TextileBranchScope::applyWorkflowScope($query);
+
+        return $query->latest()->get();
     }
 
     private function unitOptions(): array
@@ -1309,10 +1391,13 @@ class TextileManufacturingController extends Controller
                 ->pluck('company_name');
         }
 
-        $workflowParties = TextileWorkflowDocument::query()
+        $workflowPartiesQuery = TextileWorkflowDocument::query()
             ->where('created_by', creatorId())
-            ->whereNotNull('party_name')
-            ->pluck('party_name');
+            ->whereNotNull('party_name');
+
+        TextileBranchScope::applyWorkflowScope($workflowPartiesQuery);
+
+        $workflowParties = $workflowPartiesQuery->pluck('party_name');
 
         return $customers
             ->merge($workflowParties)
@@ -1333,16 +1418,103 @@ class TextileManufacturingController extends Controller
                 ->pluck('lot_reference');
         }
 
-        $workflowLots = TextileWorkflowDocument::query()
+        $workflowLotsQuery = TextileWorkflowDocument::query()
             ->where('created_by', creatorId())
-            ->whereNotNull('lot_reference')
-            ->pluck('lot_reference');
+            ->whereNotNull('lot_reference');
+
+        TextileBranchScope::applyWorkflowScope($workflowLotsQuery);
+
+        $workflowLots = $workflowLotsQuery->pluck('lot_reference');
 
         return $lots
             ->merge($workflowLots)
             ->map(fn ($value) => trim((string) $value))
             ->filter(fn ($value) => $value !== '')
             ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function sizingVendorOptions(): array
+    {
+        if (! Schema::hasTable('vendors')) {
+            return [];
+        }
+
+        return Vendor::query()
+            ->where('created_by', creatorId())
+            ->where('supplier_type', 'sizing')
+            ->whereNotNull('company_name')
+            ->orderBy('company_name')
+            ->get(['vendor_code', 'company_name'])
+            ->map(fn (Vendor $vendor) => [
+                'value' => $vendor->company_name,
+                'label' => trim(($vendor->vendor_code ? $vendor->vendor_code . ' | ' : '') . $vendor->company_name),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function powerloomVendorOptions(): array
+    {
+        if (! Schema::hasTable('vendors')) {
+            return [];
+        }
+
+        return Vendor::query()
+            ->where('created_by', creatorId())
+            ->where('supplier_type', 'powerloom')
+            ->whereNotNull('company_name')
+            ->orderBy('company_name')
+            ->get(['id', 'vendor_code', 'company_name'])
+            ->map(fn (Vendor $vendor) => [
+                'value' => (string) $vendor->id,
+                'label' => trim(($vendor->vendor_code ? $vendor->vendor_code . ' | ' : '') . $vendor->company_name),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function yarnLotOptions(): array
+    {
+        if (! Schema::hasTable('textile_lots')) {
+            return [];
+        }
+
+        return TextileLot::query()
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->where('material_type', TextileLot::TYPE_YARN)
+            ->where('available_quantity', '>', 0)
+            ->latest('created_at')
+            ->get()
+            ->map(function (TextileLot $lot) {
+                $source = null;
+                if ($lot->source_document_id && $lot->source_document_type) {
+                    $source = TextileWorkflowDocument::query()
+                        ->where('id', $lot->source_document_id)
+                        ->where('created_by', creatorId())
+                        ->where('document_type', $lot->source_document_type)
+                        ->first(['party_name', 'unit']);
+                }
+
+                $quantity = rtrim(rtrim(number_format((float) $lot->available_quantity, 2, '.', ''), '0'), '.');
+                $unit = $source?->unit ?: 'kg';
+                $receivedDate = $lot->created_at?->format('d M Y');
+                $details = array_filter([
+                    $quantity . ' ' . $unit . ' available',
+                    $receivedDate,
+                    $source?->party_name,
+                ]);
+
+                return [
+                    'id' => (int) $lot->id,
+                    'value' => $lot->lot_reference,
+                    'label' => $lot->lot_reference . ' (' . implode(' | ', $details) . ')',
+                    'available_quantity' => $quantity,
+                    'unit' => $unit,
+                ];
+            })
             ->values()
             ->all();
     }
@@ -1368,7 +1540,7 @@ class TextileManufacturingController extends Controller
     {
         $user = Auth::user();
 
-        abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+        abort_unless($user && in_array($user->type, ['company', 'superadmin', 'staff'], true), 403);
     }
 
     private function authorizeCapability(string $capability, string $errorKey): void

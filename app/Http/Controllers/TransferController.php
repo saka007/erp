@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HasBranchWarehouseScope;
 use App\Models\Transfer;
 use App\Models\Warehouse;
 use Workdo\ProductService\Models\ProductServiceItem;
@@ -14,9 +15,14 @@ use Inertia\Inertia;
 
 class TransferController extends Controller
 {
+    use HasBranchWarehouseScope;
+
     public function index()
     {
         if(Auth::user()->can('manage-transfers')){
+            $user = Auth::user();
+            $allowedWarehouseIds = $this->scopedWarehouseIds($user);
+
             $transfers = Transfer::query()
                 ->with(['fromWarehouse:id,name', 'toWarehouse:id,name', 'product:id,name,sku'])
                 ->where(function($q) {
@@ -37,14 +43,30 @@ class TransferController extends Controller
                     $q->where('from_warehouse', request('from_warehouse'));
                 })
                 ->when(request('sort'), fn($q) => $q->orderBy(request('sort'), request('direction', 'asc')), fn($q) => $q->latest())
+                ->when(!$this->canManageAllBranches($user), function ($q) use ($allowedWarehouseIds) {
+                    if (empty($allowedWarehouseIds)) {
+                        return $q->whereRaw('1 = 0');
+                    }
+
+                    return $q
+                        ->whereIn('from_warehouse', $allowedWarehouseIds)
+                        ->whereIn('to_warehouse', $allowedWarehouseIds);
+                })
                 ->paginate(request('per_page', 10))
                 ->withQueryString();
 
-            $warehouses = Warehouse::where('created_by', creatorId())->where('is_active', true)->get(['id', 'name']);
+            $warehouses = $this->scopedWarehouseQuery($user)->get(['id', 'name']);
             $products = ProductServiceItem::where('created_by', creatorId())->get(['id', 'name', 'sku']);
             $warehouseStocks = WarehouseStock::with('product:id,name,sku')
                 ->whereHas('product', function($q) {
                     $q->where('created_by', creatorId());
+                })
+                ->when(!$this->canManageAllBranches($user), function ($q) use ($allowedWarehouseIds) {
+                    if (empty($allowedWarehouseIds)) {
+                        return $q->whereRaw('1 = 0');
+                    }
+
+                    return $q->whereIn('warehouse_id', $allowedWarehouseIds);
                 })
                 ->where('quantity', '>', 0)
                 ->get();
@@ -71,6 +93,10 @@ class TransferController extends Controller
     {
         if(Auth::user()->can('create-transfers')){
             $validated = $request->validated();
+
+            if (!$this->isWarehouseAccessible($validated['from_warehouse'], Auth::user()) || !$this->isWarehouseAccessible($validated['to_warehouse'], Auth::user())) {
+                return back()->with('error', __('Selected warehouse is not accessible for this user.'));
+            }
 
             $transfer = new Transfer();
             $transfer->from_warehouse = $validated['from_warehouse'];
@@ -117,6 +143,10 @@ class TransferController extends Controller
     public function show(Transfer $transfer)
     {
         if(Auth::user()->can('view-transfers')){
+            if (!$this->isWarehouseAccessible($transfer->from_warehouse, Auth::user()) || !$this->isWarehouseAccessible($transfer->to_warehouse, Auth::user())) {
+                return back()->with('error', __('Permission denied'));
+            }
+
             $transfer->load(['fromWarehouse', 'toWarehouse', 'product']);
 
             return Inertia::render('Transfers/Show', [
@@ -129,6 +159,10 @@ class TransferController extends Controller
     public function destroy(Transfer $transfer)
     {
         if(Auth::user()->can('delete-transfers')){
+        if (!$this->isWarehouseAccessible($transfer->from_warehouse, Auth::user()) || !$this->isWarehouseAccessible($transfer->to_warehouse, Auth::user())) {
+            return back()->with('error', __('Permission denied'));
+        }
+
         // Add back to source warehouse
         $fromStock = WarehouseStock::firstOrCreate(
             [

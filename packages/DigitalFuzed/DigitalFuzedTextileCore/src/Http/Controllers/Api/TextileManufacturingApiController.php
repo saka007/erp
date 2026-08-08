@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
+use Workdo\Account\Models\Vendor;
 
 class TextileManufacturingApiController extends Controller
 {
@@ -33,6 +34,20 @@ class TextileManufacturingApiController extends Controller
         return response()->json([
             'success' => true,
             'data' => $this->manufacturingService->createBeam($payload),
+        ], 201);
+    }
+
+    public function storeBeamFromYarnAllocation(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'yarn_allocation_id' => ['required', 'integer', 'min:1'],
+            'quantity' => ['required', 'numeric', 'gt:0'],
+            'idempotency_key' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createBeamFromYarnAllocation((int) $payload['yarn_allocation_id'], $payload),
         ], 201);
     }
 
@@ -456,6 +471,37 @@ class TextileManufacturingApiController extends Controller
         ]);
     }
 
+    public function storeProductionAssignment(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'batch_id' => ['required', 'integer', 'min:1'],
+            'production_mode' => ['required', Rule::in(['own_unit', 'powerloom_vendor'])],
+            'assigned_quantity' => ['required', 'numeric', 'gt:0'],
+            'assignment_date' => ['required', 'date'],
+            'expected_completion_date' => ['nullable', 'date', 'after_or_equal:assignment_date'],
+            'loom_allocations' => ['nullable', 'required_if:production_mode,own_unit', 'array', 'min:1'],
+            'loom_allocations.*.loom_master_id' => ['required', 'integer', 'min:1', 'distinct'],
+            'loom_allocations.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'powerloom_vendor_id' => ['nullable', 'required_if:production_mode,powerloom_vendor', 'integer', 'min:1'],
+            'planned_shift' => ['nullable', 'string', Rule::in($this->shiftOptions())],
+            'operator_name' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        if ($payload['production_mode'] === 'powerloom_vendor') {
+            $vendor = Vendor::query()
+                ->where('created_by', creatorId())
+                ->where('supplier_type', 'powerloom')
+                ->findOrFail((int) $payload['powerloom_vendor_id']);
+            $payload['powerloom_vendor_name'] = $vendor->company_name;
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->manufacturingService->createProductionAssignment((int) $payload['batch_id'], $payload),
+        ], 201);
+    }
+
     public function storeWeavingOutput(Request $request): JsonResponse
     {
         $payload = $request->validate([
@@ -496,10 +542,16 @@ class TextileManufacturingApiController extends Controller
     public function storeTakhaEntry(Request $request): JsonResponse
     {
         $payload = $request->validate([
-            'weaving_output_id' => ['required', 'integer', 'min:1'],
-            'takha_number' => ['required', 'string', 'max:100'],
-            'quantity' => ['required', 'numeric', 'gt:0'],
+            'production_assignment_id' => ['nullable', 'required_without:weaving_output_id', 'integer', 'min:1'],
+            'weaving_output_id' => ['nullable', 'required_without:production_assignment_id', 'integer', 'min:1'],
+            'takha_number' => ['nullable', 'required_without:takhas', 'string', 'max:100'],
+            'quantity' => ['nullable', 'required_without:takhas', 'numeric', 'gt:0'],
+            'takhas' => ['nullable', 'required_without:takha_number', 'array', 'min:1'],
+            'takhas.*.takha_number' => ['required', 'string', 'max:100', 'distinct'],
+            'takhas.*.quantity' => ['required', 'numeric', 'gt:0'],
             'unit' => ['nullable', 'string', 'max:50'],
+            'production_date' => ['nullable', 'date'],
+            'loom_master_id' => ['nullable', 'integer', 'min:1'],
             'operator_name' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:500'],
             'idempotency_key' => ['nullable', 'string', 'max:190'],
@@ -507,7 +559,11 @@ class TextileManufacturingApiController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $this->manufacturingService->createTakhaEntry((int) $payload['weaving_output_id'], $payload),
+            'data' => ! empty($payload['production_assignment_id'])
+                ? (! empty($payload['takhas'])
+                    ? $this->manufacturingService->createTakhasFromAssignment((int) $payload['production_assignment_id'], $payload)
+                    : $this->manufacturingService->createTakhaFromAssignment((int) $payload['production_assignment_id'], $payload))
+                : $this->manufacturingService->createTakhaEntry((int) $payload['weaving_output_id'], $payload),
         ], 201);
     }
 

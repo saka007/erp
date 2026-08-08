@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HasBranchWarehouseScope;
 use App\Events\AcceptSalesProposal;
 use App\Events\ConvertSalesProposal;
 use App\Events\CreateSalesProposal;
@@ -27,6 +28,8 @@ use Workdo\ProductService\Models\ProductServiceItem;
 
 class SalesProposalController extends Controller
 {
+    use HasBranchWarehouseScope;
+
     private function checkProposalAccess(SalesProposal $salesProposal)
     {
         if(Auth::user()->can('manage-any-sales-proposals')) {
@@ -45,6 +48,7 @@ class SalesProposalController extends Controller
     public function index(Request $request)
     {
         if(Auth::user()->can('manage-sales-proposals')){
+            $user = Auth::user();
             $query = SalesProposal::with(['customer', 'items'])
                 ->where(function($q) {
                     if(Auth::user()->can('manage-any-sales-proposals')) {
@@ -58,6 +62,9 @@ class SalesProposalController extends Controller
                         $q->whereRaw('1 = 0');
                     }
                 });
+
+            $this->applyWarehouseScope($query, 'warehouse_id', $user, true);
+
             // Apply filters
             if ($request->customer_id) {
                 $query->where('customer_id', $request->customer_id);
@@ -106,8 +113,9 @@ class SalesProposalController extends Controller
     public function create()
     {
         if(Auth::user()->can('create-sales-proposals')){
+            $user = Auth::user();
             $customers = User::where('type', 'client')->select('id', 'name', 'email')->where('created_by', creatorId())->get();
-            $warehouses = Warehouse::where('is_active', true)->select('id', 'name', 'address')->where('created_by', creatorId())->get();
+            $warehouses = $this->scopedWarehouseQuery($user)->select('id', 'name', 'address')->get();
 
             return Inertia::render('SalesProposals/Create', [
                 'customers' => $customers,
@@ -122,6 +130,9 @@ class SalesProposalController extends Controller
     public function store(StoreSalesProposalRequest $request)
     {
         if(Auth::user()->can('create-sales-proposals')){
+            if (!$this->isWarehouseAccessible($request->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('sales-proposals.index')->with('error', __('Selected warehouse is not accessible for this user.'));
+            }
 
             $totals = $this->calculateTotals($request->items);
 
@@ -162,6 +173,10 @@ class SalesProposalController extends Controller
                 return redirect()->route('sales-proposals.index')->with('error', __('Permission denied'));
             }
 
+            if (!$this->isWarehouseAccessible($salesProposal->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('sales-proposals.index')->with('error', __('Permission denied'));
+            }
+
             $salesProposal->load(['customer', 'items.product', 'items.taxes', 'warehouse']);
 
             return Inertia::render('SalesProposals/View', [
@@ -176,7 +191,12 @@ class SalesProposalController extends Controller
     public function edit(SalesProposal $salesProposal)
     {
         if(Auth::user()->can('edit-sales-proposals') && $salesProposal->created_by == creatorId()){
+            $user = Auth::user();
             if(!$this->checkProposalAccess($salesProposal)) {
+                return redirect()->route('sales-proposals.index')->with('error', __('Permission denied'));
+            }
+
+            if (!$this->isWarehouseAccessible($salesProposal->warehouse_id, $user, true)) {
                 return redirect()->route('sales-proposals.index')->with('error', __('Permission denied'));
             }
 
@@ -186,7 +206,7 @@ class SalesProposalController extends Controller
 
             $salesProposal->load(['items.taxes']);
             $customers = User::where('type', 'client')->select('id', 'name', 'email')->where('created_by', creatorId())->get();
-            $warehouses = Warehouse::where('is_active', true)->select('id', 'name', 'address')->where('created_by', creatorId())->get();
+            $warehouses = $this->scopedWarehouseQuery($user)->select('id', 'name', 'address')->get();
 
             return Inertia::render('SalesProposals/Edit', [
                 'proposal' => $salesProposal,
@@ -202,6 +222,10 @@ class SalesProposalController extends Controller
     public function update(UpdateSalesProposalRequest $request, SalesProposal $salesProposal)
     {
         if(Auth::user()->can('edit-sales-proposals') && $salesProposal->created_by == creatorId()){
+            if (!$this->isWarehouseAccessible($salesProposal->warehouse_id, Auth::user(), true) || !$this->isWarehouseAccessible($request->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('sales-proposals.index')->with('error', __('Selected warehouse is not accessible for this user.'));
+            }
+
             if ($salesProposal->converted_to_invoice) {
                 return redirect()->route('sales-proposals.index')->with('error', __('Cannot update converted proposal.'));
             }
@@ -236,6 +260,10 @@ class SalesProposalController extends Controller
     public function destroy(SalesProposal $salesProposal)
     {
         if(Auth::user()->can('delete-sales-proposals')){
+            if (!$this->isWarehouseAccessible($salesProposal->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('sales-proposals.index')->with('error', __('Permission denied'));
+            }
+
             if ($salesProposal->converted_to_invoice) {
                 return back()->withErrors(['error' => __('Cannot delete converted proposal.')]);
             }
@@ -255,6 +283,10 @@ class SalesProposalController extends Controller
     public function convertToInvoice(SalesProposal $salesProposal)
     {
         if(Auth::user()->can('convert-sales-proposals') && $salesProposal->created_by == creatorId()){
+            if (!$this->isWarehouseAccessible($salesProposal->warehouse_id, Auth::user(), true)) {
+                return back()->with('error', __('Permission denied'));
+            }
+
             if ($salesProposal->status !== 'accepted') {
                 return back()->with('error', __('Only accepted proposals can be converted to invoice.'));
             }
@@ -377,6 +409,11 @@ class SalesProposalController extends Controller
             if (!$warehouseId) {
                 return response()->json([]);
             }
+
+            if (!$this->isWarehouseAccessible($warehouseId, Auth::user())) {
+                return response()->json([], 403);
+            }
+
             $products = ProductServiceItem::select('id', 'name', 'sku', 'sale_price', 'tax_ids', 'unit', 'type')
                 ->where('is_active', true)
                 ->where('created_by', creatorId())
@@ -417,6 +454,10 @@ class SalesProposalController extends Controller
     public function print(SalesProposal $salesProposal)
     {
         if(Auth::user()->can('print-sales-proposals')){
+            if (!$this->isWarehouseAccessible($salesProposal->warehouse_id, Auth::user(), true)) {
+                return back()->with('error', __('Permission denied'));
+            }
+
             $salesProposal->load(['customer', 'items.product', 'items.taxes', 'warehouse']);
 
             return Inertia::render('SalesProposals/Print', [
@@ -431,6 +472,10 @@ class SalesProposalController extends Controller
     public function sent(SalesProposal $salesProposal)
     {
         if(Auth::user()->can('sent-sales-proposals') && $salesProposal->created_by == creatorId()){
+            if (!$this->isWarehouseAccessible($salesProposal->warehouse_id, Auth::user(), true)) {
+                return back()->with('error', __('Permission denied'));
+            }
+
             if ($salesProposal->status !== 'draft') {
                 return back()->with('error', __('Only draft proposals can be sent.'));
             }
@@ -449,6 +494,10 @@ class SalesProposalController extends Controller
     public function accept(SalesProposal $salesProposal)
     {
         if(Auth::user()->can('accept-sales-proposals') && $salesProposal->created_by == creatorId()){
+            if (!$this->isWarehouseAccessible($salesProposal->warehouse_id, Auth::user(), true)) {
+                return back()->with('error', __('Permission denied'));
+            }
+
             if ($salesProposal->status !== 'sent') {
                 return back()->with('error', __('Only sent proposals can be accepted.'));
             }
@@ -466,6 +515,10 @@ class SalesProposalController extends Controller
     public function reject(SalesProposal $salesProposal)
     {
         if(Auth::user()->can('reject-sales-proposals') && $salesProposal->created_by == creatorId()){
+            if (!$this->isWarehouseAccessible($salesProposal->warehouse_id, Auth::user(), true)) {
+                return back()->with('error', __('Permission denied'));
+            }
+
             if ($salesProposal->status !== 'sent') {
                 return back()->with('error', __('Only sent proposals can be rejected.'));
             }

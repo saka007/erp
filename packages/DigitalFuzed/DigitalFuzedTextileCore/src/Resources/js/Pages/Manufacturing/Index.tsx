@@ -1,25 +1,33 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Factory, Plus, Check } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, Factory, FileEdit, Gauge, LayoutDashboard, ListChecks, Plus, RotateCcw, Send, Trash2, Wrench, type LucideIcon } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import NoRecordsFound from '@/components/no-records-found';
 import { TextileField as Field } from '@/components/textile/textile-field';
 import { TextileFormCard } from '@/components/textile/textile-form-card';
 import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { TextileDataTableSection } from '@/components/textile/textile-data-table-section';
-import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
+import { TextileSection } from '@/components/textile/textile-section';
+import { TextileWorkspace, countSectionStatuses } from '@/components/textile/textile-workspace';
+import { getTextileWorkspace } from '@/components/textile/textile-workspaces';
+import { TextileInfoPanel, MetricSummaryCard, UpcomingTasksCard, WorkflowStage, ActivityItem } from '@/components/textile/textile-info-panel';
+import { TextileWorkflowSteps, workflowStepStatuses, type WorkflowStep } from '@/components/textile/textile-workflow-steps';
 import { buildUnitOptions, formatTextileLabel, formatTextileOptionLabel, textileMachineTypeOptions, textileSourceTypeOptions } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 import { PageProps } from '@/types';
 
 interface WorkflowDocument {
     id: number;
+    document_type?: string | null;
     document_number: string;
     source_reference_id?: number | null;
     source_reference_type?: string | null;
+    source_action?: string | null;
     party_name?: string | null;
     lot_reference?: string | null;
     quantity: string;
@@ -45,6 +53,7 @@ export default function Index({
     machinePlans,
     materialPlans,
     productionSchedules,
+    productionAssignments,
     beams,
     beamIssues,
     beamReturns,
@@ -82,6 +91,10 @@ export default function Index({
     operatorOptions,
     partyOptions,
     lotReferenceOptions,
+    sizingVendorOptions,
+    powerloomVendorOptions,
+    yarnLotOptions,
+    recentActivity,
 }: {
     warpPlans: WorkflowDocument[];
     yarnAllocations: WorkflowDocument[];
@@ -98,6 +111,7 @@ export default function Index({
     machinePlans: WorkflowDocument[];
     materialPlans: WorkflowDocument[];
     productionSchedules: WorkflowDocument[];
+    productionAssignments: WorkflowDocument[];
     beams: WorkflowDocument[];
     beamIssues: WorkflowDocument[];
     beamReturns: WorkflowDocument[];
@@ -135,32 +149,42 @@ export default function Index({
     operatorOptions: string[];
     partyOptions: string[];
     lotReferenceOptions: string[];
+    sizingVendorOptions: Array<{ value: string; label: string }>;
+    powerloomVendorOptions: Array<{ value: string; label: string }>;
+    yarnLotOptions: Array<{ id: number; value: string; label: string; available_quantity: string; unit: string }>;
+    recentActivity: ActivityItem[];
 }) {
     const { t } = useTranslation();
     const { auth } = usePage<PageProps>().props;
     const textileCapabilities = auth.user?.textile_capabilities || {};
-    const hasFineGrainedCapabilities = Object.keys(textileCapabilities).some((key) => key.startsWith('manufacturing_'));
+    const capabilityMap = textileCapabilities as Record<string, boolean | undefined>;
+    const canManufacturingWarping = capabilityMap.manufacturing_warping !== false;
+    const canManufacturingSizing = capabilityMap.manufacturing_sizing !== false;
+    // Vendor-sizing mode: when own sizing is disabled globally, hide in-house warping chain.
+    const useVendorSizingFlow = !canManufacturingSizing;
+    const showInternalWarpingFlow = canManufacturingWarping && !useVendorSizingFlow;
+    const warpPlanStepTitle = useVendorSizingFlow ? t('Create Yarn Dispatch Plan') : t('Create Warp Plan');
+    const allocateYarnStepTitle = useVendorSizingFlow ? t('Issue Yarn to Sizing Vendor') : t('Allocate Yarn from Approved Warp Plan');
+    const allocateYarnFormLabel = useVendorSizingFlow ? t('Approved Yarn Dispatch Plan') : t('Approved Warp Plan');
+    const allocateYarnEmptyLabel = useVendorSizingFlow ? t('Select approved dispatch plan') : t('Select approved warp plan');
+    const allocateYarnHelperText = useVendorSizingFlow ? t('Only approved yarn dispatch plans are listed.') : t('Only approved warp plans are listed.');
+    const allocateYarnDisabledReason = useVendorSizingFlow ? t('No approved dispatch plan found. Approve a yarn dispatch plan first.') : t('No approved warp plan found. Approve a warp plan first.');
+    const allocateYarnButtonLabel = useVendorSizingFlow ? t('Issue Yarn') : t('Allocate Yarn');
+    const beamCreateStepTitle = useVendorSizingFlow ? t('Receive Beam from Sizing Vendor') : t('Create Beam');
+    const beamCreateButtonLabel = useVendorSizingFlow ? t('Receive Beam') : t('Create Beam');
+    const beamCreateHelperText = useVendorSizingFlow ? t('Use this when sizing vendor returns a completed beam.') : t('Source actions are managed from Master Setup > Manufacturing Setup > Source Actions.');
+    const manufacturingWorkspace = getTextileWorkspace('manufacturing')!;
     const sectionParam = new URLSearchParams(window.location.search).get('section');
-    const visibleSections = hasFineGrainedCapabilities
-        ? [
-            textileCapabilities.manufacturing_warping || textileCapabilities.manufacturing_sizing ? 'warp-planning' : null,
-            textileCapabilities.manufacturing_beam ? 'beam-batch' : null,
-            textileCapabilities.manufacturing_loom ? 'loom-management' : null,
-            textileCapabilities.manufacturing_planning ? 'machine-planning' : null,
-            textileCapabilities.manufacturing_weaving ? 'weaving-output' : null,
-            textileCapabilities.manufacturing_waste ? 'waste' : null,
-            textileCapabilities.manufacturing_rework ? 'rework' : null,
-        ].filter((value): value is string => value !== null)
-        : ['warp-planning', 'beam-batch', 'loom-management', 'machine-planning', 'weaving-output', 'waste', 'rework'];
-    const validSections = new Set(visibleSections);
-    const activeSection = sectionParam && validSections.has(sectionParam)
-        ? sectionParam
-        : (visibleSections[0] ?? 'warp-planning');
+    const activeMenuSection = manufacturingWorkspace.sections.find((item) => item.id === sectionParam)
+        ?? manufacturingWorkspace.sections[0];
+    const [openStep, setOpenStep] = useState<string | null>(null);
+    const [showAllWarpSteps, setShowAllWarpSteps] = useState(false);
+    const [beamReceiptVendor, setBeamReceiptVendor] = useState('');
 
     const warpPlanForm = useForm({
         source_reference_type: 'inventory_lot',
         source_reference_id: '',
-        source_action: 'warp_plan',
+        source_action: useVendorSizingFlow ? 'yarn_dispatch' : 'warp_plan',
         party_name: '',
         lot_reference: '',
         quantity: '',
@@ -207,6 +231,7 @@ export default function Index({
     const machinePlanForm = useForm({ loom_master_id: '', beam_id: '', planned_date: '', planned_shift: 'day', planned_quantity: '', unit: 'mtr', operator_name: '', notes: '' });
     const materialPlanForm = useForm({ beam_id: '', plan_date: '', required_quantity: '', unit: 'mtr', notes: '' });
     const productionScheduleForm = useForm({ loom_master_id: '', beam_id: '', scheduled_date: '', scheduled_shift: 'day', scheduled_quantity: '', unit: 'mtr', operator_name: '', notes: '' });
+    const productionAssignmentForm = useForm({ batch_id: '', production_mode: 'own_unit', assigned_quantity: '', assignment_date: '', expected_completion_date: '', loom_allocations: [{ loom_master_id: '', quantity: '' }], powerloom_vendor_id: '', planned_shift: 'day', operator_name: '', notes: '' });
 
     const beamForm = useForm({
         source_reference_type: 'sales_order',
@@ -217,11 +242,12 @@ export default function Index({
         quantity: '',
         unit: 'mtr',
     });
+    const vendorBeamReceiptForm = useForm({ yarn_allocation_id: '', quantity: '' });
 
     const batchForm = useForm({ beam_id: '' });
     const weavingOutputForm = useForm({ batch_id: '', quantity: '', unit: 'mtr' });
     const shiftProductionForm = useForm({ batch_id: '', loom_master_id: '', planned_shift: 'day', quantity: '', unit: 'mtr', operator_name: '', notes: '' });
-    const takhaEntryForm = useForm({ weaving_output_id: '', takha_number: '', quantity: '', unit: 'mtr', operator_name: '', notes: '' });
+    const takhaEntryForm = useForm({ production_assignment_id: '', weaving_output_id: '', takha_number: '', quantity: '', takhas: [{ takha_number: '', quantity: '' }], unit: 'mtr', production_date: '', loom_master_id: '', operator_name: '', notes: '' });
     const loomEfficiencyForm = useForm({ loom_master_id: '', planned_shift: 'day', planned_quantity: '', actual_quantity: '', runtime_hours: '', downtime_hours: '', unit: 'mtr', operator_name: '', notes: '' });
     const operatorEfficiencyForm = useForm({ planned_shift: 'day', planned_quantity: '', actual_quantity: '', unit: 'mtr', operator_name: '', notes: '' });
     const machineDowntimeForm = useForm({ loom_master_id: '', planned_shift: 'day', downtime_reason: '', downtime_hours: '', unit: 'hour', operator_name: '', notes: '' });
@@ -236,10 +262,52 @@ export default function Index({
     const actionableWarpProductions = warpProductions.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
     const actionableSizingRecipes = sizingRecipes.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
     const actionableBeams = beams.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
+    const receivedYarnAllocationIds = new Set(beams
+        .filter((row) => row.source_reference_type === 'textile_workflow_document' && row.source_reference_id)
+        .map((row) => Number(row.source_reference_id)));
+    const receivableYarnAllocations = actionableYarnAllocations.filter((row) => !receivedYarnAllocationIds.has(row.id));
+    const beamReceiptVendorOptions = Array.from(new Set(receivableYarnAllocations
+        .map((row) => row.party_name)
+        .filter((party): party is string => Boolean(party))))
+        .sort((left, right) => left.localeCompare(right))
+        .map((party) => ({ value: party, label: party }));
+    const vendorYarnAllocations = receivableYarnAllocations.filter((row) => row.party_name === beamReceiptVendor);
+    const vendorYarnLotOptions = vendorYarnAllocations.map((row) => {
+        const details = [
+            `${row.quantity} ${row.unit || '-'}`,
+            row.created_at ? new Date(row.created_at).toLocaleDateString() : null,
+        ].filter(Boolean);
+
+        return { value: String(row.id), label: `${row.lot_reference || row.document_number} (${details.join(' | ')})` };
+    });
+    const selectedBeamReceiptAllocation = vendorYarnAllocations.find((row) => String(row.id) === vendorBeamReceiptForm.data.yarn_allocation_id);
     const actionableLoomMasters = loomMasters.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
     const approvedBeams = beams.filter((row) => row.status === 'approved');
+    const vendorReceivedBeams = beams.filter((row) => row.source_action === 'vendor_beam_receipt');
+    const vendorReceivedBeamIds = new Set(vendorReceivedBeams.map((row) => row.id));
+    const vendorBeamBatches = productionBatches.filter((row) => row.source_reference_id && vendorReceivedBeamIds.has(Number(row.source_reference_id)));
+    const beamBatchBeams = useVendorSizingFlow ? vendorReceivedBeams : beams;
+    const beamBatchProductionBatches = useVendorSizingFlow ? vendorBeamBatches : productionBatches;
+    const beamBatchApprovedBeams = beamBatchBeams.filter((row) => row.status === 'approved');
     const actionableBeamIssues = beamIssues.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
     const releasedBatches = productionBatches.filter((row) => row.status === 'released');
+    const assignedBatchIds = new Set(productionAssignments.map((row) => Number(row.source_reference_id)));
+    const assignableBatches = releasedBatches.filter((row) => !assignedBatchIds.has(row.id));
+    const activeProductionAssignments = productionAssignments.filter((row) => ['approved', 'released'].includes(row.status));
+    const takhaQuantityByAssignment = takhaEntries.reduce((totals, row) => {
+        const assignmentId = Number(row.source_reference_id ?? 0);
+        totals.set(assignmentId, (totals.get(assignmentId) ?? 0) + (Number(row.quantity) || 0));
+        return totals;
+    }, new Map<number, number>());
+    const openProductionAssignments = activeProductionAssignments.filter((row) => (takhaQuantityByAssignment.get(row.id) ?? 0) < (Number(row.quantity) || 0));
+    const productionAssignmentOptions = openProductionAssignments.map((row) => {
+        const remaining = (Number(row.quantity) || 0) - (takhaQuantityByAssignment.get(row.id) ?? 0);
+        const mode = formatTextileLabel(String(row.metadata?.production_mode ?? ''));
+        return {
+            value: String(row.id),
+            label: `${row.document_number} | ${row.metadata?.batch_number ?? row.lot_reference ?? '-'} | ${row.party_name ?? '-'} | ${mode} | ${remaining.toFixed(2)} ${row.unit || '-'} remaining`,
+        };
+    });
     const completedWeavingOutputs = weavingOutputs.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
     const resolvedSourceTypeOptions = sourceTypeOptions.length > 0
         ? sourceTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }))
@@ -255,6 +323,16 @@ export default function Index({
         .map((value) => ({ value, label: value }));
     const resolvedLotReferenceOptions = lotReferenceOptions
         .map((value) => ({ value, label: value }));
+    const handleYarnLotChange = (lotReference: string) => {
+        const lot = yarnLotOptions.find((option) => option.value === lotReference);
+        warpPlanForm.setData((data) => ({
+            ...data,
+            lot_reference: lotReference,
+            source_reference_id: lot ? String(lot.id) : '',
+            quantity: lot?.available_quantity ?? '',
+            unit: lot?.unit ?? 'kg',
+        }));
+    };
     const resolvedMachineTypeOptions = machineTypeOptions.length > 0
         ? machineTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }))
         : textileMachineTypeOptions;
@@ -274,10 +352,25 @@ export default function Index({
     const resolvedInspectionResultOptions = inspectionResultOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedOperatorOptions = operatorOptions.map((value) => ({ value, label: value }));
 
-    const allDocuments = [...warpPlans, ...yarnAllocations, ...warpSheets, ...warpProductions, ...sizingRecipes, ...chemicalConsumptions, ...loomMasters, ...loomBreakdowns, ...loomMaintenances, ...productionCalendars, ...capacityPlans, ...shiftPlans, ...machinePlans, ...materialPlans, ...productionSchedules, ...beams, ...beamIssues, ...beamReturns, ...beamInspections, ...beamCosts, ...productionBatches, ...weavingOutputs, ...shiftProductions, ...takhaEntries, ...loomEfficiencies, ...operatorEfficiencies, ...machineDowntimes, ...productionCosts, ...greyFabricRolls, ...greyRollHistories, ...wastes, ...reworks];
-    const draftCount = allDocuments.filter((row) => row.status === 'draft').length;
-    const approvedCount = allDocuments.filter((row) => row.status === 'approved').length;
-    const releasedCount = allDocuments.filter((row) => row.status === 'released').length;
+    const allDocuments = [...warpPlans, ...yarnAllocations, ...warpSheets, ...warpProductions, ...sizingRecipes, ...chemicalConsumptions, ...loomMasters, ...loomBreakdowns, ...loomMaintenances, ...productionCalendars, ...capacityPlans, ...shiftPlans, ...machinePlans, ...materialPlans, ...productionSchedules, ...productionAssignments, ...beams, ...beamIssues, ...beamReturns, ...beamInspections, ...beamCosts, ...productionBatches, ...weavingOutputs, ...shiftProductions, ...takhaEntries, ...loomEfficiencies, ...operatorEfficiencies, ...machineDowntimes, ...productionCosts, ...greyFabricRolls, ...greyRollHistories, ...wastes, ...reworks];
+
+    const sectionRows: Record<string, WorkflowDocument[]> = {
+        overview: allDocuments,
+        'warp-planning': [
+            ...warpPlans,
+            ...yarnAllocations,
+            ...(showInternalWarpingFlow ? [...warpSheets, ...warpProductions] : []),
+            ...(canManufacturingSizing ? [...sizingRecipes, ...chemicalConsumptions] : []),
+        ],
+        'beam-batch': useVendorSizingFlow
+            ? [...vendorReceivedBeams, ...vendorBeamBatches]
+            : [...beams, ...beamIssues, ...beamReturns, ...beamInspections, ...beamCosts, ...productionBatches],
+        'loom-management': [...loomMasters, ...loomBreakdowns, ...loomMaintenances],
+        'machine-planning': productionAssignments,
+        'weaving-output': takhaEntries.filter((row) => productionAssignments.some((assignment) => assignment.id === Number(row.source_reference_id))),
+        waste: wastes,
+        rework: reworks,
+    };
 
     const toNumber = (value: string | number | null | undefined) => {
         if (typeof value === 'number') {
@@ -288,83 +381,7 @@ export default function Index({
         return Number.isFinite(parsed) ? parsed : 0;
     };
 
-    const beamIssueById = new Map<number, WorkflowDocument>(beamIssues.map((row) => [row.id, row]));
     const beamById = new Map<number, WorkflowDocument>(beams.map((row) => [row.id, row]));
-    const issuedByBeamId = new Map<number, number>();
-    const returnedByBeamId = new Map<number, number>();
-
-    beamIssues.forEach((issue) => {
-        const beamId = issue.source_reference_id;
-        if (!beamId) {
-            return;
-        }
-
-        issuedByBeamId.set(beamId, (issuedByBeamId.get(beamId) ?? 0) + toNumber(issue.quantity));
-    });
-
-    beamReturns.forEach((beamReturn) => {
-        const beamIssueId = beamReturn.source_reference_id;
-        if (!beamIssueId) {
-            return;
-        }
-
-        const issue = beamIssueById.get(beamIssueId);
-        const beamId = issue?.source_reference_id;
-        if (!beamId) {
-            return;
-        }
-
-        returnedByBeamId.set(beamId, (returnedByBeamId.get(beamId) ?? 0) + toNumber(beamReturn.quantity));
-    });
-
-    const remainingBeamRows = beams.map((beam) => {
-        const beamQty = toNumber(beam.quantity);
-        const issuedQty = issuedByBeamId.get(beam.id) ?? 0;
-        const returnedQty = returnedByBeamId.get(beam.id) ?? 0;
-
-        return {
-            id: beam.id,
-            document_number: beam.document_number,
-            issued_quantity: issuedQty.toFixed(2),
-            returned_quantity: returnedQty.toFixed(2),
-            remaining_quantity: (beamQty - issuedQty + returnedQty).toFixed(2),
-            unit: beam.unit ?? '-',
-        };
-    });
-
-    const beamHistoryRows = [
-        ...beamIssues.map((issue) => {
-            const beam = issue.source_reference_id ? beamById.get(issue.source_reference_id) : null;
-
-            return {
-                id: issue.id,
-                event_type: t('Issue'),
-                event_number: issue.document_number,
-                beam_number: beam?.document_number ?? '-',
-                source_number: beam?.document_number ?? '-',
-                quantity: issue.quantity,
-                unit: issue.unit ?? '-',
-                status: issue.status,
-                event_time: issue.created_at ?? '-',
-            };
-        }),
-        ...beamReturns.map((beamReturn) => {
-            const beamIssue = beamReturn.source_reference_id ? beamIssueById.get(beamReturn.source_reference_id) : null;
-            const beam = beamIssue?.source_reference_id ? beamById.get(beamIssue.source_reference_id) : null;
-
-            return {
-                id: beamReturn.id,
-                event_type: t('Return'),
-                event_number: beamReturn.document_number,
-                beam_number: beam?.document_number ?? '-',
-                source_number: beamIssue?.document_number ?? '-',
-                quantity: beamReturn.quantity,
-                unit: beamReturn.unit ?? '-',
-                status: beamReturn.status,
-                event_time: beamReturn.created_at ?? '-',
-            };
-        }),
-    ].sort((left, right) => right.id - left.id);
 
     const approveBeam = (id: number) => {
         router.post(route('textile.manufacturing.beams.approve'), { beam_id: id }, { preserveScroll: true });
@@ -378,96 +395,223 @@ export default function Index({
         router.post(route('textile.manufacturing.batches.release'), { batch_id: id }, { preserveScroll: true });
     };
 
+    const loomStatusCounts = {
+        running: loomMasters.filter((row) => String(row.metadata?.loom_status ?? '') === 'running').length,
+        idle: loomMasters.filter((row) => String(row.metadata?.loom_status ?? '') === 'idle').length,
+        maintenance: loomMasters.filter((row) => String(row.metadata?.loom_status ?? '') === 'maintenance').length,
+    };
+    const loomEfficiencyByLoom = new Map<string, number>(
+        loomEfficiencies.map((row) => [String(row.metadata?.loom_master ?? ''), toNumber(Number(row.metadata?.efficiency_percent))])
+    );
+    const upcomingTasks = [
+        ...warpPlans.filter((row) => row.status === 'draft').map((row) => ({ label: `${row.document_number} · ${t('Approve')}`, meta: t('Warp Plan') })),
+        ...beams.filter((row) => row.status === 'draft').map((row) => ({ label: `${row.document_number} · ${t('Approve')}`, meta: t('Beam') })),
+        ...productionBatches.filter((row) => ['draft', 'approved'].includes(row.status)).map((row) => ({ label: `${row.document_number} · ${t('Release')}`, meta: t('Production Batch') })),
+    ];
+    const totalWasteQuantity = wastes.reduce((sum, row) => sum + toNumber(row.quantity), 0);
+    const totalOutputQuantity = weavingOutputs.reduce((sum, row) => sum + toNumber(row.quantity), 0);
+    const wastePercent = totalOutputQuantity > 0 ? (totalWasteQuantity / totalOutputQuantity) * 100 : 0;
+    const wasteByType = new Map<string, number>();
+    wastes.forEach((row) => {
+        const reason = String(row.metadata?.waste_type ?? '');
+        if (reason) {
+            wasteByType.set(reason, (wasteByType.get(reason) ?? 0) + toNumber(row.quantity));
+        }
+    });
+    const topWasteReason = [...wasteByType.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? null;
+    const totalReworkQuantity = reworks.reduce((sum, row) => sum + toNumber(row.quantity), 0);
+    const reworkByReason = new Map<string, number>();
+    reworks.forEach((row) => {
+        const reason = String(row.metadata?.rework_reason ?? '');
+        if (reason) {
+            reworkByReason.set(reason, (reworkByReason.get(reason) ?? 0) + toNumber(row.quantity));
+        }
+    });
+    const topReworkReason = [...reworkByReason.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? null;
+
     return (
-        <AuthenticatedLayout breadcrumbs={[{ label: t('Textile') }, { label: t('Manufacturing') }]} pageTitle={t('Textile Manufacturing')}>
+        <AuthenticatedLayout
+            breadcrumbs={[
+                { label: t('Textile') },
+                { label: t('Manufacturing') },
+                ...(activeMenuSection ? [{ label: t(activeMenuSection.label) }] : []),
+            ]}
+            pageTitle={t('Textile Manufacturing')}
+            pageActions={(
+                <Button
+                    className="bg-emerald-600 text-white hover:bg-emerald-700"
+                    onClick={() => router.get(route('textile.manufacturing.index', { section: 'warp-planning' }), {}, { preserveState: true, replace: true })}
+                >
+                    <Plus className="h-4 w-4" />
+                    {t('New Warp Plan')}
+                </Button>
+            )}
+        >
             <Head title={t('Textile Manufacturing')} />
 
-            <TextileKpiOverview
-                title={t('Manufacturing Overview')}
-                className="mb-6"
-                items={[
-                    { label: t('Total Documents'), value: allDocuments.length, hint: t('Warp + Yarn Allocation + Warp Sheet + Warp Production + Sizing Recipe + Loom + Beam + Batch + Output + Waste + Rework') },
-                    { label: t('Chemical Records'), value: chemicalConsumptions.length, hint: t('Sizing chemical usage entries') },
-                    { label: t('Loom Breakdowns'), value: loomBreakdowns.length, hint: t('Loom stoppage and downtime entries') },
-                    { label: t('Loom Maintenance'), value: loomMaintenances.length, hint: t('Preventive/corrective maintenance entries') },
-                    { label: t('Planning Records'), value: productionCalendars.length + capacityPlans.length + shiftPlans.length + machinePlans.length + materialPlans.length + productionSchedules.length, hint: t('Calendar, capacity, shift, machine, material, and schedule plans') },
-                    { label: t('Machine Plans'), value: machinePlans.length, hint: t('Loom to beam planning assignments') },
-                    { label: t('Shift Production'), value: shiftProductions.length, hint: t('Shift-wise weaving execution entries') },
-                    { label: t('Production Cost Records'), value: productionCosts.length, hint: t('Weaving cost capture entries') },
-                    { label: t('Beam Inspections'), value: beamInspections.length, hint: t('Sizing and beam quality checkpoints') },
-                    { label: t('Beam Cost Records'), value: beamCosts.length, hint: t('Sizing and beam cost capture entries') },
-                    { label: t('Draft'), value: draftCount, hint: t('Waiting for review') },
-                    { label: t('Approved'), value: approvedCount, hint: t('Ready for release actions') },
-                    { label: t('Released'), value: releasedCount, hint: t('Ready for production execution') },
-                ]}
-            />
+            <TextileWorkspace
+                workspace={manufacturingWorkspace}
+                capabilities={textileCapabilities}
+                kpis={(section) => {
+                    if (section.id === 'overview') {
+                        const machineUtilization = loomMasters.length > 0
+                            ? Math.round((loomStatusCounts.running / loomMasters.length) * 100)
+                            : 0;
+                        const sectionCounts = countSectionStatuses(allDocuments);
+                        return [
+                            { label: t('Running Orders'), value: releasedBatches.length, hint: t('Released production batches'), icon: ListChecks },
+                            { label: t('Pending'), value: sectionCounts.draft, hint: t('Awaiting review'), icon: FileEdit },
+                            { label: t('Completed'), value: sectionCounts.approved + sectionCounts.released, hint: t('Approved and released records'), icon: CheckCircle2 },
+                            { label: t('Machine Utilization'), value: `${machineUtilization}%`, hint: t('Looms currently running'), icon: Gauge },
+                        ];
+                    }
 
-            <Tabs
-                value={activeSection}
-                onValueChange={(value) => router.get(route('textile.manufacturing.index', { section: value }), {}, { preserveState: true, replace: true })}
-                className="space-y-6"
+                    const counts = countSectionStatuses(sectionRows[section.id] ?? []);
+                    return [
+                        { label: t('Total'), value: counts.total, hint: t('Records in this section'), icon: ListChecks },
+                        { label: t('Draft'), value: counts.draft, hint: t('Awaiting review'), icon: FileEdit },
+                        { label: t('Approved'), value: counts.approved, hint: t('Ready for release'), icon: CheckCircle2 },
+                        { label: t('Released'), value: counts.released, hint: t('Posted to operations'), icon: Send },
+                    ];
+                }}
+                aside={(section) => (
+                    <>
+                        <TextileInfoPanel
+                            stages={[
+                                { id: 'warp-planning', label: t('Warp Planning'), count: warpPlans.length, active: section.id === 'warp-planning' },
+                                { id: 'beam-batch', label: t('Beam & Batch'), count: beams.length, active: section.id === 'beam-batch' },
+                                { id: 'loom-management', label: t('Loom'), count: loomMasters.length, active: section.id === 'loom-management' },
+                                { id: 'machine-planning', label: t('Planning'), count: machinePlans.length, active: section.id === 'machine-planning' },
+                                { id: 'weaving-output', label: t('Weaving'), count: weavingOutputs.length, active: section.id === 'weaving-output' },
+                                { id: 'waste', label: t('Waste'), count: wastes.length, active: section.id === 'waste' },
+                                { id: 'rework', label: t('Rework'), count: reworks.length, active: section.id === 'rework' },
+                            ]}
+                            activities={recentActivity}
+                        />
+                        <MetricSummaryCard
+                            title={t('Production Summary')}
+                            rows={[
+                                { label: t('Production Today'), value: `${totalOutputQuantity} mtr` },
+                                { label: t('Beams'), value: beams.length },
+                                { label: t('Looms'), value: loomMasters.length },
+                                { label: t('Outputs'), value: weavingOutputs.length },
+                                { label: t('Shift Production'), value: shiftProductions.length },
+                                { label: t('Downtimes'), value: machineDowntimes.length },
+                                { label: t('Waste Entries'), value: wastes.length },
+                                { label: t('Reworks'), value: reworks.length },
+                            ]}
+                        />
+                        <MetricSummaryCard
+                            title={t('Machine Status')}
+                            rows={[
+                                { label: t('Total Machines'), value: loomMasters.length },
+                                { label: t('Running'), value: loomMasters.length > 0 ? `${loomStatusCounts.running} (${Math.round((loomStatusCounts.running / loomMasters.length) * 100)}%)` : 0 },
+                                { label: t('Idle'), value: loomMasters.length > 0 ? `${loomStatusCounts.idle} (${Math.round((loomStatusCounts.idle / loomMasters.length) * 100)}%)` : 0 },
+                                { label: t('Maintenance'), value: loomMasters.length > 0 ? `${loomStatusCounts.maintenance} (${Math.round((loomStatusCounts.maintenance / loomMasters.length) * 100)}%)` : 0 },
+                            ]}
+                        />
+                        <UpcomingTasksCard tasks={upcomingTasks} />
+                    </>
+                )}
             >
-                <TabsList className="grid w-full grid-cols-2 gap-2 h-auto p-1 md:grid-cols-7">
-                    {validSections.has('warp-planning') ? <TabsTrigger value="warp-planning">{t('Warp Planning')}</TabsTrigger> : null}
-                    {validSections.has('beam-batch') ? <TabsTrigger value="beam-batch">{t('Beam and Batch')}</TabsTrigger> : null}
-                    {validSections.has('loom-management') ? <TabsTrigger value="loom-management">{t('Loom Management')}</TabsTrigger> : null}
-                    {validSections.has('machine-planning') ? <TabsTrigger value="machine-planning">{t('Production Planning')}</TabsTrigger> : null}
-                    {validSections.has('weaving-output') ? <TabsTrigger value="weaving-output">{t('Weaving Production')}</TabsTrigger> : null}
-                    {validSections.has('waste') ? <TabsTrigger value="waste">{t('Waste')}</TabsTrigger> : null}
-                    {validSections.has('rework') ? <TabsTrigger value="rework">{t('Rework')}</TabsTrigger> : null}
-                </TabsList>
-                {validSections.has('warp-planning') ? <TabsContent value="warp-planning">
-                <div className="grid gap-6 xl:grid-cols-2">
-                    <TextileFormCard title={t('Create Warp Plan')} icon={Factory}>
+                {(section) => {
+                    switch (section.id) {
+                        case 'overview':
+                            return (
+                                <TextileSection
+                                    table={
+                                        <TextileDataTableCard
+                                            data={allDocuments}
+                                            columns={[
+                                                { key: 'document_type', header: t('Type'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(row.document_type ?? '') },
+                                                { key: 'document_number', header: t('Document') },
+                                                { key: 'lot_reference', header: t('Lot') },
+                                                { key: 'quantity', header: t('Qty') },
+                                                { key: 'unit', header: t('Unit') },
+                                                { key: 'status', header: t('Status'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(row.status) },
+                                            ]}
+                                            emptyState={<NoRecordsFound icon={Factory} title={t('No manufacturing records yet')} description={t('Create a warp plan to start the manufacturing pipeline.')} />}
+                                        />
+                                    }
+                                />
+                            );
+
+                        case 'warp-planning': {
+                            const warpStatuses = workflowStepStatuses([
+                                warpPlans.length,
+                                yarnAllocations.length,
+                                warpSheets.length,
+                                warpProductions.length,
+                                sizingRecipes.length,
+                                chemicalConsumptions.length,
+                                beamInspections.length,
+                                beamCosts.length,
+                            ]);
+                            const steps: WorkflowStep[] = [
+                                { id: 'warp-plan', title: warpPlanStepTitle, icon: Factory, status: warpStatuses[0], count: warpPlans.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             warpPlanForm.post(route('textile.manufacturing.warp-plans.store'), {
                                 onSuccess: () => warpPlanForm.reset('source_reference_id', 'party_name', 'lot_reference', 'quantity'),
                             });
                         }}>
-                            <SelectField
-                                label={t('Source Type')}
-                                value={warpPlanForm.data.source_reference_type}
-                                onChange={(v) => warpPlanForm.setData('source_reference_type', v)}
-                                options={resolvedSourceTypeOptions}
-                                includeEmpty
-                                emptyLabel={t('Select source type')}
+                            {!useVendorSizingFlow && <>
+                                <SelectField
+                                    label={t('Source Type')}
+                                    value={warpPlanForm.data.source_reference_type}
+                                    onChange={(v) => warpPlanForm.setData('source_reference_type', v)}
+                                    options={resolvedSourceTypeOptions}
+                                    includeEmpty
+                                    emptyLabel={t('Select source type')}
                                     helperText={t('Source types are managed from Master Setup > Manufacturing Setup > Source Types.')}
-                                required
-                            />
-                            <Field label={t('Source ID')} type="number" value={warpPlanForm.data.source_reference_id} onChange={(v) => warpPlanForm.setData('source_reference_id', v)} required />
+                                    required
+                                />
+                                <Field label={t('Source ID')} type="number" value={warpPlanForm.data.source_reference_id} onChange={(v) => warpPlanForm.setData('source_reference_id', v)} required />
+                                <SelectField
+                                    label={t('Source Action')}
+                                    value={warpPlanForm.data.source_action}
+                                    onChange={(v) => warpPlanForm.setData('source_action', v)}
+                                    options={resolvedSourceActionOptions}
+                                    includeEmpty
+                                    emptyLabel={t('Select source action')}
+                                    helperText={t('Source actions are managed from Master Setup > Manufacturing Setup > Source Actions.')}
+                                    required
+                                />
+                            </>}
                             <SelectField
-                                label={t('Source Action')}
-                                value={warpPlanForm.data.source_action}
-                                onChange={(v) => warpPlanForm.setData('source_action', v)}
-                                options={resolvedSourceActionOptions}
+                                label={useVendorSizingFlow ? t('Yarn Lot') : t('Lot Reference')}
+                                value={warpPlanForm.data.lot_reference}
+                                onChange={useVendorSizingFlow ? handleYarnLotChange : (v) => warpPlanForm.setData('lot_reference', v)}
+                                options={useVendorSizingFlow ? yarnLotOptions : resolvedLotReferenceOptions}
                                 includeEmpty
-                                emptyLabel={t('Select source action')}
-                                helperText={t('Source actions are managed from Master Setup > Manufacturing Setup > Source Actions.')}
+                                emptyLabel={useVendorSizingFlow ? t('Select yarn lot') : t('Select lot reference')}
+                                helperText={useVendorSizingFlow ? t('Shows available quantity, received date, and supplier for each yarn lot.') : t('Lot references are derived from active inventory lots and workflow records.')}
+                                disabled={(useVendorSizingFlow ? yarnLotOptions : resolvedLotReferenceOptions).length === 0}
+                                disabledReason={useVendorSizingFlow ? t('No yarn stock is available. Receive and approve yarn first.') : t('No lot options available yet. Create active inventory lots first.')}
                                 required
                             />
                             <SelectField
-                                label={t('Party')}
+                                label={useVendorSizingFlow ? t('Sizing Vendor') : t('Party')}
                                 value={warpPlanForm.data.party_name}
                                 onChange={(v) => warpPlanForm.setData('party_name', v)}
-                                options={resolvedPartyOptions}
+                                options={useVendorSizingFlow ? sizingVendorOptions : resolvedPartyOptions}
                                 includeEmpty
-                                emptyLabel={t('Select party')}
-                                helperText={t('Parties are derived from customer profiles and existing workflow records.')}
-                                disabled={resolvedPartyOptions.length === 0}
-                                disabledReason={t('No party options available yet. Create customer or prior workflow records.')}
-                            />
-                            <SelectField
-                                label={t('Lot Reference')}
-                                value={warpPlanForm.data.lot_reference}
-                                onChange={(v) => warpPlanForm.setData('lot_reference', v)}
-                                options={resolvedLotReferenceOptions}
-                                includeEmpty
-                                emptyLabel={t('Select lot reference')}
-                                helperText={t('Lot references are derived from active inventory lots and workflow records.')}
-                                disabled={resolvedLotReferenceOptions.length === 0}
-                                disabledReason={t('No lot options available yet. Create active inventory lots first.')}
-                                required
+                                emptyLabel={useVendorSizingFlow ? t('Select sizing vendor') : t('Select party')}
+                                helperText={useVendorSizingFlow ? <>
+                                    {t('Vendor receiving this yarn for sizing.')} {' '}
+                                    <a className="font-medium text-emerald-700 underline-offset-2 hover:underline" href={route('account.vendors.index', { supplier_type: 'sizing' })}>
+                                        {t('Manage sizing vendors')}
+                                    </a>
+                                </> : t('Parties are derived from customer profiles and existing workflow records.')}
+                                disabled={(useVendorSizingFlow ? sizingVendorOptions : resolvedPartyOptions).length === 0}
+                                disabledReason={useVendorSizingFlow ? <>
+                                    {t('No sizing vendors found.')} {' '}
+                                    <a className="font-medium text-emerald-700 underline-offset-2 hover:underline" href={route('account.vendors.index', { supplier_type: 'sizing' })}>
+                                        {t('Manage sizing vendors')}
+                                    </a>
+                                </> : t('No party options available yet. Create customer or prior workflow records.')}
+                                required={useVendorSizingFlow}
                             />
                             <div className="grid grid-cols-2 gap-3">
                                 <Field label={t('Quantity')} type="number" value={warpPlanForm.data.quantity} onChange={(v) => warpPlanForm.setData('quantity', v)} required />
@@ -481,11 +625,12 @@ export default function Index({
                                     helperText={t('Units are derived from Unit Conversion master.')}
                                 />
                             </div>
-                            <Button type="submit" disabled={warpPlanForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Warp Plan')}</Button>
+                            <Button type="submit" disabled={warpPlanForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{warpPlanStepTitle}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Allocate Yarn from Approved Warp Plan')} icon={Check}>
+                        ) },
+                                { id: 'allocate-yarn', title: allocateYarnStepTitle, icon: Check, status: warpStatuses[1], count: yarnAllocations.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
                             e.preventDefault();
                             yarnAllocationForm.post(route('textile.manufacturing.yarn-allocations.store'), {
@@ -493,22 +638,23 @@ export default function Index({
                             });
                         }}>
                             <SelectField
-                                label={t('Approved Warp Plan')}
+                                label={allocateYarnFormLabel}
                                 value={yarnAllocationForm.data.warp_plan_id}
                                 onChange={(v) => yarnAllocationForm.setData('warp_plan_id', v)}
                                 options={createTextileWorkflowSelectOptions(approvedWarpPlans)}
                                 includeEmpty
-                                emptyLabel={t('Select approved warp plan')}
-                                helperText={t('Only approved warp plans are listed.')}
+                                emptyLabel={allocateYarnEmptyLabel}
+                                helperText={allocateYarnHelperText}
                                 disabled={approvedWarpPlans.length === 0}
-                                disabledReason={t('No approved warp plan found. Approve a warp plan first.')}
+                                disabledReason={allocateYarnDisabledReason}
                                 required
                             />
-                            <Button type="submit" disabled={yarnAllocationForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Allocate Yarn')}</Button>
+                            <Button type="submit" disabled={yarnAllocationForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{allocateYarnButtonLabel}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Create Warp Sheet from Yarn Allocation')} icon={Check}>
+                        ) },
+                                { id: 'warp-sheet', title: t('Create Warp Sheet from Yarn Allocation'), icon: Check, status: warpStatuses[2], count: warpSheets.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
                             e.preventDefault();
                             warpSheetForm.post(route('textile.manufacturing.warp-sheets.store'), {
@@ -530,8 +676,9 @@ export default function Index({
                             <Button type="submit" disabled={warpSheetForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Warp Sheet')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Create Warp Production from Warp Sheet')} icon={Check}>
+                        ) },
+                                { id: 'warp-production', title: t('Create Warp Production from Warp Sheet'), icon: Check, status: warpStatuses[3], count: warpProductions.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
                             e.preventDefault();
                             warpProductionForm.post(route('textile.manufacturing.warp-productions.store'), {
@@ -553,8 +700,9 @@ export default function Index({
                             <Button type="submit" disabled={warpProductionForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Warp Production')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Create Sizing Recipe from Warp Production')} icon={Check}>
+                        ) },
+                                { id: 'sizing-recipe', title: t('Create Sizing Recipe from Warp Production'), icon: Check, status: warpStatuses[4], count: sizingRecipes.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
                             e.preventDefault();
                             sizingRecipeForm.post(route('textile.manufacturing.sizing-recipes.store'), {
@@ -576,8 +724,9 @@ export default function Index({
                             <Button type="submit" disabled={sizingRecipeForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Sizing Recipe')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Record Chemical Consumption for Sizing')} icon={Check}>
+                        ) },
+                                { id: 'chemical-consumption', title: t('Record Chemical Consumption for Sizing'), icon: Check, status: warpStatuses[5], count: chemicalConsumptions.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             chemicalConsumptionForm.post(route('textile.manufacturing.chemical-consumptions.store'), {
@@ -628,8 +777,9 @@ export default function Index({
                             <Button type="submit" disabled={chemicalConsumptionForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Consumption')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Record Beam Inspection')} icon={Check}>
+                        ) },
+                                { id: 'beam-inspection', title: t('Record Beam Inspection'), icon: Check, status: warpStatuses[6], count: beamInspections.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             beamInspectionForm.post(route('textile.manufacturing.beam-inspections.store'), {
@@ -662,8 +812,9 @@ export default function Index({
                             <Button type="submit" disabled={beamInspectionForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Beam Inspection')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Record Beam Cost')} icon={Check}>
+                        ) },
+                                { id: 'beam-cost', title: t('Record Beam Cost'), icon: Check, status: warpStatuses[7], count: beamCosts.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             beamCostForm.post(route('textile.manufacturing.beam-costs.store'), {
@@ -711,7 +862,47 @@ export default function Index({
                             <Button type="submit" disabled={beamCostForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Beam Cost')}</Button>
                         </form>
                     </TextileFormCard>
+                        ) },
+                            ];
 
+                            const warpPlanningStepIds = new Set<string>(['warp-plan', 'allocate-yarn', 'beam-inspection', 'beam-cost']);
+                            if (showInternalWarpingFlow) {
+                                warpPlanningStepIds.add('warp-sheet');
+                                warpPlanningStepIds.add('warp-production');
+                            }
+                            if (canManufacturingSizing) {
+                                warpPlanningStepIds.add('sizing-recipe');
+                                warpPlanningStepIds.add('chemical-consumption');
+                            }
+
+                            const visibleWarpStepsBase = steps.filter((step) => warpPlanningStepIds.has(step.id));
+                            const visibleWarpStatuses = workflowStepStatuses(visibleWarpStepsBase.map((step) => Number(step.count ?? 0)));
+                            const visibleWarpStepsWithStatus = visibleWarpStepsBase.map((step, index) => step.status
+                                ? { ...step, status: visibleWarpStatuses[index] }
+                                : step);
+
+                            const firstIncompleteIndex = visibleWarpStepsWithStatus.findIndex((step) => step.status !== 'completed');
+                            const visibleStepCount = firstIncompleteIndex === -1
+                                ? visibleWarpStepsWithStatus.length
+                                : Math.max(3, Math.min(visibleWarpStepsWithStatus.length, firstIncompleteIndex + 2));
+                            const visibleWarpSteps = showAllWarpSteps
+                                ? visibleWarpStepsWithStatus
+                                : visibleWarpStepsWithStatus.slice(0, visibleStepCount);
+
+                            return (
+                                <div className="space-y-6">
+                                    <div className="flex justify-end">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setShowAllWarpSteps((prev) => !prev)}
+                                        >
+                                            {showAllWarpSteps ? t('Show Fewer Steps') : t('Show All Steps')}
+                                        </Button>
+                                    </div>
+                                    <TextileWorkflowSteps steps={visibleWarpSteps} openId={openStep} onOpenChange={setOpenStep} records={
+                                    <div className="grid gap-6 xl:grid-cols-2">
                     <TextileDataTableSection
                         title={t('Warp Plan Records')}
                         data={warpPlans}
@@ -743,26 +934,30 @@ export default function Index({
                         columns={createTextileWorkflowColumns(t)}
                         emptyState={<NoRecordsFound icon={Factory} title={t('No warp production found')} description={t('Create warp production entries from completed warp sheets.')} />}
                     />
-                    <TextileDataTableSection
-                        title={t('Sizing Recipe Records')}
-                        data={sizingRecipes}
-                        columns={createTextileWorkflowColumns(t)}
-                        emptyState={<NoRecordsFound icon={Factory} title={t('No sizing recipe found')} description={t('Create sizing recipe entries from completed warp production.')} />}
-                    />
-                    <TextileDataTableSection
-                        title={t('Chemical Consumption Records')}
-                        data={chemicalConsumptions}
-                        columns={[
-                            { key: 'document_number', header: t('Number') },
-                            { key: 'source_reference_id', header: t('Sizing Recipe ID') },
-                            { key: 'chemical_type', header: t('Chemical'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.chemical_type ?? '')) },
-                            { key: 'composition_percent', header: t('Composition %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.composition_percent ?? '-') },
-                            { key: 'quantity', header: t('Consumption Qty') },
-                            { key: 'unit', header: t('Unit') },
-                            { key: 'status', header: t('Status') },
-                        ]}
-                        emptyState={<NoRecordsFound icon={Factory} title={t('No chemical consumption found')} description={t('Record chemical composition and consumption from completed sizing recipes.')} />}
-                    />
+                    {canManufacturingSizing ? (
+                        <>
+                            <TextileDataTableSection
+                                title={t('Sizing Recipe Records')}
+                                data={sizingRecipes}
+                                columns={createTextileWorkflowColumns(t)}
+                                emptyState={<NoRecordsFound icon={Factory} title={t('No sizing recipe found')} description={t('Create sizing recipe entries from completed warp production.')} />}
+                            />
+                            <TextileDataTableSection
+                                title={t('Chemical Consumption Records')}
+                                data={chemicalConsumptions}
+                                columns={[
+                                    { key: 'document_number', header: t('Number') },
+                                    { key: 'source_reference_id', header: t('Sizing Recipe ID') },
+                                    { key: 'chemical_type', header: t('Chemical'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.chemical_type ?? '')) },
+                                    { key: 'composition_percent', header: t('Composition %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.composition_percent ?? '-') },
+                                    { key: 'quantity', header: t('Consumption Qty') },
+                                    { key: 'unit', header: t('Unit') },
+                                    { key: 'status', header: t('Status') },
+                                ]}
+                                emptyState={<NoRecordsFound icon={Factory} title={t('No chemical consumption found')} description={t('Record chemical composition and consumption from completed sizing recipes.')} />}
+                            />
+                        </>
+                    ) : null}
                     <TextileDataTableSection
                         title={t('Beam Inspection Records')}
                         data={beamInspections}
@@ -808,12 +1003,78 @@ export default function Index({
                         ]}
                         emptyState={<NoRecordsFound icon={Factory} title={t('No beam cost found')} description={t('Record beam cost entries from completed beams.')} />}
                     />
-                </div>
-                </TabsContent> : null}
+                    </div>
+                        } />
+                                </div>
+                            );
+                        }
 
-                {validSections.has('beam-batch') ? <TabsContent value="beam-batch">
-                <div className="grid gap-6 xl:grid-cols-2">
-                    <TextileFormCard title={t('Create Beam')} icon={Factory}>
+                case 'beam-batch': {
+                const batchStatuses = workflowStepStatuses([
+                    beamBatchBeams.length,
+                    beamBatchProductionBatches.length,
+                    sizingRecipes.length,
+                    beamIssues.length,
+                    beamReturns.length,
+                ]);
+                const steps: WorkflowStep[] = [
+                    { id: 'beam', title: beamCreateStepTitle, icon: Factory, status: batchStatuses[0], count: beamBatchBeams.length, form: (
+                        <TextileFormCard showHeader={false}>
+                            {useVendorSizingFlow ? (
+                            <form className="space-y-3" onSubmit={(e) => {
+                                e.preventDefault();
+                                vendorBeamReceiptForm.post(route('textile.manufacturing.beams.from-yarn-allocation'), {
+                                    onSuccess: () => {
+                                        vendorBeamReceiptForm.reset();
+                                        setBeamReceiptVendor('');
+                                    },
+                                });
+                            }}>
+                                <SelectField
+                                    label={t('Sizing Vendor')}
+                                    value={beamReceiptVendor}
+                                    onChange={(value) => {
+                                        setBeamReceiptVendor(value);
+                                        vendorBeamReceiptForm.setData({ yarn_allocation_id: '', quantity: '' });
+                                    }}
+                                    options={beamReceiptVendorOptions}
+                                    includeEmpty
+                                    emptyLabel={t('Select sizing vendor')}
+                                    helperText={t('Only vendors with unreceived yarn dispatches are listed.')}
+                                    disabled={beamReceiptVendorOptions.length === 0}
+                                    disabledReason={t('No unreceived yarn issue found. Issue yarn to a sizing vendor first.')}
+                                    required
+                                />
+                                <SelectField
+                                    label={t('Dispatched Yarn Lot')}
+                                    value={vendorBeamReceiptForm.data.yarn_allocation_id}
+                                    onChange={(value) => {
+                                        const allocation = vendorYarnAllocations.find((row) => String(row.id) === value);
+                                        vendorBeamReceiptForm.setData({
+                                            yarn_allocation_id: value,
+                                            quantity: allocation?.quantity ?? '',
+                                        });
+                                    }}
+                                    options={vendorYarnLotOptions}
+                                    includeEmpty
+                                    emptyLabel={beamReceiptVendor ? t('Select dispatched yarn lot') : t('Select vendor first')}
+                                    helperText={t('Only yarn lots dispatched to the selected vendor are listed.')}
+                                    disabled={!beamReceiptVendor || vendorYarnLotOptions.length === 0}
+                                    disabledReason={beamReceiptVendor ? t('No unreceived yarn lot found for this vendor.') : t('Select a sizing vendor first.')}
+                                    required
+                                />
+                                <Field
+                                    label={`${t('Returned Beam Quantity')}${selectedBeamReceiptAllocation?.unit ? ` (${selectedBeamReceiptAllocation.unit})` : ''}`}
+                                    type="number"
+                                    value={vendorBeamReceiptForm.data.quantity}
+                                    onChange={(value) => vendorBeamReceiptForm.setData('quantity', value)}
+                                    max={selectedBeamReceiptAllocation?.quantity}
+                                    step="0.01"
+                                    required
+                                />
+                                <Button type="submit" disabled={vendorBeamReceiptForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{beamCreateButtonLabel}</Button>
+                            </form>
+                            ) : (
                             <form className="space-y-3" onSubmit={(e) => {
                                 e.preventDefault();
                                 beamForm.post(route('textile.manufacturing.beams.store'), {
@@ -838,7 +1099,7 @@ export default function Index({
                                     options={resolvedSourceActionOptions}
                                     includeEmpty
                                     emptyLabel={t('Select source action')}
-                                    helperText={t('Source actions are managed from Master Setup > Manufacturing Setup > Source Actions.')}
+                                    helperText={beamCreateHelperText}
                                     required
                                 />
                                 <SelectField
@@ -876,11 +1137,13 @@ export default function Index({
                                         helperText={t('Units are derived from Unit Conversion master.')}
                                     />
                                 </div>
-                                <Button type="submit" disabled={beamForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Beam')}</Button>
+                                <Button type="submit" disabled={beamForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{beamCreateButtonLabel}</Button>
                             </form>
+                            )}
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Create Batch from Approved Beam')} icon={Check}>
+                        ) },
+                    { id: 'batch', title: t('Create Batch from Approved Beam'), icon: Check, status: batchStatuses[1], count: beamBatchProductionBatches.length, form: (
+                        <TextileFormCard showHeader={false}>
                             <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
                                 e.preventDefault();
                                 batchForm.post(route('textile.manufacturing.batches.store'), {
@@ -891,19 +1154,20 @@ export default function Index({
                                     label={t('Create Batch from Approved Beam')}
                                     value={batchForm.data.beam_id}
                                     onChange={(v) => batchForm.setData('beam_id', v)}
-                                    options={createTextileWorkflowSelectOptions(approvedBeams)}
+                                    options={createTextileWorkflowSelectOptions(beamBatchApprovedBeams)}
                                     includeEmpty
                                     emptyLabel={t('Select approved beam')}
                                     helperText={t('Only approved beams are listed.')}
-                                    disabled={approvedBeams.length === 0}
+                                    disabled={beamBatchApprovedBeams.length === 0}
                                     disabledReason={t('No approved beam found. Approve a beam first.')}
                                     required
                                 />
                                 <Button type="submit" disabled={batchForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Batch')}</Button>
                             </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Create Beam from Sizing Recipe')} icon={Check}>
+                        ) },
+                    { id: 'beam-from-sizing', title: t('Create Beam from Sizing Recipe'), icon: Check, status: batchStatuses[2], count: sizingRecipes.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
                             e.preventDefault();
                             sizingRecipeBeamForm.post(route('textile.manufacturing.beams.from-sizing-recipe'), {
@@ -925,8 +1189,9 @@ export default function Index({
                             <Button type="submit" disabled={sizingRecipeBeamForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Beam')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Create Beam Issue')} icon={Check}>
+                        ) },
+                    { id: 'beam-issue', title: t('Create Beam Issue'), icon: Check, status: batchStatuses[3], count: beamIssues.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
                             e.preventDefault();
                             beamIssueForm.post(route('textile.manufacturing.beam-issues.store'), {
@@ -948,8 +1213,9 @@ export default function Index({
                             <Button type="submit" disabled={beamIssueForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Beam Issue')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Create Beam Return')} icon={Check}>
+                        ) },
+                    { id: 'beam-return', title: t('Create Beam Return'), icon: Check, status: batchStatuses[4], count: beamReturns.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
                             e.preventDefault();
                             beamReturnForm.post(route('textile.manufacturing.beam-returns.store'), {
@@ -971,23 +1237,50 @@ export default function Index({
                             <Button type="submit" disabled={beamReturnForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Beam Return')}</Button>
                         </form>
                     </TextileFormCard>
+                        ) },
+                ];
 
+                const beamBatchStepIds = new Set<string>(useVendorSizingFlow
+                    ? ['beam', 'batch']
+                    : ['beam', 'batch', 'beam-issue', 'beam-return']);
+                if (!useVendorSizingFlow && canManufacturingSizing) {
+                    beamBatchStepIds.add('beam-from-sizing');
+                }
+
+                const visibleBeamBatchStepsBase = steps.filter((step) => beamBatchStepIds.has(step.id));
+                const visibleBeamBatchStatuses = workflowStepStatuses(visibleBeamBatchStepsBase.map((step) => Number(step.count ?? 0)));
+                const visibleBeamBatchSteps = visibleBeamBatchStepsBase.map((step, index) => step.status
+                    ? { ...step, status: visibleBeamBatchStatuses[index] }
+                    : step);
+                const activeBeamBatchStepId = visibleBeamBatchSteps.some((step) => step.id === openStep)
+                    ? openStep
+                    : visibleBeamBatchSteps[0]?.id;
+
+                return (
+                    <div className="space-y-6">
+                        <TextileWorkflowSteps steps={visibleBeamBatchSteps} openId={openStep} onOpenChange={setOpenStep} records={
+                        <div className="grid gap-6 xl:grid-cols-2">
+                    {(activeBeamBatchStepId === 'beam' || activeBeamBatchStepId === 'beam-from-sizing') &&
                     <TextileDataTableSection
-                        title={t('Beam Records')}
-                        data={beams}
-                        columns={createTextileWorkflowColumns(t, {
-                            actions: createTextileWorkflowActions([
-                                {
-                                    statuses: textileActionableStatuses.draft,
-                                    actions: [{ label: t('Approve'), icon: Check, onClick: (row) => approveBeam(row.id) }],
-                                },
-                            ]),
-                        })}
-                        emptyState={<NoRecordsFound icon={Factory} title={t('No beams found')} description={t('Create beams from approved operational sources.')} />}
-                    />
+                        title={useVendorSizingFlow ? t('Received Beam Records') : t('Beam Records')}
+                        data={beamBatchBeams}
+                        columns={[
+                            ...createTextileWorkflowColumns(t, {
+                                actions: createTextileWorkflowActions([
+                                    {
+                                        statuses: textileActionableStatuses.draft,
+                                        actions: [{ label: t('Approve'), icon: Check, onClick: (row) => approveBeam(row.id) }],
+                                    },
+                                ]),
+                            }),
+                            ...(!useVendorSizingFlow ? [{ key: 'beam_origin', header: t('Origin'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(row.source_reference_type === 'textile_workflow_document' ? 'own' : 'rent') }] : []),
+                        ]}
+                        emptyState={<NoRecordsFound icon={Factory} title={t('No received beams found')} description={t('Receive a beam from a sizing vendor first.')} />}
+                    />}
+                    {activeBeamBatchStepId === 'batch' &&
                     <TextileDataTableSection
                         title={t('Production Batch Records')}
-                        data={productionBatches}
+                        data={beamBatchProductionBatches}
                         columns={createTextileWorkflowColumns(t, {
                             actions: createTextileWorkflowActions([
                                 {
@@ -997,52 +1290,34 @@ export default function Index({
                             ]),
                         })}
                         emptyState={<NoRecordsFound icon={Factory} title={t('No production batches found')} description={t('Create batches from approved beams.')} />}
-                    />
+                    />}
+                    {!useVendorSizingFlow && activeBeamBatchStepId === 'beam-issue' && <>
                     <TextileDataTableSection
                         title={t('Beam Issue Records')}
                         data={beamIssues}
                         columns={createTextileWorkflowColumns(t)}
                         emptyState={<NoRecordsFound icon={Factory} title={t('No beam issues found')} description={t('Create beam issue entries from approved beams.')} />}
                     />
+                    </>}
+                    {!useVendorSizingFlow && activeBeamBatchStepId === 'beam-return' && <>
                     <TextileDataTableSection
                         title={t('Beam Return Records')}
                         data={beamReturns}
                         columns={createTextileWorkflowColumns(t)}
                         emptyState={<NoRecordsFound icon={Factory} title={t('No beam returns found')} description={t('Create beam return entries from completed beam issues.')} />}
                     />
-                    <TextileDataTableSection
-                        title={t('Remaining Beam Summary')}
-                        data={remainingBeamRows}
-                        columns={[
-                            { key: 'document_number', header: t('Beam') },
-                            { key: 'issued_quantity', header: t('Issued Qty') },
-                            { key: 'returned_quantity', header: t('Returned Qty') },
-                            { key: 'remaining_quantity', header: t('Remaining Qty') },
-                            { key: 'unit', header: t('Unit') },
-                        ]}
-                        emptyState={<NoRecordsFound icon={Factory} title={t('No beam summary found')} description={t('Create beams and beam issues to track remaining quantity.')} />}
-                    />
-                    <TextileDataTableSection
-                        title={t('Beam History')}
-                        data={beamHistoryRows}
-                        columns={[
-                            { key: 'event_type', header: t('Event') },
-                            { key: 'event_number', header: t('Document') },
-                            { key: 'beam_number', header: t('Beam') },
-                            { key: 'source_number', header: t('Source') },
-                            { key: 'quantity', header: t('Qty') },
-                            { key: 'unit', header: t('Unit') },
-                            { key: 'status', header: t('Status') },
-                            { key: 'event_time', header: t('Date/Time') },
-                        ]}
-                        emptyState={<NoRecordsFound icon={Factory} title={t('No beam history found')} description={t('Create beam issues and returns to build beam history.')} />}
-                    />
-                </div>
-                </TabsContent> : null}
+                    </>}
+                    </div>
+                        } />
+                    </div>
+                );
+                }
 
-                {validSections.has('loom-management') ? <TabsContent value="loom-management">
-                <div className="grid gap-6 xl:grid-cols-2">
-                    <TextileFormCard title={t('Register Loom Master')} icon={Factory}>
+                case 'loom-management': {
+                const loomStatus = loomMasters.length > 0 ? 'completed' : 'pending';
+                const steps: WorkflowStep[] = [
+                    { id: 'register-loom', title: t('Register Loom Master'), icon: Factory, status: loomStatus, count: loomMasters.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             loomMasterForm.post(route('textile.manufacturing.loom-masters.store'), {
@@ -1127,8 +1402,9 @@ export default function Index({
                             <Button type="submit" disabled={loomMasterForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Register Loom')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Record Loom Breakdown')} icon={Check}>
+                        ) },
+                    { id: 'loom-breakdown', title: t('Record Loom Breakdown'), icon: Check, count: loomBreakdowns.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             loomBreakdownForm.post(route('textile.manufacturing.loom-breakdowns.store'), {
@@ -1187,8 +1463,9 @@ export default function Index({
                             <Button type="submit" disabled={loomBreakdownForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Breakdown')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Record Loom Maintenance')} icon={Check}>
+                        ) },
+                    { id: 'loom-maintenance', title: t('Record Loom Maintenance'), icon: Check, count: loomMaintenances.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             loomMaintenanceForm.post(route('textile.manufacturing.loom-maintenances.store'), {
@@ -1247,18 +1524,30 @@ export default function Index({
                             <Button type="submit" disabled={loomMaintenanceForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Maintenance')}</Button>
                         </form>
                     </TextileFormCard>
-
+                        ) },
+                ];
+                return (
+                    <div className="space-y-6">
+                        <TextileWorkflowSteps steps={steps} openId={openStep} onOpenChange={setOpenStep} records={
+                        <div className="grid gap-6 xl:grid-cols-2">
                     <TextileDataTableSection
                         title={t('Loom Master Records')}
                         data={loomMasters}
                         columns={[
                             { key: 'document_number', header: t('Number') },
                             { key: 'party_name', header: t('Loom') },
+                            { key: 'machine_name', header: t('Machine'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.machine_name ?? '-') },
                             { key: 'lot_reference', header: t('Machine Type') },
                             { key: 'quantity', header: t('RPM') },
                             { key: 'width', header: t('Width'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.width ?? '-') },
                             { key: 'shed_type', header: t('Shed'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.shed_type ?? '')) },
                             { key: 'loom_status', header: t('Status'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.loom_status ?? '')) },
+                            { key: 'efficiency_percent', header: t('Efficiency %'), render: (_value: unknown, row: WorkflowDocument) => {
+                                const efficiency = loomEfficiencyByLoom.get(row.document_number);
+                                return efficiency !== undefined ? `${efficiency}%` : '—';
+                            } },
+                            { key: 'breakdown_count', header: t('Breakdowns'), render: (_value: unknown, row: WorkflowDocument) => loomBreakdowns.filter((r) => r.source_reference_id === row.id).length },
+                            { key: 'maintenance_count', header: t('Maintenance'), render: (_value: unknown, row: WorkflowDocument) => loomMaintenances.filter((r) => r.source_reference_id === row.id).length },
                             { key: 'running_hours', header: t('Running Hrs'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.running_hours ?? '-') },
                             { key: 'idle_hours', header: t('Idle Hrs'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.idle_hours ?? '-') },
                             { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') },
@@ -1291,12 +1580,173 @@ export default function Index({
                         ]}
                         emptyState={<NoRecordsFound icon={Factory} title={t('No loom maintenance records found')} description={t('Record loom maintenance to track machine care and uptime stability.')} />}
                     />
-                </div>
-                </TabsContent> : null}
+                    </div>
+                        } />
+                    </div>
+                );
+                }
 
-                {validSections.has('machine-planning') ? <TabsContent value="machine-planning">
-                <div className="grid gap-6 xl:grid-cols-2">
-                    <TextileFormCard title={t('Create Production Calendar')} icon={Factory}>
+                case 'machine-planning': {
+                const assignmentSteps: WorkflowStep[] = [
+                    { id: 'production-assignment', title: t('Assign Beam for Production'), icon: Factory, count: productionAssignments.length, form: (
+                        <TextileFormCard showHeader={false}>
+                            <form className="space-y-3" onSubmit={(event) => {
+                                event.preventDefault();
+                                productionAssignmentForm.post(route('textile.manufacturing.production-assignments.store'), {
+                                    onSuccess: () => productionAssignmentForm.reset(),
+                                });
+                            }}>
+                                <SelectField
+                                    label={t('Released Production Batch')}
+                                    value={productionAssignmentForm.data.batch_id}
+                                    onChange={(value) => {
+                                        const batch = assignableBatches.find((row) => String(row.id) === value);
+                                        productionAssignmentForm.setData((data) => ({ ...data, batch_id: value, assigned_quantity: batch?.quantity ?? '' }));
+                                    }}
+                                    options={createTextileWorkflowSelectOptions(assignableBatches)}
+                                    includeEmpty
+                                    emptyLabel={t('Select released production batch')}
+                                    helperText={t('Uses Production Batch Records released from Beam and Batch.')}
+                                    disabled={assignableBatches.length === 0}
+                                    disabledReason={t('No unassigned released production batch found.')}
+                                    required
+                                />
+                                <SelectField
+                                    label={t('Production Mode')}
+                                    value={productionAssignmentForm.data.production_mode}
+                                    onChange={(value) => productionAssignmentForm.setData((data) => ({ ...data, production_mode: value, loom_allocations: [{ loom_master_id: '', quantity: '' }], powerloom_vendor_id: '', operator_name: '' }))}
+                                    options={[
+                                        { value: 'own_unit', label: t('Own Production Unit') },
+                                        { value: 'powerloom_vendor', label: t('Third-Party Powerloom') },
+                                    ]}
+                                    required
+                                />
+                                {productionAssignmentForm.data.production_mode === 'own_unit' ? <>
+                                    <div className="space-y-2">
+                                        {productionAssignmentForm.data.loom_allocations.map((allocation, index) => {
+                                            const selectedLoomIds = new Set(productionAssignmentForm.data.loom_allocations.map((row) => row.loom_master_id).filter(Boolean));
+                                            const loomOptions = createTextileWorkflowSelectOptions(actionableLoomMasters).map((option) => ({
+                                                ...option,
+                                                disabled: option.value !== allocation.loom_master_id && selectedLoomIds.has(option.value),
+                                            }));
+                                            return (
+                                                <div key={index} className="grid grid-cols-[1fr_180px_40px] gap-2">
+                                                    <SelectField
+                                                        label={index === 0 ? t('Branch Looms') : t('Loom')}
+                                                        value={allocation.loom_master_id}
+                                                        onChange={(value) => {
+                                                            const allocations = [...productionAssignmentForm.data.loom_allocations];
+                                                            allocations[index] = { ...allocation, loom_master_id: value };
+                                                            productionAssignmentForm.setData('loom_allocations', allocations);
+                                                        }}
+                                                        options={loomOptions}
+                                                        includeEmpty
+                                                        emptyLabel={t('Select branch loom')}
+                                                        disabled={actionableLoomMasters.length === 0}
+                                                        disabledReason={t('No active loom found in this branch.')}
+                                                        required
+                                                    />
+                                                    <Field
+                                                        label={index === 0 ? t('Allocated Qty') : t('Quantity')}
+                                                        type="number"
+                                                        value={allocation.quantity}
+                                                        onChange={(value) => {
+                                                            const allocations = [...productionAssignmentForm.data.loom_allocations];
+                                                            allocations[index] = { ...allocation, quantity: value };
+                                                            productionAssignmentForm.setData('loom_allocations', allocations);
+                                                        }}
+                                                        step="0.01"
+                                                        required
+                                                    />
+                                                    <Button type="button" variant="outline" className="mt-6 h-10 w-10 p-0" disabled={productionAssignmentForm.data.loom_allocations.length === 1} onClick={() => productionAssignmentForm.setData('loom_allocations', productionAssignmentForm.data.loom_allocations.filter((_row, rowIndex) => rowIndex !== index))} title={t('Remove loom')}>
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            );
+                                        })}
+                                        <div className="flex items-center justify-between gap-3">
+                                            <Button type="button" variant="outline" onClick={() => productionAssignmentForm.setData('loom_allocations', [...productionAssignmentForm.data.loom_allocations, { loom_master_id: '', quantity: '' }])}>
+                                                <Plus className="mr-2 h-4 w-4" />{t('Add Loom')}
+                                            </Button>
+                                            <p className="text-sm text-muted-foreground">
+                                                {t('Allocated')}: {productionAssignmentForm.data.loom_allocations.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0).toFixed(2)} / {Number(productionAssignmentForm.data.assigned_quantity || 0).toFixed(2)}
+                                                {' · '}
+                                                {(() => {
+                                                    const difference = Number(productionAssignmentForm.data.assigned_quantity || 0) - productionAssignmentForm.data.loom_allocations.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
+                                                    return difference >= 0 ? `${difference.toFixed(2)} ${t('remaining')}` : `${Math.abs(difference).toFixed(2)} ${t('over')}`;
+                                                })()}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <SelectField label={t('Shift')} value={productionAssignmentForm.data.planned_shift} onChange={(value) => productionAssignmentForm.setData('planned_shift', value)} options={resolvedShiftOptions} required />
+                                        <SelectField label={t('Operator')} value={productionAssignmentForm.data.operator_name} onChange={(value) => productionAssignmentForm.setData('operator_name', value)} options={resolvedOperatorOptions} includeEmpty emptyLabel={t('Select operator')} />
+                                    </div>
+                                </> : (
+                                    <SelectField
+                                        label={t('Powerloom Vendor')}
+                                        value={productionAssignmentForm.data.powerloom_vendor_id}
+                                        onChange={(value) => productionAssignmentForm.setData('powerloom_vendor_id', value)}
+                                        options={powerloomVendorOptions}
+                                        includeEmpty
+                                        emptyLabel={t('Select powerloom vendor')}
+                                        helperText={<a className="font-medium text-emerald-700 underline-offset-2 hover:underline" href={route('account.vendors.index', { supplier_type: 'powerloom' })}>{t('Manage powerloom vendors')}</a>}
+                                        disabled={powerloomVendorOptions.length === 0}
+                                        disabledReason={<a className="font-medium text-emerald-700 underline-offset-2 hover:underline" href={route('account.vendors.index', { supplier_type: 'powerloom' })}>{t('Add a powerloom vendor first')}</a>}
+                                        required
+                                    />
+                                )}
+                                <div className="grid grid-cols-3 gap-3">
+                                    <Field label={t('Assigned Quantity')} type="number" value={productionAssignmentForm.data.assigned_quantity} onChange={(value) => productionAssignmentForm.setData('assigned_quantity', value)} step="0.01" required />
+                                    <Field label={t('Assignment Date')} type="date" value={productionAssignmentForm.data.assignment_date} onChange={(value) => productionAssignmentForm.setData('assignment_date', value)} required />
+                                    <Field label={t('Expected Completion')} type="date" value={productionAssignmentForm.data.expected_completion_date} onChange={(value) => productionAssignmentForm.setData('expected_completion_date', value)} />
+                                </div>
+                                <Field label={t('Notes')} value={productionAssignmentForm.data.notes} onChange={(value) => productionAssignmentForm.setData('notes', value)} />
+                                <Button
+                                    type="submit"
+                                    disabled={productionAssignmentForm.processing || (productionAssignmentForm.data.production_mode === 'own_unit' && Math.abs(productionAssignmentForm.data.loom_allocations.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0) - Number(productionAssignmentForm.data.assigned_quantity || 0)) > 0.01)}
+                                    className="w-full"
+                                ><Plus className="mr-2 h-4 w-4" />{t('Assign Beam for Production')}</Button>
+                            </form>
+                        </TextileFormCard>
+                    ) },
+                ];
+
+                return (
+                    <div className="space-y-6">
+                        <TextileWorkflowSteps steps={assignmentSteps} openId={openStep} onOpenChange={setOpenStep} records={
+                            <TextileDataTableSection
+                                title={t('Production Assignment Records')}
+                                data={productionAssignments}
+                                columns={[
+                                    { key: 'document_number', header: t('Assignment') },
+                                    { key: 'batch_number', header: t('Production Batch'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.batch_number ?? '-') },
+                                    { key: 'production_mode', header: t('Mode'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.production_mode ?? '')) },
+                                    { key: 'party_name', header: t('Unit / Vendor') },
+                                    { key: 'lot_reference', header: t('Beam Lot') },
+                                    { key: 'quantity', header: t('Assigned Qty') },
+                                    { key: 'unit', header: t('Unit') },
+                                    { key: 'assignment_date', header: t('Assigned'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.assignment_date ?? '-') },
+                                    { key: 'expected_completion_date', header: t('Expected'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.expected_completion_date ?? '-') },
+                                    { key: 'status', header: t('Status') },
+                                ]}
+                                emptyState={<NoRecordsFound icon={Factory} title={t('No production assignments found')} description={t('Assign a released production batch to an own loom or powerloom vendor.')} />}
+                            />
+                        } />
+                    </div>
+                );
+
+                const planningStatuses = workflowStepStatuses([
+                    productionCalendars.length,
+                    capacityPlans.length,
+                    shiftPlans.length,
+                    machinePlans.length,
+                    materialPlans.length,
+                    productionSchedules.length,
+                ]);
+                const steps: WorkflowStep[] = [
+                    { id: 'production-calendar', title: t('Create Production Calendar'), icon: Factory, status: planningStatuses[0], count: productionCalendars.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             productionCalendarForm.post(route('textile.manufacturing.production-calendars.store'), {
@@ -1312,8 +1762,9 @@ export default function Index({
                             <Button type="submit" disabled={productionCalendarForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Calendar Entry')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Create Capacity Plan')} icon={Factory}>
+                        ) },
+                    { id: 'capacity-plan', title: t('Create Capacity Plan'), icon: Factory, status: planningStatuses[1], count: capacityPlans.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             capacityPlanForm.post(route('textile.manufacturing.capacity-plans.store'), {
@@ -1337,8 +1788,9 @@ export default function Index({
                             <Button type="submit" disabled={capacityPlanForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Capacity Plan')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Create Shift Plan')} icon={Factory}>
+                        ) },
+                    { id: 'shift-plan', title: t('Create Shift Plan'), icon: Factory, status: planningStatuses[2], count: shiftPlans.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             shiftPlanForm.post(route('textile.manufacturing.shift-plans.store'), {
@@ -1359,8 +1811,9 @@ export default function Index({
                             <Button type="submit" disabled={shiftPlanForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Shift Plan')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Create Machine Plan')} icon={Factory}>
+                        ) },
+                    { id: 'machine-plan', title: t('Create Machine Plan'), icon: Factory, status: planningStatuses[3], count: machinePlans.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             machinePlanForm.post(route('textile.manufacturing.machine-plans.store'), {
@@ -1428,8 +1881,9 @@ export default function Index({
                             <Button type="submit" disabled={machinePlanForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Machine Plan')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Create Material Plan')} icon={Factory}>
+                        ) },
+                    { id: 'material-plan', title: t('Create Material Plan'), icon: Factory, status: planningStatuses[4], count: materialPlans.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             materialPlanForm.post(route('textile.manufacturing.material-plans.store'), {
@@ -1446,8 +1900,9 @@ export default function Index({
                             <Button type="submit" disabled={materialPlanForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Material Plan')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Create Production Schedule')} icon={Factory}>
+                        ) },
+                    { id: 'production-schedule', title: t('Create Production Schedule'), icon: Factory, status: planningStatuses[5], count: productionSchedules.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             productionScheduleForm.post(route('textile.manufacturing.production-schedules.store'), {
@@ -1469,7 +1924,12 @@ export default function Index({
                             <Button type="submit" disabled={productionScheduleForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Production Schedule')}</Button>
                         </form>
                     </TextileFormCard>
-
+                        ) },
+                ];
+                return (
+                    <div className="space-y-6">
+                        <TextileWorkflowSteps steps={steps} openId={openStep} onOpenChange={setOpenStep} records={
+                        <div className="grid gap-6 xl:grid-cols-2">
                     <TextileDataTableSection
                         title={t('Production Calendar Records')}
                         data={productionCalendars}
@@ -1559,12 +2019,171 @@ export default function Index({
                         ]}
                         emptyState={<NoRecordsFound icon={Factory} title={t('No production schedules found')} description={t('Create production schedules to lock loom, beam, date, shift, and quantity commitments.')} />}
                     />
-                </div>
-                </TabsContent> : null}
+                    </div>
+                        } />
+                    </div>
+                );
+                }
 
-                {validSections.has('weaving-output') ? <TabsContent value="weaving-output">
-                <div className="grid gap-6 xl:grid-cols-2">
-                    <TextileFormCard title={t('Record Weaving Output')} icon={Factory}>
+                case 'weaving-output': {
+                const selectedProductionAssignment = openProductionAssignments.find((row) => String(row.id) === takhaEntryForm.data.production_assignment_id);
+                const selectedAssignmentMode = String(selectedProductionAssignment?.metadata?.production_mode ?? '');
+                const selectedLoomAllocations = ((selectedProductionAssignment?.metadata?.loom_allocations as Array<{ loom_master_id: number; loom_number: string; loom_name?: string; quantity: number }> | undefined) ?? []);
+                const selectedLoomOptions = selectedLoomAllocations.map((allocation) => {
+                    const recorded = takhaEntries
+                        .filter((row) => Number(row.source_reference_id) === selectedProductionAssignment?.id && Number(row.metadata?.loom_master_id) === allocation.loom_master_id)
+                        .reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
+                    const remaining = Number(allocation.quantity) - recorded;
+                    return {
+                        value: String(allocation.loom_master_id),
+                        label: `${allocation.loom_number}${allocation.loom_name ? ` | ${allocation.loom_name}` : ''} | ${remaining.toFixed(2)} ${selectedProductionAssignment?.unit || '-'} remaining`,
+                        disabled: remaining <= 0,
+                    };
+                });
+                const assignmentRecordedQuantity = selectedProductionAssignment ? (takhaQuantityByAssignment.get(selectedProductionAssignment.id) ?? 0) : 0;
+                const assignmentRemainingQuantity = selectedProductionAssignment ? (Number(selectedProductionAssignment.quantity) || 0) - assignmentRecordedQuantity : 0;
+                const selectedLoomAllocation = selectedLoomAllocations.find((allocation) => String(allocation.loom_master_id) === takhaEntryForm.data.loom_master_id);
+                const selectedLoomRecordedQuantity = selectedProductionAssignment && selectedLoomAllocation
+                    ? takhaEntries.filter((row) => Number(row.source_reference_id) === selectedProductionAssignment.id && Number(row.metadata?.loom_master_id) === selectedLoomAllocation.loom_master_id).reduce((sum, row) => sum + (Number(row.quantity) || 0), 0)
+                    : 0;
+                const availableTakhaQuantity = selectedAssignmentMode === 'own_unit'
+                    ? Math.max(0, Number(selectedLoomAllocation?.quantity ?? 0) - selectedLoomRecordedQuantity)
+                    : Math.max(0, assignmentRemainingQuantity);
+                const enteredTakhaQuantity = takhaEntryForm.data.takhas.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
+                const enteredTakhaNumbers = takhaEntryForm.data.takhas.map((row) => row.takha_number.trim()).filter(Boolean);
+                const hasDuplicateTakhaNumbers = new Set(enteredTakhaNumbers).size !== enteredTakhaNumbers.length;
+                const takhaSteps: WorkflowStep[] = [
+                    { id: 'takha-entry', title: t('Record / Receive Takha'), icon: Factory, count: takhaEntries.length, form: (
+                        <TextileFormCard showHeader={false}>
+                            <form className="space-y-3" onSubmit={(event) => {
+                                event.preventDefault();
+                                takhaEntryForm.post(route('textile.manufacturing.takha-entries.store'), {
+                                    onSuccess: () => takhaEntryForm.reset('production_assignment_id', 'takha_number', 'quantity', 'takhas', 'production_date', 'loom_master_id', 'operator_name', 'notes'),
+                                });
+                            }}>
+                                <SelectField
+                                    label={t('Production Assignment')}
+                                    value={takhaEntryForm.data.production_assignment_id}
+                                    onChange={(value) => {
+                                        const assignment = openProductionAssignments.find((row) => String(row.id) === value);
+                                        const remaining = assignment ? (Number(assignment.quantity) || 0) - (takhaQuantityByAssignment.get(assignment.id) ?? 0) : 0;
+                                        takhaEntryForm.setData((data) => ({
+                                            ...data,
+                                            production_assignment_id: value,
+                                            quantity: '',
+                                            takhas: [{ takha_number: '', quantity: '' }],
+                                            unit: assignment?.unit ?? 'mtr',
+                                            loom_master_id: '',
+                                            operator_name: '',
+                                        }));
+                                    }}
+                                    options={productionAssignmentOptions}
+                                    includeEmpty
+                                    emptyLabel={t('Select production assignment')}
+                                    helperText={t('Shows branch assignments with unit/vendor and remaining quantity.')}
+                                    disabled={productionAssignmentOptions.length === 0}
+                                    disabledReason={t('No active production assignment with remaining quantity found.')}
+                                    required
+                                />
+                                {selectedProductionAssignment ? (
+                                    <div className="grid grid-cols-3 gap-3 rounded-md border border-border bg-muted/30 p-3 text-sm">
+                                        <div><span className="text-muted-foreground">{t('Mode')}</span><p className="font-medium">{formatTextileLabel(selectedAssignmentMode)}</p></div>
+                                        <div><span className="text-muted-foreground">{selectedAssignmentMode === 'powerloom_vendor' ? t('Powerloom Vendor') : t('Own Unit / Loom')}</span><p className="font-medium">{selectedProductionAssignment.party_name ?? '-'}</p></div>
+                                        <div><span className="text-muted-foreground">{t('Production Batch')}</span><p className="font-medium">{String(selectedProductionAssignment.metadata?.batch_number ?? '-')}</p></div>
+                                    </div>
+                                ) : null}
+                                {selectedAssignmentMode === 'own_unit' ? (
+                                    <SelectField
+                                        label={t('Producing Loom')}
+                                        value={takhaEntryForm.data.loom_master_id}
+                                        onChange={(value) => {
+                                            const option = selectedLoomAllocations.find((allocation) => String(allocation.loom_master_id) === value);
+                                            const recorded = takhaEntries
+                                                .filter((row) => Number(row.source_reference_id) === selectedProductionAssignment?.id && Number(row.metadata?.loom_master_id) === Number(value))
+                                                .reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
+                                            takhaEntryForm.setData((data) => ({ ...data, loom_master_id: value, quantity: '', takhas: [{ takha_number: '', quantity: '' }] }));
+                                        }}
+                                        options={selectedLoomOptions}
+                                        includeEmpty
+                                        emptyLabel={t('Select allocated loom')}
+                                        helperText={t('Only looms allocated to this production assignment are listed.')}
+                                        required
+                                    />
+                                ) : null}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <SelectField label={t('Unit')} value={takhaEntryForm.data.unit} onChange={(value) => takhaEntryForm.setData('unit', value)} options={resolvedUnitOptions} includeEmpty emptyLabel={t('Select unit')} required />
+                                    <Field label={selectedAssignmentMode === 'powerloom_vendor' ? t('Received Date') : t('Production Date')} type="date" value={takhaEntryForm.data.production_date} onChange={(value) => takhaEntryForm.setData('production_date', value)} required />
+                                </div>
+                                {selectedAssignmentMode !== 'powerloom_vendor' ? <SelectField label={t('Operator')} value={takhaEntryForm.data.operator_name} onChange={(value) => takhaEntryForm.setData('operator_name', value)} options={resolvedOperatorOptions} includeEmpty emptyLabel={t('Select operator')} /> : null}
+                                <div className="overflow-hidden rounded-md border border-border">
+                                    <div className="grid grid-cols-[minmax(0,1fr)_110px_84px] gap-2 bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground sm:grid-cols-[minmax(0,1fr)_180px_84px]">
+                                        <span>{t('Takha Number')}</span>
+                                        <span>{t('Quantity')}</span>
+                                        <span className="text-center">{t('Actions')}</span>
+                                    </div>
+                                    {takhaEntryForm.data.takhas.map((takha, index) => <div key={index} className="grid grid-cols-[minmax(0,1fr)_110px_84px] items-center gap-2 border-t border-border px-3 py-2 sm:grid-cols-[minmax(0,1fr)_180px_84px]">
+                                        <Input value={takha.takha_number} placeholder={t('Enter Takha number')} onChange={(event) => {
+                                            const rows = [...takhaEntryForm.data.takhas];
+                                            rows[index] = { ...takha, takha_number: event.target.value };
+                                            takhaEntryForm.setData('takhas', rows);
+                                        }} required />
+                                        <Input type="number" value={takha.quantity} placeholder="0.00" step="0.01" min="0.01" onChange={(event) => {
+                                            const rows = [...takhaEntryForm.data.takhas];
+                                            rows[index] = { ...takha, quantity: event.target.value };
+                                            takhaEntryForm.setData('takhas', rows);
+                                        }} required />
+                                        <div className="flex justify-end gap-1">
+                                            {index === takhaEntryForm.data.takhas.length - 1 ? <Button type="button" variant="outline" className="h-9 w-9 p-0" onClick={() => takhaEntryForm.setData('takhas', [...takhaEntryForm.data.takhas, { takha_number: '', quantity: '' }])} title={t('Add another Takha')}><Plus className="h-4 w-4" /></Button> : null}
+                                            <Button type="button" variant="outline" className="h-9 w-9 p-0" disabled={takhaEntryForm.data.takhas.length === 1} onClick={() => takhaEntryForm.setData('takhas', takhaEntryForm.data.takhas.filter((_row, rowIndex) => rowIndex !== index))} title={t('Remove Takha')}><Trash2 className="h-4 w-4" /></Button>
+                                        </div>
+                                    </div>)}
+                                </div>
+                                <p className="text-right text-sm text-muted-foreground">{t('Entered')}: {enteredTakhaQuantity.toFixed(2)} / {availableTakhaQuantity.toFixed(2)} {takhaEntryForm.data.unit}{hasDuplicateTakhaNumbers ? ` · ${t('Duplicate Takha numbers')}` : ''}</p>
+                                <Field label={t('Notes')} value={takhaEntryForm.data.notes} onChange={(value) => takhaEntryForm.setData('notes', value)} />
+                                <Button type="submit" disabled={takhaEntryForm.processing || enteredTakhaQuantity <= 0 || enteredTakhaQuantity > availableTakhaQuantity + 0.01 || hasDuplicateTakhaNumbers || enteredTakhaNumbers.length !== takhaEntryForm.data.takhas.length} className="w-full"><Plus className="mr-2 h-4 w-4" />{selectedAssignmentMode === 'powerloom_vendor' ? t('Receive Takhas') : t('Record Takhas')}</Button>
+                            </form>
+                        </TextileFormCard>
+                    ) },
+                ];
+
+                return (
+                    <div className="space-y-6">
+                        <TextileWorkflowSteps steps={takhaSteps} openId={openStep} onOpenChange={setOpenStep} records={
+                            <TextileDataTableSection
+                                title={t('Takha Records')}
+                                data={takhaEntries.filter((row) => productionAssignments.some((assignment) => assignment.id === Number(row.source_reference_id)))}
+                                columns={[
+                                    { key: 'document_number', header: t('Number') },
+                                    { key: 'takha_number', header: t('Takha'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.takha_number ?? row.lot_reference ?? '-') },
+                                    { key: 'batch_number', header: t('Production Batch'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.batch_number ?? '-') },
+                                    { key: 'production_mode', header: t('Mode'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.production_mode ?? '')) },
+                                    { key: 'party_name', header: t('Unit / Vendor') },
+                                    { key: 'loom_master_id', header: t('Loom'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.loom_master_id ?? '-') },
+                                    { key: 'quantity', header: t('Qty') },
+                                    { key: 'unit', header: t('Unit') },
+                                    { key: 'production_date', header: t('Produced / Received'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.production_date ?? '-') },
+                                    { key: 'status', header: t('Status') },
+                                ]}
+                                emptyState={<NoRecordsFound icon={Factory} title={t('No Takha records found')} description={t('Record or receive Takha against a production assignment.')} />}
+                            />
+                        } />
+                    </div>
+                );
+
+                const weavingStatuses = workflowStepStatuses([
+                    weavingOutputs.length,
+                    shiftProductions.length,
+                    takhaEntries.length,
+                    loomEfficiencies.length,
+                    operatorEfficiencies.length,
+                    machineDowntimes.length,
+                    productionCosts.length,
+                    greyFabricRolls.length,
+                    greyRollHistories.length,
+                ]);
+                const steps: WorkflowStep[] = [
+                    { id: 'weaving-output', title: t('Record Weaving Output'), icon: Factory, status: weavingStatuses[0], count: weavingOutputs.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="grid grid-cols-4 gap-3" onSubmit={(e) => {
                             e.preventDefault();
                             weavingOutputForm.post(route('textile.manufacturing.weaving-output.store'), {
@@ -1577,8 +2196,9 @@ export default function Index({
                             <Button type="submit" disabled={weavingOutputForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Record Output')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Record Shift Production')} icon={Factory}>
+                        ) },
+                    { id: 'shift-production', title: t('Record Shift Production'), icon: Factory, status: weavingStatuses[1], count: shiftProductions.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             shiftProductionForm.post(route('textile.manufacturing.shift-productions.store'), {
@@ -1599,8 +2219,9 @@ export default function Index({
                             <Button type="submit" disabled={shiftProductionForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Shift Production')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Record Takha Entry')} icon={Factory}>
+                        ) },
+                    { id: 'takha-entry', title: t('Record Takha Entry'), icon: Factory, status: weavingStatuses[2], count: takhaEntries.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             takhaEntryForm.post(route('textile.manufacturing.takha-entries.store'), {
@@ -1620,8 +2241,9 @@ export default function Index({
                             <Button type="submit" disabled={takhaEntryForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Takha Entry')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Record Loom Efficiency')} icon={Factory}>
+                        ) },
+                    { id: 'loom-efficiency', title: t('Record Loom Efficiency'), icon: Factory, status: weavingStatuses[3], count: loomEfficiencies.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             loomEfficiencyForm.post(route('textile.manufacturing.loom-efficiencies.store'), {
@@ -1648,8 +2270,9 @@ export default function Index({
                             <Button type="submit" disabled={loomEfficiencyForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Loom Efficiency')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Record Operator Efficiency')} icon={Factory}>
+                        ) },
+                    { id: 'operator-efficiency', title: t('Record Operator Efficiency'), icon: Factory, status: weavingStatuses[4], count: operatorEfficiencies.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             operatorEfficiencyForm.post(route('textile.manufacturing.operator-efficiencies.store'), {
@@ -1671,8 +2294,9 @@ export default function Index({
                             <Button type="submit" disabled={operatorEfficiencyForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Operator Efficiency')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Record Machine Downtime')} icon={Factory}>
+                        ) },
+                    { id: 'machine-downtime', title: t('Record Machine Downtime'), icon: Factory, status: weavingStatuses[5], count: machineDowntimes.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             machineDowntimeForm.post(route('textile.manufacturing.machine-downtimes.store'), {
@@ -1695,8 +2319,9 @@ export default function Index({
                             <Button type="submit" disabled={machineDowntimeForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Downtime')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Record Production Cost')} icon={Factory}>
+                        ) },
+                    { id: 'production-cost', title: t('Record Production Cost'), icon: Factory, status: weavingStatuses[6], count: productionCosts.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             productionCostForm.post(route('textile.manufacturing.production-costs.store'), {
@@ -1719,8 +2344,9 @@ export default function Index({
                             <Button type="submit" disabled={productionCostForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Record Production Cost')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Generate Grey Fabric Roll')} icon={Factory}>
+                        ) },
+                    { id: 'grey-roll', title: t('Generate Grey Fabric Roll'), icon: Factory, status: weavingStatuses[7], count: greyFabricRolls.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             greyFabricRollForm.post(route('textile.manufacturing.grey-fabric-rolls.store'), {
@@ -1752,8 +2378,9 @@ export default function Index({
                             <Button type="submit" disabled={greyFabricRollForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Generate Roll')}</Button>
                         </form>
                     </TextileFormCard>
-
-                    <TextileFormCard title={t('Update Grey Fabric Roll')} icon={Factory}>
+                        ) },
+                    { id: 'update-grey-roll', title: t('Update Grey Fabric Roll'), icon: Factory, status: weavingStatuses[8], count: greyRollHistories.length, form: (
+                        <TextileFormCard showHeader={false}>
                         <form className="space-y-3" onSubmit={(e) => {
                             e.preventDefault();
                             greyFabricRollUpdateForm.post(route('textile.manufacturing.grey-fabric-rolls.update'), {
@@ -1779,7 +2406,46 @@ export default function Index({
                             <Button type="submit" disabled={greyFabricRollUpdateForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Update Roll')}</Button>
                         </form>
                     </TextileFormCard>
-
+                        ) },
+                ];
+                return (
+                    <div className="space-y-6">
+                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                            {weavingOutputs.map((output) => {
+                                const efficiency = toNumber(Number(output.metadata?.efficiency_percent));
+                                const progress = Math.min(100, Math.max(0, efficiency));
+                                return (
+                                    <Card key={output.id} className="border-border/70 bg-card/80 shadow-sm">
+                                        <div className="flex items-start justify-between gap-2 p-4 pb-3">
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-semibold text-foreground">{output.document_number}</p>
+                                                <p className="truncate text-xs text-muted-foreground">{t('Batch')} {String(output.metadata?.batch ?? output.lot_reference ?? '-')}</p>
+                                            </div>
+                                            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                                {formatTextileLabel(output.status)}
+                                            </span>
+                                        </div>
+                                        <div className="px-4 pb-4">
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-muted-foreground">{t('Progress')}</span>
+                                                <span className="font-medium text-foreground">{efficiency}%</span>
+                                            </div>
+                                            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                                                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${progress}%` }} />
+                                            </div>
+                                            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                                <span>{t('Machine')}: {String(output.metadata?.machine_name ?? '-')}</span>
+                                                <span>{t('Operator')}: {String(output.metadata?.operator_name ?? '-')}</span>
+                                                <span>{t('Shift')}: {String(output.metadata?.planned_shift ?? '-')}</span>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                );
+                            })}
+                        </div>
+                        <TextileWorkflowSteps steps={steps} openId={openStep} onOpenChange={setOpenStep} records={
+                        <div className="grid gap-6 xl:grid-cols-2">
                     <TextileDataTableSection title={t('Weaving Output Records')} data={weavingOutputs} columns={createTextileWorkflowColumns(t)} emptyState={<NoRecordsFound icon={Factory} title={t('No weaving output found')} description={t('Record weaving output from released batches.')} />} />
                     <TextileDataTableSection title={t('Shift Production Records')} data={shiftProductions} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Batch ID') }, { key: 'planned_shift', header: t('Shift'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.planned_shift ?? '-') }, { key: 'quantity', header: t('Qty') }, { key: 'unit', header: t('Unit') }, { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No shift production found')} description={t('Record shift-wise weaving production from released batches.')} />} />
                     <TextileDataTableSection title={t('Takha Entry Records')} data={takhaEntries} columns={[{ key: 'document_number', header: t('Number') }, { key: 'takha_number', header: t('Takha'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.takha_number ?? row.lot_reference ?? '-') }, { key: 'quantity', header: t('Qty') }, { key: 'unit', header: t('Unit') }, { key: 'operator_name', header: t('Operator'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.operator_name ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No takha entries found')} description={t('Record takha-level production entries from completed weaving output.')} />} />
@@ -1789,12 +2455,17 @@ export default function Index({
                     <TextileDataTableSection title={t('Production Cost Records')} data={productionCosts} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Weaving Output ID') }, { key: 'cost_amount', header: t('Cost Amount'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_amount ?? '-') }, { key: 'cost_per_unit', header: t('Cost/Unit'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_per_unit ?? '-') }, { key: 'quantity', header: t('Qty') }, { key: 'unit', header: t('Unit') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No production cost found')} description={t('Record weaving production cost against completed output.')} />} />
                     <TextileDataTableSection title={t('Grey Fabric Roll Records')} data={greyFabricRolls} columns={[{ key: 'document_number', header: t('Number') }, { key: 'roll_number', header: t('Roll No.'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_number ?? row.lot_reference ?? '-') }, { key: 'roll_barcode', header: t('Barcode'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_barcode ?? '-') }, { key: 'roll_qr_code', header: t('QR'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_qr_code ?? '-') }, { key: 'roll_weight', header: t('Weight'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_weight ?? '-') }, { key: 'roll_length', header: t('Length'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_length ?? row.quantity ?? '-') }, { key: 'gsm', header: t('GSM'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.gsm ?? '-') }, { key: 'width', header: t('Width'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.width ?? '-') }, { key: 'grade', header: t('Grade'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.grade ?? '-') }, { key: 'warehouse', header: t('Warehouse'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.warehouse ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No grey fabric roll found')} description={t('Generate grey fabric roll with roll-number, barcode, QR, and quality profile fields.')} />} />
                     <TextileDataTableSection title={t('Grey Roll History Records')} data={greyRollHistories} columns={[{ key: 'document_number', header: t('Number') }, { key: 'source_reference_id', header: t('Roll ID') }, { key: 'roll_number', header: t('Roll No.'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.roll_number ?? row.lot_reference ?? '-') }, { key: 'history_event', header: t('Event'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.history_event ?? '')) }, { key: 'history_notes', header: t('Notes'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.history_notes ?? '-') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Factory} title={t('No grey roll history found')} description={t('Grey roll updates and lifecycle events will appear here.')} />} />
-                </div>
-                </TabsContent> : null}
+                    </div>
+                        } />
+                    </div>
+                );
+                }
 
-                {validSections.has('waste') ? <TabsContent value="waste">
-                <div className="grid gap-6 xl:grid-cols-2">
-                    <TextileFormCard title={t('Record Waste')} icon={Factory}>
+                case 'waste': {
+                const wasteStatuses = workflowStepStatuses([wastes.length]);
+                const steps: WorkflowStep[] = [
+                    { id: 'record-waste', title: t('Record Waste'), icon: AlertTriangle, status: wasteStatuses[0], count: wastes.length, form: (
+                        <TextileFormCard showHeader={false}>
                             <form className="grid grid-cols-4 gap-3" onSubmit={(e) => {
                                 e.preventDefault();
                                 wasteForm.post(route('textile.manufacturing.waste.store'), {
@@ -1826,13 +2497,50 @@ export default function Index({
                                 <Button type="submit" variant="outline" disabled={wasteForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Record Waste')}</Button>
                             </form>
                     </TextileFormCard>
+                        ) },
+                ];
+                return (
+                    <div className="space-y-6">
+                        <StatStrip
+                            items={[
+                                { label: t('Waste Today'), value: `${totalWasteQuantity.toFixed(1)} kg`, icon: AlertTriangle },
+                                { label: t('Waste %'), value: `${wastePercent.toFixed(1)}%`, icon: Gauge },
+                                { label: t('Top Reason'), value: topWasteReason ? formatTextileLabel(topWasteReason) : '—', icon: Wrench },
+                                { label: t('Entries'), value: wastes.length, icon: ListChecks },
+                            ]}
+                        />
+                        <Card className="border-border/70 bg-card/80 shadow-sm">
+                            <div className="px-4 pb-2 pt-3 text-sm font-semibold text-foreground">{t('Recent Waste Entries')}</div>
+                            <ol className="px-4 pb-4">
+                                {wastes.length === 0 ? (
+                                    <li className="text-sm text-muted-foreground">{t('No waste recorded yet.')}</li>
+                                ) : (
+                                    wastes.slice(0, 4).map((waste) => (
+                                        <li key={waste.id} className="flex items-center justify-between gap-2 border-b border-border/50 py-2 text-sm last:border-0">
+                                            <span className="min-w-0 truncate">
+                                                <span className="font-medium text-foreground">{waste.document_number}</span>
+                                                <span className="ml-2 text-xs text-muted-foreground">{formatTextileLabel(String(waste.metadata?.waste_type ?? ''))}</span>
+                                            </span>
+                                            <span className="shrink-0 text-xs text-muted-foreground">{waste.quantity} {waste.unit}</span>
+                                        </li>
+                                    ))
+                                )}
+                            </ol>
+                        </Card>
+                        <TextileWorkflowSteps steps={steps} openId={openStep} onOpenChange={setOpenStep} records={
+                        <div className="grid gap-6 xl:grid-cols-2">
                     <TextileDataTableCard data={wastes} columns={createTextileWorkflowColumns(t)} emptyState={<NoRecordsFound icon={Factory} title={t('No waste records found')} description={t('Record waste from released batches.')} />} />
-                </div>
-                </TabsContent> : null}
+                    </div>
+                        } />
+                    </div>
+                );
+                }
 
-                {validSections.has('rework') ? <TabsContent value="rework">
-                <div className="grid gap-6 xl:grid-cols-2">
-                    <TextileFormCard title={t('Record Rework')} icon={Factory}>
+                case 'rework': {
+                const reworkStatuses = workflowStepStatuses([reworks.length]);
+                const steps: WorkflowStep[] = [
+                    { id: 'record-rework', title: t('Record Rework'), icon: RotateCcw, status: reworkStatuses[0], count: reworks.length, form: (
+                        <TextileFormCard showHeader={false}>
                             <form className="grid grid-cols-4 gap-3" onSubmit={(e) => {
                                 e.preventDefault();
                                 reworkForm.post(route('textile.manufacturing.rework.store'), {
@@ -1864,10 +2572,54 @@ export default function Index({
                                 <Button type="submit" variant="outline" disabled={reworkForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Record Rework')}</Button>
                             </form>
                     </TextileFormCard>
+                        ) },
+                ];
+                return (
+                    <div className="space-y-6">
+                        <StatStrip
+                            items={[
+                                { label: t('Rework Quantity'), value: `${totalReworkQuantity.toFixed(1)} mtr`, icon: RotateCcw },
+                                { label: t('Top Reason'), value: topReworkReason ? formatTextileLabel(topReworkReason) : '—', icon: Wrench },
+                                { label: t('Entries'), value: reworks.length, icon: ListChecks },
+                            ]}
+                        />
+                        <TextileWorkflowSteps steps={steps} openId={openStep} onOpenChange={setOpenStep} records={
+                        <div className="grid gap-6 xl:grid-cols-2">
                     <TextileDataTableCard data={reworks} columns={createTextileWorkflowColumns(t)} emptyState={<NoRecordsFound icon={Factory} title={t('No rework records found')} description={t('Record rework linked to weaving output.')} />} />
-                </div>
-                </TabsContent> : null}
-            </Tabs>
+                    </div>
+                        } />
+                    </div>
+                );
+                }
+
+                default:
+                    return null;
+                }
+                }}
+            </TextileWorkspace>
         </AuthenticatedLayout>
+    );
+}
+
+function StatStrip({ items }: { items: Array<{ label: string; value: string | number; icon: LucideIcon }> }) {
+    return (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {items.map((item) => {
+                const Icon = item.icon;
+                return (
+                    <Card key={item.label} className="border-border/70 bg-card/80 p-4 shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                                <Icon className="h-4 w-4" />
+                            </span>
+                            <div className="min-w-0">
+                                <p className="truncate text-xs text-muted-foreground">{item.label}</p>
+                                <p className="truncate text-lg font-semibold text-foreground">{item.value}</p>
+                            </div>
+                        </div>
+                    </Card>
+                );
+            })}
+        </div>
     );
 }

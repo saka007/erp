@@ -354,7 +354,7 @@ export default function Index({
                         filters={filters}
                         emptyIcon={ShoppingCart}
                         emptyTitle="No purchase documents found"
-                        emptyDescription="Purchase orders, requisitions and GRNs will appear here."
+                        emptyDescription="Purchase orders, requisitions and GRNs (Goods Received Notes) will appear here."
                         columns={[
                             { key: 'type', header: t('Type'), render: (value) => dash(value) },
                             { key: 'document_number', header: t('Document') },

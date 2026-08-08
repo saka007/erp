@@ -32,6 +32,9 @@ use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Models\TextileMovement;
 use DigitalFuzed\TextileInventory\Models\TextileReservation;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
+use Workdo\Account\Models\Customer;
+use Workdo\Account\Models\Vendor;
 use Workdo\Hrm\Models\Attendance;
 use Workdo\Hrm\Models\Department;
 use Workdo\Hrm\Models\Employee;
@@ -49,6 +52,8 @@ class DemoTextileFlowSeeder extends Seeder
 
         $this->seedMasters($companyId);
         $this->seedReferenceMasters($companyId);
+        $this->seedVendors($companyId);
+        $this->seedCustomers($companyId);
         $this->seedInventory($companyId);
         $this->seedWorkflow($companyId);
         $this->seedMaintenance($companyId);
@@ -73,6 +78,124 @@ class DemoTextileFlowSeeder extends Seeder
 
         $company = User::query()->where('type', 'company')->orderBy('id')->first();
         return $company ? (int) $company->id : null;
+    }
+
+    private function seedVendors(int $companyId): void
+    {
+        $attributes = [
+            'contact_person_name' => 'Rajesh Kumar',
+            'contact_person_email' => 'rajesh@shreeyarn.com',
+            'primary_email' => 'sales@shreeyarn.com',
+            'tax_number' => 'GSTIN27AACCS1234F1Z5',
+            'payment_terms' => 'net_30',
+            'currency_code' => 'INR',
+            'credit_limit' => 2500000,
+            'creator_id' => $companyId,
+            'created_by' => $companyId,
+        ];
+
+        foreach (array_keys($attributes) as $column) {
+            if (! Schema::hasColumn('vendors', $column)) {
+                unset($attributes[$column]);
+            }
+        }
+
+        Vendor::updateOrCreate(
+            ['created_by' => $companyId, 'company_name' => 'Shree Yarn Traders'],
+            $attributes
+        );
+    }
+
+    public function seedCustomers(int $companyId): void
+    {
+        $customers = [
+            [
+                'company_name' => 'Metro Fashions Pvt Ltd',
+                'contact_person_name' => 'Ananya Mehta',
+                'contact_person_email' => 'orders@metrofashions.test',
+                'contact_person_mobile' => '+919820001101',
+                'tax_number' => 'GSTIN27METRO1101A1Z5',
+                'payment_terms' => 'Net 30',
+                'credit_limit' => 1500000,
+                'currency_code' => 'INR',
+                'operating_model' => 'full_package_buyer',
+                'material_ownership' => 'company_owned',
+                'billing_mode' => 'sale_value',
+                'city' => 'Mumbai',
+                'state' => 'Maharashtra',
+            ],
+            [
+                'company_name' => 'Surat Textile Distributors',
+                'contact_person_name' => 'Dhruv Shah',
+                'contact_person_email' => 'purchase@surattextile.test',
+                'contact_person_mobile' => '+919825001202',
+                'tax_number' => 'GSTIN24SURAT1202B1Z4',
+                'payment_terms' => 'Net 45',
+                'credit_limit' => 2000000,
+                'currency_code' => 'INR',
+                'operating_model' => 'full_package_buyer',
+                'material_ownership' => 'company_owned',
+                'billing_mode' => 'sale_value',
+                'city' => 'Surat',
+                'state' => 'Gujarat',
+            ],
+            [
+                'company_name' => 'Aster Export House',
+                'contact_person_name' => 'Mira Desai',
+                'contact_person_email' => 'sourcing@asterexport.test',
+                'contact_person_mobile' => '+919810001303',
+                'tax_number' => 'GSTIN07ASTER1303C1Z3',
+                'payment_terms' => 'Net 30',
+                'credit_limit' => 2500000,
+                'currency_code' => 'INR',
+                'operating_model' => 'full_package_buyer',
+                'material_ownership' => 'company_owned',
+                'billing_mode' => 'sale_value',
+                'city' => 'New Delhi',
+                'state' => 'Delhi',
+            ],
+        ];
+
+        foreach ($customers as $row) {
+            $address = [
+                'name' => $row['company_name'],
+                'address_line_1' => 'Textile Market',
+                'address_line_2' => '',
+                'city' => $row['city'],
+                'state' => $row['state'],
+                'country' => 'India',
+                'zip_code' => '000000',
+            ];
+
+            $attributes = [
+                'contact_person_name' => $row['contact_person_name'],
+                'contact_person_email' => $row['contact_person_email'],
+                'contact_person_mobile' => $row['contact_person_mobile'],
+                'tax_number' => $row['tax_number'],
+                'payment_terms' => $row['payment_terms'],
+                'credit_limit' => $row['credit_limit'],
+                'currency_code' => $row['currency_code'],
+                'operating_model' => $row['operating_model'],
+                'material_ownership' => $row['material_ownership'],
+                'billing_mode' => $row['billing_mode'],
+                'billing_address' => $address,
+                'shipping_address' => $address,
+                'same_as_billing' => true,
+                'notes' => 'Seeded textile sales customer',
+                'creator_id' => $companyId,
+            ];
+
+            foreach (array_keys($attributes) as $column) {
+                if (! Schema::hasColumn('customers', $column)) {
+                    unset($attributes[$column]);
+                }
+            }
+
+            Customer::updateOrCreate(
+                ['created_by' => $companyId, 'company_name' => $row['company_name']],
+                $attributes
+            );
+        }
     }
 
     private function seedMasters(int $companyId): void

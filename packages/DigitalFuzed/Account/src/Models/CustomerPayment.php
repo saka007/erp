@@ -15,6 +15,13 @@ class CustomerPayment extends Model
         'customer_id',
         'bank_account_id',
         'reference_number',
+        'payment_mode',
+        'cheque_number',
+        'cheque_date',
+        'bank_name',
+        'tds_rate',
+        'tds_amount',
+        'tds_section',
         'payment_amount',
         'status',
         'notes',
@@ -24,7 +31,10 @@ class CustomerPayment extends Model
 
     protected $casts = [
         'payment_date' => 'date',
-        'payment_amount' => 'decimal:2'
+        'cheque_date' => 'date',
+        'payment_amount' => 'decimal:2',
+        'tds_rate' => 'decimal:2',
+        'tds_amount' => 'decimal:2',
     ];
 
     public function customer(): BelongsTo

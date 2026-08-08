@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HasBranchWarehouseScope;
 use App\Models\SalesInvoiceReturn;
 use App\Models\SalesInvoiceReturnItem;
 use App\Models\SalesInvoiceReturnItemTax;
@@ -20,6 +21,8 @@ use Illuminate\Support\Facades\DB;
 
 class SalesReturnController extends Controller
 {
+    use HasBranchWarehouseScope;
+
     private function checkReturnAccess(SalesInvoiceReturn $salesReturn)
     {
         if(Auth::user()->can('manage-any-sales-return-invoices')) {
@@ -38,6 +41,7 @@ class SalesReturnController extends Controller
     public function index(Request $request)
     {
         if(Auth::user()->can('manage-sales-return-invoices')){
+            $user = Auth::user();
             $query = SalesInvoiceReturn::with(['customer', 'originalInvoice', 'items.product', 'warehouse'])
                 ->where(function($q) {
                     if(Auth::user()->can('manage-any-sales-return-invoices')) {
@@ -51,6 +55,8 @@ class SalesReturnController extends Controller
                         $q->whereRaw('1 = 0');
                     }
                 });
+
+            $this->applyWarehouseScope($query, 'warehouse_id', $user, true);
 
         // Apply filters
         if ($request->customer_id) {
@@ -88,7 +94,7 @@ class SalesReturnController extends Controller
         $returns = $query->paginate($perPage);
 
         $customers = User::where('type', 'client')->select('id', 'name', 'email')->where('created_by', creatorId())->get();
-        $warehouses = Warehouse::where('is_active', true)->select('id', 'name')->where('created_by', creatorId())->get();
+        $warehouses = $this->scopedWarehouseQuery($user)->select('id', 'name')->get();
 
             return Inertia::render('SalesReturns/Index', [
                 'returns' => $returns,
@@ -105,12 +111,16 @@ class SalesReturnController extends Controller
     public function create()
     {
         if(Auth::user()->can('create-sales-return-invoices')){
+            $user = Auth::user();
             $invoices = SalesInvoice::with(['customer', 'warehouse', 'items.product', 'items.taxes', 'salesReturns.items'])
             ->where('created_by', creatorId())
             ->where('type', 'product')
             ->where('status', '!=', 'draft')
             ->when(Auth::user()->type == 'client', function($q) {
                 $q->where('customer_id', Auth::id());
+            })
+            ->when(!$this->canManageAllBranches($user), function ($q) use ($user) {
+                $this->applyWarehouseScope($q, 'warehouse_id', $user);
             })
             ->get();
 
@@ -127,7 +137,7 @@ class SalesReturnController extends Controller
             }
         }
 
-        $warehouses = \App\Models\Warehouse::where('created_by', creatorId())->where('is_active', true)->get();
+        $warehouses = $this->scopedWarehouseQuery($user)->get();
 
             return Inertia::render('SalesReturns/Create', [
                 'invoices' => $invoices,
@@ -142,6 +152,9 @@ class SalesReturnController extends Controller
     public function store(StoreSalesReturnRequest $request)
     {
         if(Auth::user()->can('create-sales-return-invoices')){
+        if (!$this->isWarehouseAccessible($request->warehouse_id, Auth::user(), true)) {
+            return redirect()->route('sales-returns.index')->with('error', __('Selected warehouse is not accessible for this user.'));
+        }
 
         $totals = $this->calculateReturnTotals($request->items, $request->original_invoice_id);
         $return = new SalesInvoiceReturn();
@@ -182,6 +195,10 @@ class SalesReturnController extends Controller
                 return redirect()->route('sales-returns.index')->with('error', __('Permission denied'));
             }
 
+            if (!$this->isWarehouseAccessible($salesReturn->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('sales-returns.index')->with('error', __('Permission denied'));
+            }
+
             $salesReturn->load(['customer', 'warehouse','customerDetails','originalInvoice', 'items.product']);
 
             return Inertia::render('SalesReturns/View', [
@@ -196,6 +213,10 @@ class SalesReturnController extends Controller
     public function approve(SalesInvoiceReturn $salesReturn)
     {
         if(Auth::user()->can('approve-sales-returns-invoices')){
+            if (!$this->isWarehouseAccessible($salesReturn->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('sales-returns.index')->with('error', __('Permission denied'));
+            }
+
             if ($salesReturn->status !== 'draft') {
                 return redirect()->back()->with('error', __('Only draft returns can be approved.'));
             }
@@ -218,6 +239,10 @@ class SalesReturnController extends Controller
     public function complete(SalesInvoiceReturn $salesReturn)
     {
         if(Auth::user()->can('complete-sales-returns-invoices')){
+            if (!$this->isWarehouseAccessible($salesReturn->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('sales-returns.index')->with('error', __('Permission denied'));
+            }
+
             if ($salesReturn->status !== 'approved') {
             return redirect()->back()->with('error', __('Only approved returns can be completed.'));
         }
@@ -236,6 +261,10 @@ class SalesReturnController extends Controller
     public function destroy(SalesInvoiceReturn $salesReturn)
     {
         if(Auth::user()->can('delete-sales-return-invoices')){
+            if (!$this->isWarehouseAccessible($salesReturn->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('sales-returns.index')->with('error', __('Permission denied'));
+            }
+
             if ($salesReturn->status !== 'draft') {
             return redirect()->back()->with('error', __('Only draft returns can be deleted.'));
         }

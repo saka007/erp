@@ -88,6 +88,6 @@ class TextileCostingController extends Controller
     {
         $user = Auth::user();
 
-        abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+        abort_unless($user && in_array($user->type, ['company', 'superadmin', 'staff'], true), 403);
     }
 }

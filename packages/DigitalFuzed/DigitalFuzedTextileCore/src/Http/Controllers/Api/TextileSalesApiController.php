@@ -6,6 +6,7 @@ use DigitalFuzed\TextileCore\Services\TextileSalesService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Workdo\Account\Models\Customer;
 
 class TextileSalesApiController extends Controller
 {
@@ -16,16 +17,29 @@ class TextileSalesApiController extends Controller
     public function storeSalesOrder(Request $request): JsonResponse
     {
         $payload = $request->validate([
-            'source_reference_type' => ['required', 'string', 'max:100'],
-            'source_reference_id' => ['required', 'integer', 'min:1'],
+            'source_reference_type' => ['nullable', 'string', 'max:100'],
+            'source_reference_id' => ['nullable', 'integer', 'min:1'],
             'source_action' => ['nullable', 'string', 'max:100'],
-            'party_name' => ['nullable', 'string', 'max:100'],
-            'lot_reference' => ['nullable', 'string', 'max:100'],
-            'quantity' => ['required', 'numeric', 'gt:0'],
-            'unit' => ['nullable', 'string', 'max:50'],
-            'metadata' => ['nullable', 'array'],
+            'customer_id' => ['required', 'integer', 'min:1'],
+            'lot_selections' => ['required', 'array', 'min:1'],
+            'lot_selections.*.lot_reference' => ['required', 'string', 'max:100', 'distinct'],
+            'lot_selections.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'rate' => ['required', 'numeric', 'gte:0'],
+            'required_delivery_date' => ['required', 'date'],
+            'warehouse' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
             'idempotency_key' => ['nullable', 'string', 'max:190'],
         ]);
+
+        $customer = Customer::query()->where('created_by', creatorId())->findOrFail((int) $payload['customer_id']);
+        $payload['party_name'] = $customer->company_name;
+        $payload['metadata'] = [
+            'item_name' => 'Takha / Woven Fabric',
+            'rate' => (float) $payload['rate'],
+            'required_delivery_date' => $payload['required_delivery_date'],
+            'warehouse' => $payload['warehouse'] ?? null,
+            'notes' => $payload['notes'] ?? null,
+        ];
 
         return response()->json([
             'success' => true,
@@ -45,12 +59,9 @@ class TextileSalesApiController extends Controller
     {
         $payload = $request->validate([
             'sales_order_id' => ['required', 'integer', 'min:1'],
-            'party_name' => ['nullable', 'string', 'max:100'],
-            'lot_reference' => ['nullable', 'string', 'max:100'],
-            'quantity' => ['nullable', 'numeric', 'gt:0'],
-            'unit' => ['nullable', 'string', 'max:50'],
-            'metadata' => ['nullable', 'array'],
-            'idempotency_key' => ['nullable', 'string', 'max:190'],
+            'lot_allocations' => ['required', 'array', 'min:1'],
+            'lot_allocations.*.lot_reference' => ['required', 'string', 'max:100', 'distinct'],
+            'lot_allocations.*.quantity' => ['required', 'numeric', 'gt:0'],
         ]);
 
         return response()->json([

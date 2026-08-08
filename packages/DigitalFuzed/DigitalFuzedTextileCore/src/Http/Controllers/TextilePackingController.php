@@ -7,6 +7,7 @@ use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextilePackingService;
+use DigitalFuzed\TextileCore\Traits\ProvidesRecentActivity;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -18,6 +19,8 @@ use RuntimeException;
 
 class TextilePackingController extends Controller
 {
+    use ProvidesRecentActivity;
+
     public function __construct(protected TextileOperatingPolicyService $policyService)
     {
     }
@@ -38,6 +41,7 @@ class TextilePackingController extends Controller
             'labelTypeOptions' => $this->labelTypeOptions(),
             'unitOptions' => $this->unitOptions(),
             'lotReferenceOptions' => $this->lotReferenceOptions(),
+            'recentActivity' => $this->recentActivity(),
         ]);
     }
 
@@ -237,7 +241,7 @@ class TextilePackingController extends Controller
     {
         $user = Auth::user();
 
-        abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+        abort_unless($user && in_array($user->type, ['company', 'superadmin', 'staff'], true), 403);
     }
 
     private function authorizeCapability(string $capability, string $errorKey): void

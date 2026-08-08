@@ -6,7 +6,7 @@ This tracker now has two layers:
 1. Phase-1 baseline delivery (implemented and verified workflow foundation)
 2. Enterprise expansion backlog (broader textile ERP scope from traceability review)
 
-Last updated: 2026-08-03
+Last updated: 2026-08-08
 
 ## How to read this tracker
 
@@ -73,25 +73,147 @@ Target design: left-rail section navigation inside each workspace (Linear/Supaba
 
 ### Phase 0 — Foundation (shared, single place)
 
-- [ ] `resources/js/components/textile/textile-workspaces.ts` — app-wide registry: every workspace `{ id, label, icon, route, capability, sections: [{ id, label, icon, capability? }] }`; drives sidebar menu AND workspace rails (single source of truth, no drift).
-- [ ] `TextileWorkspace` component — left rail (icon rail, collapsible), workspace header (title + breadcrumb), URL `?section=` handling, capability filtering, per-section KPI slot, standard `KPI -> form -> table` body via `TextileSection`.
-- [ ] `TextileSection` component — standard section body (KPI strip + form card + data table card) replacing the 33 duplicated grid blocks.
-- [ ] `useTextileSection()` hook — section param read/write; `useSectionKpis(rows)` helper — per-section status counts.
-- [ ] `company-menu.ts` — collapse submenu items to workspace level for rail-driven workspaces (menu becomes group > workspace, 2 levels; rail owns sections).
+- [x] `resources/js/components/textile/textile-workspaces.ts` — app-wide registry: every workspace `{ id, label, icon, route, capability, sections: [{ id, label, icon, capability? }] }`; drives sidebar menu AND workspace rails (single source of truth, no drift).
+- [x] `TextileWorkspace` component (`textile-workspace.tsx`) — left rail, workspace header, URL `?section=` handling, capability filtering, per-section KPI slot, standard `KPI -> form -> table` body via `TextileSection`; mobile falls back to a native section `<select>`.
+- [x] `TextileSection` component (`textile-section.tsx`) — standard section body (KPI strip + form card + data table card) replacing the 33 duplicated grid blocks.
+- [x] `useTextileSection()` hook + `countSectionStatuses()` helper — section param read/filter + per-section status counts (inside `textile-workspace.tsx`).
+- [x] `company-menu.ts` — collapse submenu items to workspace level for rail-driven workspaces (menu becomes group > workspace, 2 levels; rail owns sections). Deferred until pilot is visually approved. Verified: Procurement submenu collapsed to single link (unused icon imports `ClipboardList`/`FileQuestion`/`PackageCheck` removed); browser check shows `Procurement` as a direct link in sidebar with no duplicated section submenu. Pilot also polished to match user's ChatGPT mockup: rail active state = emerald left accent bar + tint + icon chips (sticky on desktop), KPI cards gained icon chips, page header gained emerald `New Requisition` CTA (`pageActions` slot), breadcrumb shows active section (`Textile > Procurement > Incoming QC`); fixed pre-existing KPI count bug (sectionRows keys were camelCase vs kebab-case section ids). Verified: `npx tsc --noEmit` 0 errors, `npm run build` pass, 62 tests passed, browser KPIs now show Total 1 / Approved 1 for incoming-qc (matches TIQC-0001 row).
 
 ### Phase 1 — Pilot
 
-- [ ] Refactor `Procurement` (6 sections) onto the registry + `TextileWorkspace`; verify tsc/build/browser + menu route diff.
+- [x] Refactor `Procurement` (6 sections) onto the registry + `TextileWorkspace`; verified: `npx tsc --noEmit` => 0 errors; `npm run build` => pass; `php artisan test tests/Feature/Textile/` => 62 passed (1160 assertions); browser check on real MySQL demo data — rail renders 6 sections, clicking rail updates URL to `?section=grns` / `?section=incoming-qc`, active state highlights, per-section KPI counts show (GRN section: Total 1 / Released 1), section tables show seeded demo records (TGRN-0001, TIQC-0001).
+- [x] ChatGPT-mockup pilot polish (user-provided spec, Aug 4): (1) `Overview` section added as first rail item — cross-pipeline read-only table (Type/Document/Party/Lot/Qty/Unit/Status) with all-docs KPIs; (2) right info panel via new shared `TextileInfoPanel` (`textile-info-panel.tsx`) + `aside` slot on `TextileWorkspace`: Workflow Status stepper (Requisition→Approval→RFQ→PO→GRN→Incoming QC→Invoice with live counts, current stage emerald), Supplier Summary (vendor profile + derived order count/qty/last purchase from workflow docs), Recent Activity timeline (real `TextileAuditLog` events with actor + relative time); (3) Create Requisition form rebuilt to spec's 3-column layout (Supplier Information | Material Details | Other Details) with `priority/required_for/expected_date/remarks/warehouse` persisted via document `metadata` (controller validation extended, no migration); (4) Requisitions table gained Priority column + per-row actions; (5) demo seeder now seeds a vendor (Shree Yarn Traders) so the supplier card shows data — schema-guarded optional columns. Verified: tsc 0, build pass, 62 tests, browser — overview pipeline table, stepper counts (1/1/0/1/1/1/1), supplier card (Orders 4, Total Qty 4,800, Last Purchase 1d ago), 3-col form fields, Priority column, breadcrumb + CTA + rail polish all live.
 
 ### Phase 2 — Workflow workspaces (rollout, smallest first)
 
-- [ ] `Sales` (3 sections) → `Transport` (3) → `Packing` (4) → `Dispatch` (2-6) → `Maintenance` (6) → `Finance` (7) → `Quality` (8) → `Manufacturing` (7, largest page 1873 lines, split during refactor) → `Processing` (11) → `Reports` (14; rail, revisit hub-cards only if sections grow independent filter bars).
+- [x] Manufacturing (7 sections; page refactored from 1873-line Tabs to `TextileWorkspace` switch — Aug 2026): replaced hardcoded Tabs/capability logic with registry (`getTextileWorkspace('manufacturing')`), added `Overview` section (cross-pipeline read-only table with formatted Type column, all-docs KPIs Total 14/Draft 0/Approved 13/Released 1), per-section KPIs via `countSectionStatuses`, right context panel (`aside`): Workflow Status stepper (Warp Planning→Beam & Batch→Loom→Planning→Weaving→Waste→Rework with live counts), Recent Activity timeline (shared `ProvidesRecentActivity` trait), Production Summary card (MetricSummaryCard); breadcrumb Textile > Manufacturing > {section}, emerald "New Warp Plan" CTA; sidebar Manufacturing = single link. Also deduplicated procurement controller onto the shared trait. Verified: tsc 0, build pass, 62 tests/1160 assertions, browser — rail 8 sections, breadcrumb, CTA, per-section KPIs, stepper counts (1/1/3/0/1/1/1), Production Summary (Beams 1/Looms 3/Outputs 1/Shift 1/Downtimes 1/Waste 1/Rework 1), overview table 14 rows with types, warp-planning forms intact.
+- [x] Manufacturing workflow redesign (user critique: "limit of form-based UI, architectural not visual", Aug 4 mockup): every section renders a horizontal workflow strip (chip per step with record count; no sequence numbering) plus a Current Form | Records tab bar (mockup tabs) via shared `TextileWorkflowSteps` — the active step's form is ALWAYS visible (defaults to first pending step), no accordion hiding; clicking a chip switches the form and auto-returns to the Current Form tab; records live only under the Records tab, never mixed with forms; status chips (Completed/In Progress/Pending) shown only for genuinely sequential steps — ad-hoc steps (Record Loom Breakdown, Record Loom Maintenance) omit status per user feedback (not part of a sequence); loom-management lists looms in the shared `TextileDataTableSection` with all info columns (Number, Loom, Machine, Machine Type, RPM, Width, Shed, Status, Efficiency %, Breakdowns, Maintenance, Running Hrs, Idle Hrs, Operator) per user feedback that cards don't scale for 100+ looms — machine card grid removed; weaving-output shows production job cards (document no, batch, status, progress % bar, machine/operator/shift) above the strip; waste/rework sections show StatStrip dashboards (Waste Today 12.0 kg / Waste % 2.9% / Top Reason Selvedge Cut; Rework 40.0 mtr / Weft Streak) + recent entries cards; overview KPIs are Running Orders 1 / Pending 0 / Completed 14 / Machine Utilization 67%; aside has Production Today row (420 mtr) + Machine Status card (Total 3 / Running 2 (67%) / Idle 1 (33%) / Maintenance 0 (0%)) + Upcoming Tasks card (empty state with seeded data). Verified: tsc 0, build pass, 62 tests/1160 assertions, browser — loom-management strip (Register Loom Master 3 Completed / breakdown+maintenance w/o status), Records tab Loom Master table 14 cols with live data (LM-0001 Running 88.5%), beam-batch chips w/o numbers (Create Beam 1 Completed → Create Beam Issue Pending), job card TWO-0001 (Batch TPB-0001, 88.5%), waste/rework dashboards, overview KPIs, aside cards all live.
+- [x] Shared DataTable features enabled (user: "DataTables has so much inbuilt feature but our datatable looks raw"): `DataTable` (ui/data-table.tsx) gained built-in client-side sorting (internal sort state when no `onSort` prop; numeric-aware compare, rendered-cell fallback for metadata/computed columns) and search now also matches rendered cell values (metadata fields), not just raw row keys; `TextileDataTableCard`/`TextileDataTableSection` now default `searchable=true`, `showPagination=true` (pageSize 10), and mark every column `sortable: true` — so ALL textile tables get search box + click-to-sort headers + pagination footer ("Showing X to Y of Z results", page numbers, prev/next) automatically; export buttons unchanged. Verified: tsc 0, build pass, 62 tests/1160 assertions, browser — loom Records tables show Search box, all 14 headers sortable, Status sort reordered rows, overview 14-row table paginates (1 to 10 / 11 to 14, page 2 shows Machine Downtime/Grey Roll/Waste/Rework), Type sort re-sorted alphabetically and reset page.
+- [x] `Sales` (4 sections; page refactored from hardcoded Tabs + `TextileKpiOverview` to `TextileWorkspace` switch — Aug 2026, same design upgrade as Manufacturing): registry `sales` gained `overview` first section + per-section capability keys (`sales_order`, `sales_allocation_dispatch`, `sales_challan_pod` — rail now capability-filtered via `useTextileSection`); controller now uses shared `ProvidesRecentActivity` trait; breadcrumb Textile > Sales > {section}, emerald "New Sales Order" CTA; per-section KPIs via `countSectionStatuses`; aside: Workflow Status stepper (Sales Order → Allocation → Dispatch → Challan → POD with live counts), Recent Activity timeline, Sales Summary card (Orders/Allocations/Dispatches/Challans/PODs), Customer Summary card (Profiles, Total Order Qty, Pending POD); sections use `TextileWorkflowSteps` chip strip + Current Form | Records tabs — sales-order: 1 chip (Create Sales Order), allocation-dispatch: 2 chips (Create Allocation / Create Dispatch, statuses from counts, chip click switches form), challan-pod: 1 chip (Create Challan) + Challan Records (Mark POD row action) + POD Records; overview = cross-pipeline read-only table (Type/Document/Party/Lot/Qty/Unit/Status) with all-docs KPIs (Total 5 / Draft 0 / Approved 2 / Released 3); all tables inherit search/sort/pagination defaults. Verified: tsc 0, build pass (24.89s), 62 tests/1160 assertions, browser — rail 4 sections, breadcrumb + CTA, KPIs per section (sales-order Total 1/Approved 1), chips w/ counts + status, chip click switches form (Dispatch form shown), Records tab (TSO-0001/TAL-0001/TDSP-0001/TCH-0001 w/ Mark POD/TPOD-0001), overview table 5 rows formatted types, aside stepper 1/1/1/1/1 + Sales/Customer Summary + Recent Activity (TSO-0001, TCST-0001 events).
+- [x] `Inventory` (4 sections; page refactored from hardcoded Tabs + `TextileKpiOverview` to `TextileWorkspace` switch — Aug 2026, same design upgrade as Manufacturing/Sales): registry `inventory` gained `overview` first section + per-section capability keys (`inventory_transactions`, `inventory_controls`, `inventory_records` — rail capability-filtered via `useTextileSection`); controller now uses shared `ProvidesRecentActivity` trait; breadcrumb Textile > Inventory > {section}, emerald "New Lot" CTA; per-section KPIs (overview: Active Lots/Frozen Lots/Available Qty/Open Reservations; transactions: Active Lots/Open Reservations/Movements/Reservations; controls: Locations/Frozen Lots/Cycle Counts/Active Lots; records: Lots/Movements/Reservations/Locations); aside: Workflow Status stepper (Active Lots → Open Reservations → Cycle Counts), Recent Activity timeline, Inventory Summary card (Active/Frozen Lots, Open Reservations, Available Qty), Stock Health card (Locations/Movements/Cycle Counts/Total Lots); sections use `TextileWorkflowSteps` chip strip + Current Form | Records tabs — transactions: 3 parallel chips WITHOUT status (New Lot/Record Movement/Reserve Quantity — parallel actions, same pattern as loom breakdown/maintenance), controls: 10 parallel chips (Create/Archive Location, Update/Archive Lot, Freeze/Unfreeze Lot, Physical Verification, Cycle Count, Release/Allocate Reservation), records: Movement Filters card (Type/Status/Lot/Location + Apply/Clear) + Movements table + grid of Locations/Lots/Cycle Counts/Reservations tables; overview = combined read-only table (Type/Reference/Qty/Status) with 12 demo rows + pagination; all tables inherit search/sort/pagination defaults. Verified: tsc 0, build pass (23.86s), 62 tests/1160 assertions, browser — rail 4 sections, breadcrumb + CTA, chips w/ counts (New Lot 3 / Record Movement 3 / Reserve Quantity 2), Current Form | Records tabs (Records grid shows Lots full + Movements + Reservations), controls 10 chips (Create Location 4 pressed default), records filter + 5 tables, overview 12 rows paginated (1-10/11-12), aside cards live.
+- [x] Sidebar submenu behavior change — IMPLEMENTED THEN REVERTED (Aug 4, 2026, user: "revert back the sidebar menu change you did just"): `nav-main.tsx` both Collapsible levels returned to auto-expand on the active page (`defaultOpen={shouldBeActive}` parent / `defaultOpen={subItemShouldBeActive}` nested) — sidebar groups AND workspace submenus expand automatically again for the active page; expansion on explicit click was removed. Submenu children still kept. Deep links still work (`?section=transactions&sub=movement-create`). Verified: `git diff` for `nav-main.tsx` empty vs committed state (byte-identical to original).
+- [x] `Quality` (3 workflow sections; page refactored from hardcoded Tabs + `TextileKpiOverview` to `TextileWorkspace` switch — Aug 2026, same design upgrade as Manufacturing/Sales/Inventory): registry `quality` gained `overview` first section + per-section capability keys (`quality_inspection`, `quality_hold_release` — rail capability-filtered via `useTextileSection`); controller now uses shared `ProvidesRecentActivity` trait; breadcrumb Textile > Quality > {section}, emerald "New Inspection" CTA; per-section KPIs (overview: Inspections/Rejected/Hold Events/Issued Certificates; inspection: Total Inspections/Passed/Rework/Rejected; hold-release: Hold Events/Inspections/Issued Certificates/Rejected; certificates: Issued/Pending Certificates/Inspections/Rejected); aside: Workflow Status stepper (Fabric Inspection → Hold/Release → Certificates with live counts), Recent Activity timeline, Quality Summary card (Inspections/Rejected/Hold Events/Issued Certificates), Decision Breakdown card (Passed/Rework/Pending/Rejected); sections use `TextileWorkflowSteps` chips WITHOUT status (single-action sections: Fabric Inspection / Hold/Release / Quality Certificates) + Current Form | Records tabs — inspection records (Pass/Reject/Rework row actions), hold-release records, certificate records (Issue Certificate row action); overview = combined read-only table (Type/Document/Party/Lot/Qty/Unit/Status) across inspections/holds/certificates; all tables inherit search/sort/pagination defaults. Verified: tsc 0, build pass (22.61s), 62 tests/1160 assertions.
+- [x] `Packing` (4 workflow sections; page refactored from hardcoded Tabs + `TextileKpiOverview` to `TextileWorkspace` switch — Aug 2026, same design upgrade as Manufacturing/Sales/Inventory): registry `packing` gained `overview` first section + capability key (`packing`); controller now uses shared `ProvidesRecentActivity` trait; `canPacking` gate preserved (Sales Challan/POD capability) with `NoRecordsFound` fallback; breadcrumb Textile > Packing > {section}, emerald "New Roll Packing" CTA; per-section KPIs (overview: Total Packing Docs/Roll Packings/Bundle Packings/Issued Labels; roll-packing: Roll Packings/Total Packing Docs/Issued Labels/Released Challans; bundle-packing and bale-packing mirror that pattern; labels: Labels/Issued Labels/Pending Labels/Total Packing Docs); aside: Workflow Status stepper (Roll → Bundle → Bale → Labels with live counts), Recent Activity timeline, Packing Summary card (Total Docs/Roll/Bundle/Bale), Labels card (Total/Issued/Pending/Released Challans); sections use `TextileWorkflowSteps` chips WITHOUT status (single-action: Create Roll/Bundle/Bale Packing + Generate Label) + Current Form | Records tabs — roll/bundle/bale packing records tables (Material + Weight columns), Label Records (Issue Label row action, noVisibleActionContent "Label already issued"); overview = combined read-only table (Type/Document/Party/Lot/Qty/Unit/Status) across all 4 doc types; all tables inherit search/sort/pagination defaults. Verified: tsc 0, build pass (22.61s), 62 tests/1160 assertions.
+- [ ] `Transport` (3) → `Dispatch` (2-6) → `Maintenance` (6) → `Finance` (7) → `Processing` (11) → `Reports` (14; rail, revisit hub-cards only if sections grow independent filter bars).
 
-### Phase 3 — Master/CRUD pages (light touch)
+### Phase 3A — Handwritten process list (reuse existing features, Aug 2026)
+
+All 9 features from the handwritten textile process note. Rules: reuse existing document types and shared components where possible; no new architectural patterns — follow Phase 2 design (TextileWorkspace rail, TextileWorkflowSteps, MetricSummaryCard, TextileInfoPanel, capability gating, master-driven controlled fields). Domain-first execution within Phase 3A.
+
+| # | Feature | Classification | Domain | Reuse From | Effort | Status |
+|---|---|---|---|---|---|---|
+| 1 | Beam Manufacture: Own vs Rent flag | 🟡 Extend Existing | 10 Beam Management | Beam `source_reference_type` (derived) | 30 min | `[x]` |
+| 2 | Yarn Issue (Sizing / Weaver) | 🔵 Modify Existing | 8 Warping | Yarn Allocation + Job Work Outward (renamed) | 15 min | `[x]` |
+| 3 | D.O. (Yarn Purchase Proforma) | ✅ Rename Only | 6 Purchase | "Approve" → "Send Proforma" on PO row action | 0 hrs | `[x]` |
+| 4 | Purchase Bill (Yarn) | 🟡 Extend Existing | 6 Purchase | PurchaseInvoice + GRN sync | 2 hrs | `[x]` |
+| 5 | Takha Proforma (Sauda) → Vendors | ✅ Already Exists | 13 Weaving | SalesQuotation package — added "Quotations (Sauda)" section to Sales workspace registry + page. Read-only table: quotation #, customer, dates, total, status, invoiced. Full CRUD on `/quotations` page. | 0 hrs | `[x]` |
+| 6 | GST, TDS, Bank, Cheque & Payment Type | ✅ Extend Existing | 12 Finance | Added payment_mode, cheque fields, TDS fields to vendor_payments + customer_payments tables. Migration + model + form request + controller. | 0 hrs | `[x]` |
+| 7 | Challa Wise / Loom Wise reports | ✅ Already Exists | 11/14 Reports | TextileReportsService + reports workspace has 17 report types incl. loom(), production(), machineEfficiency() | 0 hrs | `[x]` |
+
+Feature details:
+
+- [x] **Beam Own vs Rent**: Already distinguished by creation path — "Create Beam from Sizing Recipe" = own (in-house), "Create Beam" manual = rent (external). `source_reference_type` encodes the origin (`textile_workflow_document` for own, other for rent). Added derived "Origin" column to beam records table that reads from `source_reference_type`. No new field, validation, or metadata needed. Verified: tsc 0, build pass, 62 tests/1160 assertions.
+- [x] **Yarn Issue (Sizing / Weaver)**: "Yarn Issue to Sizing" already exists as `yarn_allocation` doc type in Manufacturing > Warp Planning (step 2: "Allocate Yarn from Approved Warp Plan"). "Yarn Issue to Weaver" already exists as `job_work_outward` doc type in Processing — renamed UI label from "Job Work Outward" to "Yarn Issue to Weaver" in workspace registry, menu, and form card. No new routes, services, or forms needed. Verified: tsc 0, build pass.
+- [x] **D.O. (Proforma on PO)**: "Approve" action renamed to "Send Proforma" on approved POs (same backend flow — draft → approved → released → closed). No new status, route, or service method needed. The PO *is* the proforma. Verified: tsc 0, build pass, 62 tests/1160 assertions.
+- [x] **Purchase Bills section**: Added `bills` section to procurement workspace registry + Procurement page. Reads existing `PurchaseInvoice` records (created via GRN sync). Read-only table: invoice #, vendor, dates, amounts, status. Zero new backend code — reuses core PurchaseInvoice model. Verified: tsc 0, build pass, 62 tests/1160 assertions.
+- [x] **Takha Proforma (Sauda)**: Reuses existing `SalesQuotation` package (Quotation > Create/Edit/View/Print with revision support, convert-to-invoice). Added "Quotations (Sauda)" section to Sales workspace — read-only table showing quotation records. Full CRUD available on the standalone `/quotations` page. No new doc type, menu, or capability needed. Verified: tsc 0, build pass, 62 tests/1160 assertions.
+- [x] **Payments (GST/TDS/Cheque/Payment Type)**: Added compliance fields to existing `vendor_payments` and `customer_payments` tables via migration. New fields: `payment_mode` (cash/cheque/neft/rtgs/imps/upi), `cheque_number`, `cheque_date`, `bank_name`, `tds_rate`, `tds_amount`, `tds_section`. Updated models ($fillable + $casts), form requests (validation rules), and controllers (store passthrough). Payment Create UI now captures these fields for both Vendor and Customer payment flows (including cheque-conditional inputs). Verified: migration + backend wiring in place, and `npm run build` pass (existing chunk-size warnings only).
+- [x] **Challa/Loom Wise reports**: Already covered by `TextileReportsService` — 17 report methods including `loom()`, `production()`, `machineEfficiency()`, `operator()`. Reports workspace already has per-section rendering. Challa is already a workflow document type in Sales flow. No new code needed.
+
+#### Flow Coverage Check (Requested 6-step customer flow)
+
+| Customer flow step | Covered in Phase 3A | Covered in Phase 3B | Covered in existing Layer-1 baseline/UI | Status |
+|---|---|---|---|---|
+| 1. Proforma to purchase yarn (Req -> RFQ -> PO/Proforma -> GRN -> QC -> Bill) | Yes (`D.O. Proforma`, `Purchase Bill`) | No | Yes (Procurement workspace rails + actions) | `[x]` |
+| 2. Audit and pass to sizing -> beam (own/rent path) | Yes (`Yarn Issue rename`, `Beam Own/Rent`) | No | Yes (Manufacturing + Processing rails) | `[x]` |
+| 3. Beam issue to weaver + return + inspection + cost | Indirect (3A supports own/rent and yarn issue semantics) | No | Yes (Beam and Batch workflow forms/tables) | `[x]` |
+| 4. Takha production from weaver | Partial (`Takha Proforma/Sauda` downstream linkage) | No | Yes (Weaving Production + Waste/Rework workflow) | `[x]` |
+| 5. Takha dispatch to customer (SO -> Allocation -> Dispatch -> Challan -> POD) | Partial (`Challa/Loom reporting`, sales quotation reuse) | No | Yes (Sales workspace rails + row actions) | `[x]` |
+| 6. Payments and finance (GST/TDS/Cheque/Payment Type + receipts) | Yes (payment compliance fields + UI capture) | No | Yes (Account Vendor/Customer Payments + Textile Finance/Reports) | `[x]` |
+
+Interpretation: Phase 3A/3B do not replace Layer-1; they extend it. The requested operational flow is fully covered when Phase 3A additions are combined with existing baseline workspaces and Account payment screens.
+
+Verification gate per feature: `npx tsc --noEmit` 0 errors; `npm run build` pass; `php artisan test tests/Feature/Textile/` pass; browser check (rail renders, `?section=` deep links work, menu/submenu navigable, controlled fields are select-based); navigation acceptance checklist satisfied.
+
+### Phase 3B — Inventory Redesign + Per-Role RBAC (Aug 2026)
+
+**Problem 1 — Inventory**: Current inventory has generic lots with no material type distinction. Manager sees a flat "Transactions" section with 3 generic forms that could apply to anything. No way to distinguish yarn, beam, grey fabric, finished fabric. The 10-chip Controls section is overwhelming.
+
+**Problem 2 — RBAC**: All users in a textile company see the same textile menus. Manager sees Finance, Costing, Logs, Master Setup — screens they never use. The `textile_capabilities` system is per-tenant, not per-role.
+
+**Solution**: Two connected changes — (1) restructure inventory into material-type-wise sub-menus with auto-created lots, (2) add per-role capability overrides so owner sees everything and manager sees only operational screens.
+
+#### Part A: Inventory Material-Type Redesign
+
+| # | Task | Classification | Domain | Effort | Status |
+|---|---|---|---|---|---|
+| A1 | Migration: add `material_type`, `production_stage`, `source_document_type`, `source_document_id` to `textile_lots` | 🟡 Extend Existing | Inventory | 30 min | `[x]` |
+| A2 | Model: add enum casts + scopes (`byMaterialType()`, `byStage()`) on TextileLot | 🟡 Extend Existing | Inventory | 15 min | `[x]` |
+| A3 | Registry: rebuild inventory sections as material-type-wise (Yarn Stock, Beam Stock, Grey Fabric, Finished Fabric, Chemicals, Packing Materials, Locations & Controls) | 🔴 New | Inventory | 1 hr | `[x]` |
+| A4 | Controller: filter queries by material_type per section, add contextual KPIs | 🟡 Extend Existing | Inventory | 1 hr | `[x]` |
+| A5 | Auto-creation hooks: GRN release → yarn lot, Beam create → beam lot, Weaving Output → grey lot, Processing Inward → finished lot | 🟡 Extend Existing | Inventory | 1 hr | `[x]` |
+| A6 | UI: material-type icons, per-section tables with relevant columns, eliminated generic forms | 🔴 New | Inventory | 1 hr | `[x]` |
+
+**Inventory sidebar after redesign:**
+```
+Inventory
+  ├── 🧵 Yarn Stock (Overview, Yarn Lots, Yarn Movements)
+  ├── 📦 Beam Stock (Overview, Beam Lots, Issue & Return)
+  ├── 👕 Grey Fabric (Overview, Grey Rolls, Movements)
+  ├── ✨ Finished Fabric (Overview, Finished Lots, Ready for Dispatch)
+  ├── 🧪 Chemicals (Overview, Chemical Lots)
+  ├── 📦 Packing Materials (Overview, Packing Stock)
+  └── ⚙️ Locations & Controls (Freeze, Unfreeze, Physical Verification, Cycle Count)
+```
+
+#### Part B: Per-Role Textile RBAC (Owner + Manager)
+
+| # | Task | Classification | Domain | Effort | Status |
+|---|---|---|---|---|---|
+| B1 | Migration: create `textile_role_capabilities` table (role_id, capabilities JSON, created_by) | 🟡 Extend Existing | RBAC | 30 min | `[x]` |
+| B2 | Model: `TextileRoleCapability` with tenant scoping | 🟡 Extend Existing | RBAC | 15 min | `[x]` |
+| B3 | Service: add `capabilitiesForUser($user)` to `TextileOperatingPolicyService` — merges base policy + role overrides | 🟡 Extend Existing | RBAC | 1 hr | `[x]` |
+| B4 | Middleware: `HandleInertiaRequests` calls `capabilitiesForUser()` instead of `capabilities()` | 🟡 Extend Existing | RBAC | 30 min | `[x]` |
+| B5 | Seed default overrides: company admin (owner) = full access, staff (manager) = operational only | 🟡 Extend Existing | RBAC | 30 min | `[x]` |
+
+**Manager sees vs Owner sees:**
+- Owner: ~111 items (everything)
+- Manager: ~74 items — hides Production Planning, Freight Cost, Maintenance Cost, Process Cost, Finance, Costing, Logs, and 9 of 14 Master Setup groups
+- No complex role hierarchy — just 2 roles: `company` (owner) and `staff` (manager)
+
+#### Manager Simplicity Review (Simple vs Complex)
+
+Recommended manager-visible (daily operational only):
+- Procurement: Requisitions, RFQ, Purchase Orders, GRN, Incoming QC, Purchase Bills.
+- Inventory: Yarn/Beam/Grey/Finished stock and basic movement/reservation actions.
+- Manufacturing: Beam and Batch, Weaving Production, Waste, Rework.
+- Sales: Sales Order, Allocation and Dispatch.
+- Processing: Yarn Issue to Weaver, Processing Batch, Job Work Inward, Reconciliation.
+- Payments: Vendor Payments, Customer Payments (from Account module).
+- Reports: operational reports used daily (production, loom, sales, purchase, stock).
+
+Recommended manager-hidden (complex/strategic/admin):
+- Manufacturing Planning (`manufacturing_planning`).
+- Manufacturing Maintenance (`manufacturing_maintenance`).
+- Quality Hold/Release decisions (`quality_hold_release`) where escalation to owner is preferred.
+- Challan/POD final release controls (`sales_challan_pod`) if separation of duties is required.
+- Inventory Freeze/Verification/Cycle Count controls (`inventory_freeze`, `inventory_verification`, `inventory_cycle_count`).
+- Transport and Maintenance operation groups (`transport_operations`, `maintenance_operations`).
+- Textile Finance workspace, Textile Costing workspace, Textile Logs, and most Master Setup pages.
+
+Current role seed already enforces a major part of this via `staffOperationalCapabilities()` in `TextileOperatingPolicyService`; if stricter separation is needed, apply additional role-capability overrides for `finance`, `costing`, and setup capabilities.
+
+**Total effort: ~8-9 hrs** (down from 10-11 hrs as two separate phases; completed and verified)
+
+Verification gate: `npx tsc --noEmit` 0 errors; `npm run build` pass; `php artisan test tests/Feature/Textile/` pass; browser check — inventory rail shows material-type sections with auto-created lots, company admin sees all 111 items, manager role sees ~74 items.
+
+---
+
+### Phase 4 — Master/CRUD pages (light touch)
 
 - [ ] `Masters`, `Specifications`, `Costing`, `Approvals`, `CostCenters`, `CustomFields`, `OperatingPolicy`, `Logs`, `DispatchVehicles`, `DispatchDrivers`, `DispatchRoutes` — adopt shared `TextileFormCard`/`TextileSection`/KPIs where duplicated; no rail needed (single-purpose pages).
 
-### Phase 4 — Dashboard decision
+### Phase 5 — Dashboard decision
 
 - [ ] `Dashboard` (7 chart tabs) — decision: keep tabs (charts want horizontal space) or convert to rail; do not force one pattern on a charts-first page without a visual check.
 
@@ -198,16 +320,20 @@ Use this section as the day-to-day operating order. Follow steps in sequence.
 ### B. Daily operations flow
 
 1. Procurement (buy)
-	- Requisition -> Purchase Order -> GRN -> Incoming QC
+	- Requisition -> **Delivery Order (Proforma)** -> Purchase Order -> GRN -> Incoming QC -> **Purchase Bill**
 2. Inventory (control)
 	- Lot receipt/movement/reservation and location tracking
 3. Manufacturing (if in-house)
-	- Beam -> Production Batch -> Weaving Output -> Waste/Rework
+	- **Yarn Issue (to Sizing / Weaver)** -> Beam (Own/Rent) -> Production Batch -> Weaving Output -> Takha Entry -> **Takha Proforma (Sauda) to Vendors** -> Waste/Rework
 4. Processing (if job work)
 	- Job Work Outward -> Processing Batch -> Job Work Inward -> Reconciliation
 5. Sales (sell)
 	- Sales Order -> Allocation -> Dispatch -> Challan -> POD
-6. Costing and review
+6. **Payments and Finance**
+	- **GST calculation -> TDS deduction -> Payment recording (Cash/Cheque/NEFT/RTGS/UPI) -> Bank reconciliation**
+7. **Reports**
+	- **Challa Wise / Loom Wise / Date Wise grouping and filtering**
+8. Costing and review
 	- Costing entry -> Margin snapshot -> Dashboard review
 
 ### C. Exception handling flow
@@ -238,11 +364,13 @@ Use this section as the day-to-day operating order. Follow steps in sequence.
 | SOP block | Tracker section |
 |---|---|
 | First-time setup | Layer 1: Platform access + TextileCore + Inventory masters |
-| Procurement flow | Layer 1: TextileProcurement |
+| Procurement flow | Layer 1: TextileProcurement + **Phase 3A: D.O./Proforma, Purchase Bills** |
 | Inventory control | Layer 1: TextileInventory |
-| Manufacturing flow | Layer 1: TextileManufacturing |
+| Manufacturing flow | Layer 1: TextileManufacturing + **Phase 3A: Yarn Issue, Beam Own/Rent, Takha Proforma** |
 | Processing flow | Layer 1: Remaining roadmap phases (job work and processing) |
 | Sales flow | Layer 1: TextileSales |
+| **Payments and Finance** | **Phase 3A: GST/TDS/Cheque/Payment Type** |
+| **Reports** | **Phase 3A: Challa/Loom Wise grouping** |
 | Costing and review | Layer 1: Remaining roadmap phases (costing, dashboards/reports) |
 | Enterprise expansion beyond baseline | Layer 2: Enterprise atomic master checklist |
 
@@ -284,6 +412,9 @@ Current execution order:
 10. Weaving Production and Grey Fabric
 11. Quality
 12. Finance
+13. **Phase 3A quick wins**: Beam Own/Rent flag, Yarn Issue un-hiding, D.O. Proforma on PO
+14. **Phase 3A medium**: Purchase Bills section, Takha Proforma (Sauda)
+15. **Phase 3A large**: Payments (GST/TDS/Cheque), Challa/Loom Wise reports
 
 
 ## Layer 2: Enterprise atomic master checklist (single source for marking)
@@ -1058,10 +1189,11 @@ Progress note (2026-08-04):
 
 ## Delivery order from here
 
-1. P1: implement customer operating model profiles (including powerloom-only and customer-owned beam/yarn flows) with profile-based workflow gates.
-2. P1: add warping/sizing/loom planning baseline and formalize roll plus final-QC data model.
-3. P2: deliver packing, transport, maintenance, and expanded report/dashboard packs.
-4. P3: deliver mobile, hardware, and statutory integrations.
+1. **P1 (completed Aug 2026)**: Inventory Redesign + Per-Role RBAC — Phase 3B. Restructure inventory into material-type-wise sub-menus (Yarn, Beam, Grey Fabric, Finished Fabric, Chemicals, Packing Materials) with auto-created lots. Add per-role capability overrides (owner sees all 111 items, manager sees 74 operational items). Verified: `npx tsc --noEmit`, `npm run build`, `php artisan test tests/Feature/Textile/TextileApprovalAdminTest.php`, and `php artisan db:seed --class=TextileRoleCapabilitySeeder --no-interaction --force`.
+2. P1: implement customer operating model profiles (including powerloom-only and customer-owned beam/yarn flows) with profile-based workflow gates.
+3. P1: add warping/sizing/loom planning baseline and formalize roll plus final-QC data model.
+4. P2: deliver packing, transport, maintenance, and expanded report/dashboard packs.
+5. P3: deliver mobile, hardware, and statutory integrations.
 
 ## Tracker maintenance
 

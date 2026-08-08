@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HasBranchWarehouseScope;
 use App\Models\SalesInvoice;
 use App\Models\SalesInvoiceItem;
 use App\Models\SalesInvoiceItemTax;
@@ -22,6 +23,8 @@ use App\Events\EditSalesInvoice;
 
 class SalesInvoiceController extends Controller
 {
+    use HasBranchWarehouseScope;
+
     private function checkInvoiceAccess(SalesInvoice $salesInvoice)
     {
         if(Auth::user()->can('manage-any-sales-invoices')) {
@@ -40,6 +43,7 @@ class SalesInvoiceController extends Controller
     public function index(Request $request)
     {
         if(Auth::user()->can('manage-sales-invoices')){
+            $user = Auth::user();
             $query = SalesInvoice::with(['customer', 'items'])
                 ->where(function($q) {
                     if(Auth::user()->can('manage-any-sales-invoices')) {
@@ -53,6 +57,8 @@ class SalesInvoiceController extends Controller
                         $q->whereRaw('1 = 0');
                     }
                 });
+
+            $this->applyWarehouseScope($query, 'warehouse_id', $user, true);
 
             // Apply filters
             if ($request->customer_id) {
@@ -95,7 +101,7 @@ class SalesInvoiceController extends Controller
         $perPage = $request->get('per_page', 10);
         $invoices = $query->paginate($perPage);
         $customers = User::where('type', 'client')->select('id', 'name', 'email')->where('created_by', creatorId())->get();
-        $warehouses = Warehouse::where('is_active', true)->select('id', 'name')->where('created_by', creatorId())->get();
+        $warehouses = $this->scopedWarehouseQuery($user)->select('id', 'name')->get();
 
             return Inertia::render('Sales/Index', [
                 'invoices' => $invoices,
@@ -112,8 +118,9 @@ class SalesInvoiceController extends Controller
     public function create()
     {
         if(Auth::user()->can('create-sales-invoices')){
+            $user = Auth::user();
             $customers = User::where('type', 'client')->select('id', 'name', 'email')->where('created_by', creatorId())->get();
-            $warehouses = Warehouse::where('is_active', true)->select('id', 'name', 'address')->where('created_by', creatorId())->get();
+            $warehouses = $this->scopedWarehouseQuery($user)->select('id', 'name', 'address')->get();
 
             return Inertia::render('Sales/Create', [
                 'customers' => $customers,
@@ -131,6 +138,10 @@ class SalesInvoiceController extends Controller
     public function store(StoreSalesInvoiceRequest $request)
     {
         if(Auth::user()->can('create-sales-invoices')){
+            if ($request->type === 'product' && !$this->isWarehouseAccessible($request->warehouse_id, Auth::user())) {
+                return redirect()->route('sales-invoices.index')->with('error', __('Selected warehouse is not accessible for this user.'));
+            }
+
             $totals = $this->calculateTotals($request->items);
 
             $invoice = new SalesInvoice();
@@ -174,6 +185,10 @@ class SalesInvoiceController extends Controller
                 return redirect()->route('sales-invoices.index')->with('error', __('Permission denied'));
             }
 
+            if (!$this->isWarehouseAccessible($salesInvoice->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('sales-invoices.index')->with('error', __('Permission denied'));
+            }
+
             $salesInvoice->load(['customer', 'customerDetails', 'items.product', 'items.taxes', 'warehouse']);
 
             return Inertia::render('Sales/View', [
@@ -188,7 +203,12 @@ class SalesInvoiceController extends Controller
     public function edit(SalesInvoice $salesInvoice)
     {
         if(Auth::user()->can('edit-sales-invoices') && $salesInvoice->created_by == creatorId()){
+            $user = Auth::user();
             if(!$this->checkInvoiceAccess($salesInvoice)) {
+                return redirect()->route('sales-invoices.index')->with('error', __('Permission denied'));
+            }
+
+            if (!$this->isWarehouseAccessible($salesInvoice->warehouse_id, $user, true)) {
                 return redirect()->route('sales-invoices.index')->with('error', __('Permission denied'));
             }
 
@@ -201,7 +221,7 @@ class SalesInvoiceController extends Controller
             EditSalesInvoice::dispatch($salesInvoice);
 
             $customers = User::where('type', 'client')->select('id', 'name', 'email')->where('created_by', creatorId())->get();
-            $warehouses = Warehouse::where('is_active', true)->select('id', 'name', 'address')->where('created_by', creatorId())->get();
+            $warehouses = $this->scopedWarehouseQuery($user)->select('id', 'name', 'address')->get();
 
             return Inertia::render('Sales/Edit', [
                 'invoice' => $salesInvoice,
@@ -220,6 +240,14 @@ class SalesInvoiceController extends Controller
     public function update(UpdateSalesInvoiceRequest $request, SalesInvoice $salesInvoice)
     {
         if(Auth::user()->can('edit-sales-invoices') && $salesInvoice->created_by == creatorId()){
+            if (!$this->isWarehouseAccessible($salesInvoice->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('sales-invoices.index')->with('error', __('Permission denied'));
+            }
+
+            if ($salesInvoice->type === 'product' && !$this->isWarehouseAccessible($request->warehouse_id, Auth::user())) {
+                return redirect()->route('sales-invoices.index')->with('error', __('Selected warehouse is not accessible for this user.'));
+            }
+
             if ($salesInvoice->status != 'draft') {
                 return redirect()->route('sales-invoices.index')->with('error', __('Cannot update posted invoice.'));
             }
@@ -255,6 +283,10 @@ class SalesInvoiceController extends Controller
     public function destroy(SalesInvoice $salesInvoice)
     {
         if(Auth::user()->can('delete-sales-invoices')){
+            if (!$this->isWarehouseAccessible($salesInvoice->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('sales-invoices.index')->with('error', __('Permission denied'));
+            }
+
             if ($salesInvoice->status === 'posted') {
                 return back()->withErrors(['error' => __('Cannot delete posted invoice.')]);
             }
@@ -324,6 +356,10 @@ class SalesInvoiceController extends Controller
     public function post(SalesInvoice $salesInvoice)
     {
         if(Auth::user()->can('post-sales-invoices')){
+        if (!$this->isWarehouseAccessible($salesInvoice->warehouse_id, Auth::user(), true)) {
+            return back()->with('error', __('Permission denied'));
+        }
+
         if ($salesInvoice->status !== 'draft') {
             return back()->withErrors(['error' => __('Only draft invoices can be posted.')]);
         }
@@ -351,6 +387,11 @@ class SalesInvoiceController extends Controller
             if (!$warehouseId) {
                 return response()->json([]);
             }
+
+            if (!$this->isWarehouseAccessible($warehouseId, Auth::user())) {
+                return response()->json([], 403);
+            }
+
             $products = ProductServiceItem::select('id', 'name', 'sku', 'sale_price', 'tax_ids', 'unit', 'type')
                 ->where('is_active', true)
                 ->where('created_by', creatorId())
@@ -423,6 +464,10 @@ class SalesInvoiceController extends Controller
     public function print(SalesInvoice $salesInvoice)
     {
         if(Auth::user()->can('print-sales-invoices')){
+            if (!$this->isWarehouseAccessible($salesInvoice->warehouse_id, Auth::user(), true)) {
+                return back()->with('error', __('Permission denied'));
+            }
+
             $salesInvoice->load(['customer', 'customerDetails', 'items.product', 'items.taxes', 'warehouse']);
 
             return Inertia::render('Sales/Print', [

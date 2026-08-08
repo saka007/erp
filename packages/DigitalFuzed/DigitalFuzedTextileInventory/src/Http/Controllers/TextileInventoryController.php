@@ -3,6 +3,7 @@
 namespace DigitalFuzed\TextileInventory\Http\Controllers;
 
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
+use DigitalFuzed\TextileCore\Traits\ProvidesRecentActivity;
 use DigitalFuzed\TextileInventory\Models\TextileCycleCount;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Models\TextileLocation;
@@ -19,6 +20,8 @@ use RuntimeException;
 
 class TextileInventoryController extends Controller
 {
+    use ProvidesRecentActivity;
+
     private const MOVEMENT_TYPES = ['receipt', 'issue', 'transfer', 'adjustment'];
     private const ADJUSTMENT_DIRECTIONS = ['increase', 'decrease'];
     private const MOVEMENT_STATUSES = ['pending', 'posted', 'cancelled'];
@@ -28,25 +31,82 @@ class TextileInventoryController extends Controller
     {
     }
 
+    /**
+     * Material-type section IDs mapped to their TextileLot constant.
+     */
+    private const SECTION_MATERIAL_TYPES = [
+        'yarn-stock' => TextileLot::TYPE_YARN,
+        'beam-stock' => TextileLot::TYPE_BEAM,
+        'grey-fabric' => TextileLot::TYPE_GREY_FABRIC,
+        'finished-fabric' => TextileLot::TYPE_FINISHED_FABRIC,
+        'chemicals' => TextileLot::TYPE_CHEMICAL,
+        'packing-materials' => TextileLot::TYPE_PACKING_MATERIAL,
+    ];
+
     public function index(Request $request)
     {
         $this->authorizeTextileAccess();
         $this->authorizeCapabilityOrAbort('inventory');
 
-        $movementsQuery = TextileMovement::query()->where('created_by', creatorId());
+        $section = $request->string('section')->toString();
+        $tenantId = creatorId();
+
+        // Base lot query with reserved quantity sub-select
+        $lotQuery = TextileLot::query()
+            ->where('created_by', $tenantId)
+            ->select('*')
+            ->selectSub(function ($query) {
+                $query->from('textile_reservations')
+                    ->selectRaw('COALESCE(SUM(reserved_quantity), 0)')
+                    ->whereColumn('textile_reservations.lot_reference', 'textile_lots.lot_reference')
+                    ->whereColumn('textile_reservations.created_by', 'textile_lots.created_by')
+                    ->where('is_active', true);
+            }, 'reserved_quantity');
+
+        // Filter by material_type when viewing a material-type section
+        $materialType = self::SECTION_MATERIAL_TYPES[$section] ?? null;
+        if ($materialType) {
+            $lotQuery->where('material_type', $materialType);
+        }
+
+        $lots = $lotQuery->latest()->get();
+
+        // KPIs — always computed for the filtered set
+        $kpis = [
+            'total_lots' => $lots->count(),
+            'total_qty' => (float) $lots->sum('received_quantity'),
+            'available_qty' => (float) $lots->sum('available_quantity'),
+            'reserved_qty' => (float) $lots->sum('reserved_quantity'),
+            'frozen_count' => $lots->where('is_frozen', true)->count(),
+        ];
+
+        // Per-material-type breakdown (for overview)
+        $materialTypeKpis = [];
+        if ($section === 'overview' || ! $materialType) {
+            foreach (self::SECTION_MATERIAL_TYPES as $sectionKey => $type) {
+                $typeLots = $lots->where('material_type', $type);
+                $materialTypeKpis[$sectionKey] = [
+                    'label' => TextileLot::materialTypeLabel($type),
+                    'icon' => TextileLot::materialTypeIcon($type),
+                    'count' => $typeLots->count(),
+                    'total_qty' => (float) $typeLots->sum('received_quantity'),
+                    'available_qty' => (float) $typeLots->sum('available_quantity'),
+                ];
+            }
+        }
+
+        // Movement filters
+        $movementsQuery = TextileMovement::query()->where('created_by', $tenantId);
 
         if ($request->filled('movement_type')) {
             $movementsQuery->where('movement_type', $request->string('movement_type'));
         }
-
         if ($request->filled('status')) {
             $movementsQuery->where('status', $request->string('status'));
         }
-
         if ($request->filled('lot_reference')) {
             $movementsQuery->where('lot_reference', 'like', '%'.$request->string('lot_reference').'%');
         }
-
         if ($request->filled('location')) {
             $location = $request->string('location');
             $movementsQuery->where(function ($query) use ($location) {
@@ -54,32 +114,34 @@ class TextileInventoryController extends Controller
             });
         }
 
-        return Inertia::render('DigitalFuzedTextileInventory/Inventory/Index', [
-            'lots' => TextileLot::query()
-                ->where('created_by', creatorId())
-                ->select('*')
-                ->selectSub(function ($query) {
-                    $query->from('textile_reservations')
-                        ->selectRaw('COALESCE(SUM(reserved_quantity), 0)')
-                        ->whereColumn('textile_reservations.lot_reference', 'textile_lots.lot_reference')
-                        ->whereColumn('textile_reservations.created_by', 'textile_lots.created_by')
-                        ->where('is_active', true);
-                }, 'reserved_quantity')
-                ->latest()
-                ->get(),
-            'movements' => $movementsQuery->latest()->limit(100)->get(),
-            'reservations' => TextileReservation::where('created_by', creatorId())->where('is_active', true)->latest()->limit(100)->get(),
-            'cycleCounts' => TextileCycleCount::where('created_by', creatorId())->latest()->limit(100)->get(),
-            'locations' => TextileLocation::where('created_by', creatorId())->where('is_active', true)->latest()->get(),
-            'movementTypes' => self::MOVEMENT_TYPES,
-            'movementStatuses' => self::MOVEMENT_STATUSES,
-            'filters' => [
-                'movement_type' => $request->string('movement_type')->toString(),
-                'status' => $request->string('status')->toString(),
-                'lot_reference' => $request->string('lot_reference')->toString(),
-                'location' => $request->string('location')->toString(),
-            ],
-        ]);
+        $baseData = [
+            'lots' => $lots,
+            'kpis' => $kpis,
+            'materialTypeKpis' => $materialTypeKpis,
+            'section' => $section,
+            'materialType' => $materialType,
+            'recentActivity' => $this->recentActivity(),
+        ];
+
+        // For locations-controls section, include locations, cycle counts, and recent movements
+        if ($section === 'locations-controls' || $section === '') {
+            return Inertia::render('DigitalFuzedTextileInventory/Inventory/Index', array_merge($baseData, [
+                'locations' => TextileLocation::where('created_by', $tenantId)->where('is_active', true)->latest()->get(),
+                'cycleCounts' => TextileCycleCount::where('created_by', $tenantId)->latest()->limit(100)->get(),
+                'movements' => $movementsQuery->latest()->limit(100)->get(),
+                'reservations' => TextileReservation::where('created_by', $tenantId)->where('is_active', true)->latest()->limit(100)->get(),
+                'movementTypes' => self::MOVEMENT_TYPES,
+                'movementStatuses' => self::MOVEMENT_STATUSES,
+                'filters' => [
+                    'movement_type' => $request->string('movement_type')->toString(),
+                    'status' => $request->string('status')->toString(),
+                    'lot_reference' => $request->string('lot_reference')->toString(),
+                    'location' => $request->string('location')->toString(),
+                ],
+            ]));
+        }
+
+        return Inertia::render('DigitalFuzedTextileInventory/Inventory/Index', $baseData);
     }
 
     public function storeLocation(Request $request)
@@ -152,6 +214,10 @@ class TextileInventoryController extends Controller
             'received_quantity' => ['required', 'numeric', 'gt:0'],
             'available_quantity' => ['nullable', 'numeric', 'min:0'],
             'status' => ['nullable', Rule::in(self::LOT_STATUSES)],
+            'material_type' => ['nullable', 'string', 'max:40', Rule::in(TextileLot::MATERIAL_TYPES)],
+            'production_stage' => ['nullable', 'string', 'max:40'],
+            'source_document_type' => ['nullable', 'string', 'max:100'],
+            'source_document_id' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $barcode = $validated['barcode'] ?? strtoupper('LOT-'.$validated['lot_reference']);
@@ -171,6 +237,10 @@ class TextileInventoryController extends Controller
             'received_quantity' => $validated['received_quantity'],
             'available_quantity' => $validated['available_quantity'] ?? $validated['received_quantity'],
             'status' => $validated['status'] ?? 'active',
+            'material_type' => $validated['material_type'] ?? null,
+            'production_stage' => $validated['production_stage'] ?? null,
+            'source_document_type' => $validated['source_document_type'] ?? null,
+            'source_document_id' => $validated['source_document_id'] ?? null,
             'is_active' => true,
             'created_by' => creatorId(),
             'creator_id' => Auth::id(),
@@ -530,7 +600,7 @@ class TextileInventoryController extends Controller
     {
         $user = Auth::user();
 
-        abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+        abort_unless($user && in_array($user->type, ['company', 'superadmin', 'staff'], true), 403);
     }
 
     private function authorizeCapability(string $capability, string $errorKey): void

@@ -7,6 +7,7 @@ import { NavItem } from '@/types';
 
 export function NavMain({ items = [], searchQuery = "" }: { items: NavItem[], searchQuery?: string }) {
     const page = usePage();
+    const currentUrl = new URL(page.url, window.location.origin);
 
     // Filter items based on search query
     const filterItems = (items: NavItem[], query: string): NavItem[] => {
@@ -52,12 +53,34 @@ export function NavMain({ items = [], searchQuery = "" }: { items: NavItem[], se
         return false;
     };
 
+    // Match full href including query params when present (e.g. ?section=incoming-qc)
+    // so sibling menus sharing the same pathname don't expand incorrectly.
+    const isHrefActive = (href: string, activePaths?: string[]): boolean => {
+        const targetUrl = new URL(href, window.location.origin);
+        const targetPath = targetUrl.pathname;
+
+        if (!(currentUrl.pathname === targetPath || currentUrl.pathname.startsWith(targetPath + '/'))) {
+            return isUrlActive(targetPath, activePaths);
+        }
+
+        if ([...targetUrl.searchParams.keys()].length === 0) {
+            return true;
+        }
+
+        for (const [key, value] of targetUrl.searchParams.entries()) {
+            if (currentUrl.searchParams.get(key) !== value) {
+                return false;
+            }
+        }
+
+        return true;
+    };
+
     // Helper function to check if any child is active (recursive for nested children)
     const isChildActive = (children: NavItem[]): boolean => {
         return children.some(child => {
             if (child.href) {
-                const childPath = new URL(child.href, window.location.origin).pathname;
-                return isUrlActive(childPath, child.activePaths);
+                return isHrefActive(child.href, child.activePaths);
             }
             if (child.activePaths) {
                 return isUrlActive('', child.activePaths);
@@ -73,8 +96,7 @@ export function NavMain({ items = [], searchQuery = "" }: { items: NavItem[], se
         <SidebarGroup>
             <SidebarMenu>
                 {filteredItems.map((item) => {
-                  const itemPath = item.href ? new URL(item.href, window.location.origin).pathname : '';
-                  const isActive = !!(itemPath && isUrlActive(itemPath));
+                                    const isActive = !!(item.href && isHrefActive(item.href, item.activePaths));
 
                   // Check if any child is active for parent menus
                   const hasActiveChild = item.children ? isChildActive(item.children) : false;
@@ -95,7 +117,7 @@ export function NavMain({ items = [], searchQuery = "" }: { items: NavItem[], se
                                         <CollapsibleContent>
                                             <SidebarMenuSub>
                                                 {item.children.map((subItem) => {
-                                                    const subItemActive = !!(subItem.href && isUrlActive(new URL(subItem.href, window.location.origin).pathname, subItem.activePaths));
+                                                    const subItemActive = !!(subItem.href && isHrefActive(subItem.href, subItem.activePaths));
                                                     const hasActiveSubChild = subItem.children ? isChildActive(subItem.children) : false;
                                                     const subItemShouldBeActive = subItemActive || hasActiveSubChild;
                                                     
@@ -114,7 +136,7 @@ export function NavMain({ items = [], searchQuery = "" }: { items: NavItem[], se
                                                                         <CollapsibleContent>
                                                                             <SidebarMenuSub>
                                                                                 {subItem.children.map((subSubItem) => {
-                                                                                    const isSubSubActive = !!(subSubItem.href && isUrlActive(new URL(subSubItem.href, window.location.origin).pathname, subSubItem.activePaths));
+                                                                                    const isSubSubActive = !!(subSubItem.href && isHrefActive(subSubItem.href, subSubItem.activePaths));
                                                                                     return (
                                                                                     <SidebarMenuSubItem key={subSubItem.title}>
                                                                                         <SidebarMenuSubButton

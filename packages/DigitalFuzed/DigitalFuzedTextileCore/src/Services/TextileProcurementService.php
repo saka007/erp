@@ -5,6 +5,7 @@ namespace DigitalFuzed\TextileCore\Services;
 use App\Models\PurchaseInvoice;
 use App\Models\User;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Services\TextileMovementService;
 use RuntimeException;
@@ -19,10 +20,16 @@ class TextileProcurementService
 
     public function createRequisition(array $payload): TextileWorkflowDocument
     {
+        $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
+        $lotReference = isset($payload['lot_reference']) ? trim((string) $payload['lot_reference']) : '';
+        if ($lotReference === '') {
+            $lotReference = $this->generateAutoLotReference($tenantId);
+        }
+
         return $this->workflowService->createDocument([
             'document_type' => 'purchase_requisition',
             'party_name' => $payload['party_name'] ?? null,
-            'lot_reference' => $payload['lot_reference'] ?? null,
+            'lot_reference' => $lotReference,
             'quantity' => $payload['quantity'] ?? 0,
             'unit' => $payload['unit'] ?? null,
             'status' => 'draft',
@@ -34,6 +41,28 @@ class TextileProcurementService
     public function approveRequisition(int $requisitionId): TextileWorkflowDocument
     {
         return $this->workflowService->transitionStatus($requisitionId, 'approved');
+    }
+
+    public function deleteRequisition(int $requisitionId): void
+    {
+        $requisition = $this->findTenantDocument($requisitionId, 'purchase_requisition');
+
+        if ($requisition->status !== 'draft') {
+            throw new RuntimeException('Only draft requisitions can be deleted.');
+        }
+
+        $hasDownstreamDocument = TextileWorkflowDocument::query()
+            ->where('created_by', $requisition->created_by)
+            ->where('source_reference_type', 'textile_workflow_document')
+            ->where('source_reference_id', $requisition->id)
+            ->whereIn('document_type', ['rfq', 'purchase_order'])
+            ->exists();
+
+        if ($hasDownstreamDocument) {
+            throw new RuntimeException('Requisition cannot be deleted because it is already used by a downstream document.');
+        }
+
+        $requisition->delete();
     }
 
     public function createRfq(int $requisitionId, array $payload = []): TextileWorkflowDocument
@@ -53,7 +82,7 @@ class TextileProcurementService
             'quantity' => $payload['quantity'] ?? $requisition->quantity,
             'unit' => $payload['unit'] ?? $requisition->unit,
             'status' => 'draft',
-            'metadata' => $payload['metadata'] ?? null,
+            'metadata' => $payload['metadata'] ?? $requisition->metadata,
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
     }
@@ -90,7 +119,7 @@ class TextileProcurementService
                 'quantity' => $payload['quantity'] ?? $rfq->quantity,
                 'unit' => $payload['unit'] ?? $rfq->unit,
                 'status' => 'draft',
-                'metadata' => $payload['metadata'] ?? null,
+                'metadata' => $payload['metadata'] ?? $rfq->metadata,
                 'idempotency_key' => $payload['idempotency_key'] ?? null,
             ]);
         }
@@ -114,7 +143,7 @@ class TextileProcurementService
             'quantity' => $payload['quantity'] ?? $requisition->quantity,
             'unit' => $payload['unit'] ?? $requisition->unit,
             'status' => 'draft',
-            'metadata' => $payload['metadata'] ?? null,
+            'metadata' => $payload['metadata'] ?? $requisition->metadata,
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
     }
@@ -132,19 +161,35 @@ class TextileProcurementService
             throw new RuntimeException('Purchase order must be approved before creating GRN.');
         }
 
+        $lotReference = isset($payload['lot_reference']) ? trim((string) $payload['lot_reference']) : trim((string) ($purchaseOrder->lot_reference ?? ''));
+        if ($lotReference === '') {
+            $lotReference = $this->generateAutoLotReference((int) $purchaseOrder->created_by);
+        }
+
         return $this->workflowService->createDocument([
             'document_type' => 'grn',
             'source_reference_type' => 'textile_workflow_document',
             'source_reference_id' => $purchaseOrder->id,
             'source_action' => 'goods_receipt',
             'party_name' => $payload['party_name'] ?? $purchaseOrder->party_name,
-            'lot_reference' => $payload['lot_reference'] ?? $purchaseOrder->lot_reference,
+            'lot_reference' => $lotReference,
             'quantity' => $payload['quantity'] ?? $purchaseOrder->quantity,
             'unit' => $payload['unit'] ?? $purchaseOrder->unit,
             'status' => 'draft',
-            'metadata' => $payload['metadata'] ?? null,
+            'metadata' => $payload['metadata'] ?? $purchaseOrder->metadata,
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
+    }
+
+    private function generateAutoLotReference(?int $tenantId): string
+    {
+        $dateToken = now()->format('ymd');
+        $sequence = TextileWorkflowDocument::query()
+            ->where('created_by', $tenantId)
+            ->whereDate('created_at', now()->toDateString())
+            ->count() + 1;
+
+        return sprintf('LOT-AUTO-%s-%03d', $dateToken, $sequence);
     }
 
     public function releaseGrn(int $grnId): TextileWorkflowDocument
@@ -250,7 +295,7 @@ class TextileProcurementService
             'quantity' => $payload['quantity'] ?? $grn->quantity,
             'unit' => $payload['unit'] ?? $grn->unit,
             'status' => 'draft',
-            'metadata' => $payload['metadata'] ?? null,
+            'metadata' => $payload['metadata'] ?? $grn->metadata,
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
     }
@@ -309,6 +354,7 @@ class TextileProcurementService
 
         if ($decision === 'pass') {
             $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
+            $materialType = $this->resolveProcurementMaterialType($updated);
 
             $lot = TextileLot::firstOrCreate(
                 [
@@ -320,9 +366,20 @@ class TextileProcurementService
                     'received_quantity' => 0,
                     'available_quantity' => 0,
                     'status' => 'active',
+                    'material_type' => $materialType,
+                    'production_stage' => TextileLot::STAGE_PROCUREMENT,
+                    'source_document_type' => $updated->document_type,
+                    'source_document_id' => $updated->id,
                     'is_active' => true,
                 ]
             );
+
+            if (empty($lot->material_type)) {
+                $lot->material_type = $materialType;
+                $lot->production_stage = TextileLot::STAGE_PROCUREMENT;
+                $lot->source_document_type = $updated->document_type;
+                $lot->source_document_id = $updated->id;
+            }
 
             $lot->received_quantity = (float) $lot->received_quantity + (float) $updated->quantity;
             $lot->available_quantity = (float) $lot->available_quantity + (float) $updated->quantity;
@@ -344,15 +401,56 @@ class TextileProcurementService
         return $updated;
     }
 
+    private function resolveProcurementMaterialType(TextileWorkflowDocument $document): string
+    {
+        $current = $document;
+
+        for ($depth = 0; $depth < 6; $depth++) {
+            $metadata = is_array($current->metadata) ? $current->metadata : [];
+            $requisitionType = $metadata['requisition_type'] ?? null;
+
+            if (is_string($requisitionType) && $requisitionType !== '') {
+                return match ($requisitionType) {
+                    'yarn' => TextileLot::TYPE_YARN,
+                    'beam' => TextileLot::TYPE_BEAM,
+                    'grey_fabric' => TextileLot::TYPE_GREY_FABRIC,
+                    'finished_fabric' => TextileLot::TYPE_FINISHED_FABRIC,
+                    'chemical' => TextileLot::TYPE_CHEMICAL,
+                    'packing_material' => TextileLot::TYPE_PACKING_MATERIAL,
+                    default => TextileLot::TYPE_OTHER,
+                };
+            }
+
+            if (! $current->source_reference_id || $current->source_reference_type !== 'textile_workflow_document') {
+                break;
+            }
+
+            $parent = TextileWorkflowDocument::query()
+                ->where('id', $current->source_reference_id)
+                ->where('created_by', $current->created_by)
+                ->first();
+
+            if (! $parent) {
+                break;
+            }
+
+            $current = $parent;
+        }
+
+        return TextileLot::TYPE_OTHER;
+    }
+
     protected function findTenantDocument(int $documentId, string $documentType): TextileWorkflowDocument
     {
         $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
 
-        $document = TextileWorkflowDocument::query()
+        $query = TextileWorkflowDocument::query()
             ->where('id', $documentId)
             ->where('document_type', $documentType)
-            ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId))
-            ->first();
+            ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId));
+
+        TextileBranchScope::applyWorkflowScope($query);
+        $document = $query->first();
 
         if ($document === null) {
             throw new RuntimeException('Document not found for tenant context.');

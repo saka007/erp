@@ -54,6 +54,7 @@ Route::prefix('api')->middleware(['api.json'])->group(function () {
         Route::post('manufacturing/warp-productions/store', [TextileManufacturingApiController::class, 'storeWarpProduction']);
         Route::post('manufacturing/sizing-recipes/store', [TextileManufacturingApiController::class, 'storeSizingRecipe']);
         Route::post('manufacturing/chemical-consumptions/store', [TextileManufacturingApiController::class, 'storeChemicalConsumption']);
+        Route::post('manufacturing/beams/from-yarn-allocation/store', [TextileManufacturingApiController::class, 'storeBeamFromYarnAllocation']);
         Route::post('manufacturing/beams/from-sizing-recipe/store', [TextileManufacturingApiController::class, 'storeBeamFromSizingRecipe']);
         Route::post('manufacturing/beam-issues/store', [TextileManufacturingApiController::class, 'storeBeamIssue']);
         Route::post('manufacturing/beam-returns/store', [TextileManufacturingApiController::class, 'storeBeamReturn']);
@@ -71,6 +72,7 @@ Route::prefix('api')->middleware(['api.json'])->group(function () {
 
         Route::post('manufacturing/batches/store', [TextileManufacturingApiController::class, 'storeProductionBatch']);
         Route::post('manufacturing/batches/{id}/release', [TextileManufacturingApiController::class, 'releaseProductionBatch']);
+        Route::post('manufacturing/production-assignments/store', [TextileManufacturingApiController::class, 'storeProductionAssignment']);
 
         Route::post('manufacturing/weaving-output/store', [TextileManufacturingApiController::class, 'storeWeavingOutput']);
         Route::post('manufacturing/shift-productions/store', [TextileManufacturingApiController::class, 'storeShiftProduction']);

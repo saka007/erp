@@ -10,7 +10,7 @@ import { PhoneInputComponent } from "@/components/ui/phone-input";
 import { useFormFields } from '@/hooks/useFormFields';
 import { EditWarehouseProps, EditWarehouseFormData } from './types';
 
-export default function Edit({ warehouse, onSuccess }: EditWarehouseProps) {
+export default function Edit({ warehouse, onSuccess, branches, canManageAllBranches }: EditWarehouseProps) {
     const { t } = useTranslation();
     const { data, setData, put, processing, errors } = useForm<EditWarehouseFormData>(warehouse);
 
@@ -106,6 +106,28 @@ export default function Edit({ warehouse, onSuccess }: EditWarehouseProps) {
                         <InputError message={errors.email} />
                     </div>
                 </div>
+                {canManageAllBranches && branches.length > 0 && (
+                    <div>
+                        <Label htmlFor="edit_branch_id">{t('Branch')}</Label>
+                        <Select
+                            value={data.branch_id ? String(data.branch_id) : 'none'}
+                            onValueChange={(value) => setData('branch_id', value === 'none' ? null : Number(value))}
+                        >
+                            <SelectTrigger id="edit_branch_id">
+                                <SelectValue placeholder={t('Select branch')} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">{t('No Branch')}</SelectItem>
+                                {branches.map((branch) => (
+                                    <SelectItem key={branch.id} value={String(branch.id)}>
+                                        {branch.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <InputError message={errors.branch_id} />
+                    </div>
+                )}
                 <div>
                     <Label htmlFor="edit_is_active">{t('Status')}</Label>
                     <Select value={data.is_active ? "1" : "0"} onValueChange={(value) => setData('is_active', value === "1")}>

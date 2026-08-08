@@ -8,6 +8,7 @@ use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextileProcessingService;
+use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -266,11 +267,13 @@ class TextileProcessingController extends Controller
 
     private function documents(string $type)
     {
-        return TextileWorkflowDocument::query()
+        $query = TextileWorkflowDocument::query()
             ->where('created_by', creatorId())
-            ->where('document_type', $type)
-            ->latest()
-            ->get();
+            ->where('document_type', $type);
+
+        TextileBranchScope::applyWorkflowScope($query);
+
+        return $query->latest()->get();
     }
 
     private function sourceTypeOptions(): array
@@ -369,10 +372,13 @@ class TextileProcessingController extends Controller
                 ->pluck('company_name');
         }
 
-        $workflowParties = TextileWorkflowDocument::query()
+        $workflowPartiesQuery = TextileWorkflowDocument::query()
             ->where('created_by', creatorId())
-            ->whereNotNull('party_name')
-            ->pluck('party_name');
+            ->whereNotNull('party_name');
+
+        TextileBranchScope::applyWorkflowScope($workflowPartiesQuery);
+
+        $workflowParties = $workflowPartiesQuery->pluck('party_name');
 
         return $vendors
             ->merge($workflowParties)
@@ -393,10 +399,13 @@ class TextileProcessingController extends Controller
                 ->pluck('lot_reference');
         }
 
-        $workflowLots = TextileWorkflowDocument::query()
+        $workflowLotsQuery = TextileWorkflowDocument::query()
             ->where('created_by', creatorId())
-            ->whereNotNull('lot_reference')
-            ->pluck('lot_reference');
+            ->whereNotNull('lot_reference');
+
+        TextileBranchScope::applyWorkflowScope($workflowLotsQuery);
+
+        $workflowLots = $workflowLotsQuery->pluck('lot_reference');
 
         return $lots
             ->merge($workflowLots)
@@ -411,7 +420,7 @@ class TextileProcessingController extends Controller
     {
         $user = Auth::user();
 
-        abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+        abort_unless($user && in_array($user->type, ['company', 'superadmin', 'staff'], true), 403);
     }
 
     private function authorizeCapability(string $capability, string $errorKey): void

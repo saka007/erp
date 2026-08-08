@@ -25,13 +25,14 @@ import { Warehouse, WarehousesIndexProps, WarehouseFilters, WarehouseModalState 
 
 export default function Index() {
     const { t } = useTranslation();
-    const { warehouses, auth } = usePage<WarehousesIndexProps>().props;
+    const { warehouses, branches, canManageAllBranches, auth } = usePage<WarehousesIndexProps>().props;
     const urlParams = new URLSearchParams(window.location.search);
 
     const [filters, setFilters] = useState<WarehouseFilters>({
         name: urlParams.get('name') || '',
         city: urlParams.get('city') || '',
-        is_active: urlParams.get('is_active') || ''
+        is_active: urlParams.get('is_active') || '',
+        branch_id: urlParams.get('branch_id') || 'all'
     });
 
     const [perPage] = useState(urlParams.get('per_page') || '10');
@@ -57,8 +58,13 @@ export default function Index() {
         defaultMessage: t('Are you sure you want to delete this warehouse?')
     });
 
+    const buildQueryFilters = () => ({
+        ...filters,
+        branch_id: filters.branch_id && filters.branch_id !== 'all' ? filters.branch_id : ''
+    });
+
     const handleFilter = () => {
-        router.get(route('warehouses.index'), {...filters, per_page: perPage, sort: sortField, direction: sortDirection, view: viewMode}, {
+        router.get(route('warehouses.index'), {...buildQueryFilters(), per_page: perPage, sort: sortField, direction: sortDirection, view: viewMode}, {
             preserveState: true,
             replace: true
         });
@@ -68,14 +74,14 @@ export default function Index() {
         const direction = sortField === field && sortDirection === 'asc' ? 'desc' : 'asc';
         setSortField(field);
         setSortDirection(direction);
-        router.get(route('warehouses.index'), {...filters, per_page: perPage, sort: field, direction, view: viewMode}, {
+        router.get(route('warehouses.index'), {...buildQueryFilters(), per_page: perPage, sort: field, direction, view: viewMode}, {
             preserveState: true,
             replace: true
         });
     };
 
     const clearFilters = () => {
-        setFilters({ name: '', city: '', is_active: '' });
+        setFilters({ name: '', city: '', is_active: '', branch_id: 'all' });
         router.get(route('warehouses.index'), {per_page: perPage, view: viewMode});
     };
 
@@ -110,6 +116,11 @@ export default function Index() {
             header: t('City'),
             sortable: true
         },
+        ...(canManageAllBranches ? [{
+            key: 'branch_name',
+            header: t('Branch'),
+            render: (value: string | null) => value || '-'
+        }] : []),
         {
             key: 'zip_code',
             header: t('Zip Code')
@@ -228,7 +239,7 @@ export default function Index() {
                                     onToggle={() => setShowFilters(!showFilters)}
                                 />
                                 {(() => {
-                                    const activeFilters = [filters.city, filters.is_active].filter(Boolean).length;
+                                    const activeFilters = [filters.city, filters.is_active, filters.branch_id !== 'all' ? filters.branch_id : ''].filter(Boolean).length;
                                     return activeFilters > 0 && (
                                         <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
                                             {activeFilters}
@@ -264,6 +275,27 @@ export default function Index() {
                                     </SelectContent>
                                 </Select>
                             </div>
+                            {canManageAllBranches && branches.length > 0 && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('Branch')}</label>
+                                    <Select
+                                        value={filters.branch_id || 'all'}
+                                        onValueChange={(value) => setFilters({...filters, branch_id: value})}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={t('Filter by branch')} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">{t('All Branches')}</SelectItem>
+                                            {branches.map((branch) => (
+                                                <SelectItem key={branch.id} value={String(branch.id)}>
+                                                    {branch.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
                             <div className="flex items-end gap-2">
                                 <Button onClick={handleFilter} size="sm">{t('Apply')}</Button>
                                 <Button variant="outline" onClick={clearFilters} size="sm">{t('Clear')}</Button>
@@ -414,12 +446,18 @@ export default function Index() {
 
             <Dialog open={modalState.isOpen} onOpenChange={closeModal}>
                 {modalState.mode === 'add' && (
-                    <Create onSuccess={closeModal} />
+                    <Create
+                        onSuccess={closeModal}
+                        branches={branches}
+                        canManageAllBranches={canManageAllBranches}
+                    />
                 )}
                 {modalState.mode === 'edit' && modalState.data && (
                     <EditWarehouse
                         data={modalState.data}
                         warehouse={modalState.data}
+                        branches={branches}
+                        canManageAllBranches={canManageAllBranches}
                         onSuccess={closeModal}
                     />
                 )}

@@ -8,6 +8,8 @@ use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Services\TextileAvailabilityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use Workdo\Hrm\Models\Branch;
+use Workdo\Hrm\Models\Employee;
 
 class TextileTenantIsolationTest extends TestCase
 {
@@ -34,6 +36,11 @@ class TextileTenantIsolationTest extends TestCase
             'type' => 'staff',
             'created_by' => $companyB->id,
         ]);
+
+        $branchA = Branch::create(['branch_name' => 'Company A Branch', 'creator_id' => $companyA->id, 'created_by' => $companyA->id]);
+        $branchB = Branch::create(['branch_name' => 'Company B Branch', 'creator_id' => $companyB->id, 'created_by' => $companyB->id]);
+        Employee::create(['employee_id' => 'EMP-A', 'user_id' => $staffA->id, 'branch_id' => $branchA->id, 'creator_id' => $companyA->id, 'created_by' => $companyA->id]);
+        Employee::create(['employee_id' => 'EMP-B', 'user_id' => $staffB->id, 'branch_id' => $branchB->id, 'creator_id' => $companyB->id, 'created_by' => $companyB->id]);
 
         $workflow = app(TextileWorkflowService::class);
 

@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 
 class StoreWarehouseRequest extends FormRequest
 {
@@ -13,7 +15,7 @@ class StoreWarehouseRequest extends FormRequest
 
     public function rules(): array
     {
-        return [
+        $rules = [
             'name' => 'required|string|max:255',
             'address' => 'required|string',
             'city' => 'required|string|max:255',
@@ -22,5 +24,11 @@ class StoreWarehouseRequest extends FormRequest
             'email' => 'nullable|email|max:255',
             'is_active' => 'boolean',
         ];
+
+        if (Schema::hasTable('branches')) {
+            $rules['branch_id'] = ['nullable', 'integer', Rule::exists('branches', 'id')];
+        }
+
+        return $rules;
     }
 }

@@ -16,6 +16,7 @@ class Warehouse extends Model
         'zip_code',
         'phone',
         'email',
+        'branch_id',
         'is_active',
         'creator_id',
         'created_by',
@@ -24,6 +25,7 @@ class Warehouse extends Model
     protected function casts(): array
     {
         return [
+            'branch_id' => 'integer',
             'is_active' => 'boolean',
         ];
     }

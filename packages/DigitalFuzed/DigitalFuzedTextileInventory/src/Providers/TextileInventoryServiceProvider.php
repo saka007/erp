@@ -2,6 +2,7 @@
 
 namespace DigitalFuzed\TextileInventory\Providers;
 
+use DigitalFuzed\TextileInventory\Services\TextileLotAutoCreationService;
 use Illuminate\Support\ServiceProvider;
 
 class TextileInventoryServiceProvider extends ServiceProvider
@@ -26,6 +27,8 @@ class TextileInventoryServiceProvider extends ServiceProvider
 
     public function register(): void
     {
-        // Register inventory services later.
+        $this->app->singleton(TextileLotAutoCreationService::class, function () {
+            return new TextileLotAutoCreationService();
+        });
     }
 }

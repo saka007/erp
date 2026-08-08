@@ -188,7 +188,7 @@ export default function Index({
 
             <div className="grid gap-6 xl:grid-cols-2">
                 {showOutward ? (
-                    <TextileFormCard title={t('Job Work Outward')} icon={RefreshCw}>
+                    <TextileFormCard title={t('Yarn Issue to Weaver')} icon={RefreshCw}>
                         <form
                             className="space-y-3"
                             onSubmit={(event) => {

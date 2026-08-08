@@ -3,6 +3,8 @@ export const SUPPLIER_TYPE_OPTIONS = [
     { value: 'chemical', label: 'Chemical Supplier' },
     { value: 'spare_part', label: 'Spare Part Supplier' },
     { value: 'processing', label: 'Processing Vendor' },
+    { value: 'sizing', label: 'Sizing Vendor' },
+    { value: 'powerloom', label: 'Powerloom Vendor' },
     { value: 'dyeing', label: 'Dyeing Vendor' },
     { value: 'transport', label: 'Transport Vendor' },
     { value: 'job_worker', label: 'Job Worker' },

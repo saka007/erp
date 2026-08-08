@@ -27,6 +27,13 @@ export default function Create({ customers, bankAccounts, onSuccess }: CreateCus
         customer_id: '',
         bank_account_id: '',
         reference_number: '',
+        payment_mode: '',
+        cheque_number: '',
+        cheque_date: '',
+        bank_name: '',
+        tds_rate: '',
+        tds_amount: '',
+        tds_section: '',
         payment_amount: '',
         notes: '',
         allocations: [],
@@ -188,6 +195,104 @@ export default function Create({ customers, bankAccounts, onSuccess }: CreateCus
                             placeholder={t('Check number, etc.')}
                         />
                         <InputError message={errors.reference_number} />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="payment_mode">{t('Payment Mode')}</Label>
+                        <Select value={data.payment_mode} onValueChange={(value) => setData('payment_mode', value)}>
+                            <SelectTrigger>
+                                <SelectValue placeholder={t('Select payment mode')} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="cash">{t('Cash')}</SelectItem>
+                                <SelectItem value="cheque">{t('Cheque')}</SelectItem>
+                                <SelectItem value="neft">{t('NEFT')}</SelectItem>
+                                <SelectItem value="rtgs">{t('RTGS')}</SelectItem>
+                                <SelectItem value="imps">{t('IMPS')}</SelectItem>
+                                <SelectItem value="upi">{t('UPI')}</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <InputError message={errors.payment_mode} />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="bank_name">{t('Bank Name')}</Label>
+                        <Input
+                            id="bank_name"
+                            value={data.bank_name}
+                            onChange={(e) => setData('bank_name', e.target.value)}
+                            placeholder={t('Enter bank name')}
+                        />
+                        <InputError message={errors.bank_name} />
+                    </div>
+
+                    {data.payment_mode === 'cheque' && (
+                        <>
+                            <div>
+                                <Label htmlFor="cheque_number">{t('Cheque Number')}</Label>
+                                <Input
+                                    id="cheque_number"
+                                    value={data.cheque_number}
+                                    onChange={(e) => setData('cheque_number', e.target.value)}
+                                    placeholder={t('Enter cheque number')}
+                                />
+                                <InputError message={errors.cheque_number} />
+                            </div>
+
+                            <div>
+                                <Label htmlFor="cheque_date">{t('Cheque Date')}</Label>
+                                <DatePicker
+                                    id="cheque_date"
+                                    value={data.cheque_date}
+                                    onChange={(value) => {
+                                        const formattedDate = value instanceof Date ? value.toISOString().split('T')[0] : value;
+                                        setData('cheque_date', formattedDate || '');
+                                    }}
+                                    placeholder={t('Select cheque date')}
+                                />
+                                <InputError message={errors.cheque_date} />
+                            </div>
+                        </>
+                    )}
+
+                    <div>
+                        <Label htmlFor="tds_rate">{t('TDS Rate (%)')}</Label>
+                        <Input
+                            id="tds_rate"
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={data.tds_rate}
+                            onChange={(e) => setData('tds_rate', e.target.value)}
+                            placeholder={t('Enter TDS rate')}
+                        />
+                        <InputError message={errors.tds_rate} />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="tds_amount">{t('TDS Amount')}</Label>
+                        <Input
+                            id="tds_amount"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={data.tds_amount}
+                            onChange={(e) => setData('tds_amount', e.target.value)}
+                            placeholder={t('Enter TDS amount')}
+                        />
+                        <InputError message={errors.tds_amount} />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="tds_section">{t('TDS Section')}</Label>
+                        <Input
+                            id="tds_section"
+                            value={data.tds_section}
+                            onChange={(e) => setData('tds_section', e.target.value)}
+                            placeholder={t('Enter TDS section')}
+                        />
+                        <InputError message={errors.tds_section} />
                     </div>
                 </div>
 

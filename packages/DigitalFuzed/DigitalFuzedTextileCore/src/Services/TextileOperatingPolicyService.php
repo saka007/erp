@@ -3,10 +3,13 @@
 namespace DigitalFuzed\TextileCore\Services;
 
 use Carbon\Carbon;
+use App\Models\User;
 use DigitalFuzed\TextileCore\Models\TextileOperatingProfile;
+use DigitalFuzed\TextileCore\Models\TextileRoleCapability;
 use DigitalFuzed\TextileCore\Models\TextileOperatingPolicy;
 use RuntimeException;
 use Illuminate\Support\Facades\Schema;
+use Spatie\Permission\Models\Role;
 
 class TextileOperatingPolicyService
 {
@@ -259,6 +262,89 @@ class TextileOperatingPolicyService
         $capabilities['maintenance_operations'] = $settings[self::SETTING_HAS_MAINTENANCE] ?? false;
 
         return $capabilities;
+    }
+
+    public function capabilitiesForUser($user): array
+    {
+        if (! $user) {
+            return [];
+        }
+
+        $companyContextUser = $this->resolveCompanyContextUser($user);
+        if (! $companyContextUser) {
+            return [];
+        }
+
+        $policy = $this->resolveForTenant($companyContextUser->id);
+        $capabilities = $this->capabilities($policy);
+
+        if (! Schema::hasTable('textile_role_capabilities')) {
+            return $capabilities;
+        }
+
+        try {
+            $roleNames = method_exists($user, 'getRoleNames') ? $user->getRoleNames()->toArray() : [];
+            if ($roleNames === []) {
+                return $capabilities;
+            }
+
+            $roleIds = Role::query()
+                ->where('created_by', $companyContextUser->id)
+                ->whereIn('name', $roleNames)
+                ->pluck('id')
+                ->all();
+
+            if ($roleIds === []) {
+                return $capabilities;
+            }
+
+            $roleCapabilities = TextileRoleCapability::query()
+                ->where('created_by', $companyContextUser->id)
+                ->whereIn('role_id', $roleIds)
+                ->get();
+
+            foreach ($roleCapabilities as $roleCapability) {
+                $capabilities = $this->applyCapabilityOverride($capabilities, $roleCapability->capabilities ?? []);
+            }
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+
+        return $capabilities;
+    }
+
+    public function syncDefaultRoleCapabilitiesForTenant(int $tenantId): void
+    {
+        if ($tenantId <= 0 || ! Schema::hasTable('textile_role_capabilities')) {
+            return;
+        }
+
+        $roles = Role::query()
+            ->where('created_by', $tenantId)
+            ->whereIn('name', ['company', 'staff'])
+            ->get()
+            ->keyBy('name');
+
+        if ($roles->isEmpty()) {
+            return;
+        }
+
+        $companyCapabilities = $this->fullAccessCapabilities();
+        $staffCapabilities = $this->staffOperationalCapabilities();
+
+        if ($roles->has('company')) {
+            TextileRoleCapability::updateOrCreate(
+                ['created_by' => $tenantId, 'role_id' => $roles->get('company')->id],
+                ['capabilities' => $companyCapabilities]
+            );
+        }
+
+        if ($roles->has('staff')) {
+            TextileRoleCapability::updateOrCreate(
+                ['created_by' => $tenantId, 'role_id' => $roles->get('staff')->id],
+                ['capabilities' => $staffCapabilities]
+            );
+        }
     }
 
     public function settings(TextileOperatingPolicy $policy): array
@@ -578,5 +664,40 @@ class TextileOperatingPolicyService
         }
 
         return $defaults;
+    }
+
+    private function applyCapabilityOverride(array $capabilities, array $override): array
+    {
+        foreach ($override as $key => $value) {
+            if (! array_key_exists($key, $capabilities)) {
+                continue;
+            }
+
+            $capabilities[$key] = (bool) $value;
+        }
+
+        return $capabilities;
+    }
+
+    private function fullAccessCapabilities(): array
+    {
+        $policy = $this->defaultPolicy((int) auth()->id());
+
+        return array_fill_keys(array_keys($this->capabilities($policy)), true);
+    }
+
+    private function staffOperationalCapabilities(): array
+    {
+        return [
+            'manufacturing_planning' => false,
+            'manufacturing_maintenance' => false,
+            'quality_hold_release' => false,
+            'sales_challan_pod' => false,
+            'inventory_freeze' => false,
+            'inventory_verification' => false,
+            'inventory_cycle_count' => false,
+            'transport_operations' => false,
+            'maintenance_operations' => false,
+        ];
     }
 }

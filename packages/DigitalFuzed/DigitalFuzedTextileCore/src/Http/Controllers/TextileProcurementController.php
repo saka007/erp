@@ -2,11 +2,16 @@
 
 namespace DigitalFuzed\TextileCore\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HasBranchWarehouseScope;
+use App\Models\PurchaseInvoice;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Services\TextileApprovalService;
 use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextileProcurementService;
+use DigitalFuzed\TextileCore\Support\TextileBranchScope;
+use DigitalFuzed\TextileCore\Traits\ProvidesRecentActivity;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -17,6 +22,9 @@ use Workdo\Account\Models\Vendor;
 
 class TextileProcurementController extends Controller
 {
+    use HasBranchWarehouseScope;
+    use ProvidesRecentActivity;
+
     public function __construct(protected TextileOperatingPolicyService $policyService)
     {
     }
@@ -33,9 +41,12 @@ class TextileProcurementController extends Controller
             'grns' => $this->documents('grn'),
             'incomingQcs' => $this->documents('incoming_qc'),
             'supplierClaims' => $this->documents('supplier_claim'),
+            'purchaseInvoices' => $this->purchaseInvoices(),
             'unitOptions' => $this->unitOptions(),
             'partyOptions' => $this->partyOptions(),
             'lotReferenceOptions' => $this->lotReferenceOptions(),
+            'suppliers' => $this->supplierSummaries(),
+            'recentActivity' => $this->recentActivity(),
         ]);
     }
 
@@ -46,12 +57,27 @@ class TextileProcurementController extends Controller
 
         $validated = $request->validate([
             'party_name' => ['nullable', 'string', 'max:100'],
-            'lot_reference' => ['required', 'string', 'max:100'],
+            'lot_reference' => ['nullable', 'string', 'max:100'],
             'quantity' => ['required', 'numeric', 'gt:0'],
             'unit' => ['nullable', 'string', 'max:50'],
+            'requisition_type' => ['nullable', 'in:yarn,beam,grey_fabric,finished_fabric,chemical,packing_material,spare_part,service,general'],
+            'priority' => ['nullable', 'string', 'max:20'],
+            'required_for' => ['nullable', 'string', 'max:100'],
+            'expected_date' => ['nullable', 'date'],
+            'remarks' => ['nullable', 'string', 'max:500'],
+            'warehouse' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $service->createRequisition($validated);
+        $service->createRequisition(array_merge($validated, [
+            'metadata' => [
+                'requisition_type' => $validated['requisition_type'] ?? 'general',
+                'priority' => $validated['priority'] ?? null,
+                'required_for' => $validated['required_for'] ?? null,
+                'expected_date' => $validated['expected_date'] ?? null,
+                'remarks' => $validated['remarks'] ?? null,
+                'warehouse' => $validated['warehouse'] ?? null,
+            ],
+        ]));
 
         return back()->with('success', __('Purchase requisition created successfully.'));
     }
@@ -72,6 +98,20 @@ class TextileProcurementController extends Controller
         }
 
         return back()->with('success', __('Purchase requisition approved successfully.'));
+    }
+
+    public function destroyRequisition(int $requisition, TextileProcurementService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('procurement_requisition', 'requisition_id');
+
+        try {
+            $service->deleteRequisition($requisition);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['requisition_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Purchase requisition deleted successfully.'));
     }
 
     public function storeRfq(Request $request, TextileProcurementService $service)
@@ -134,12 +174,14 @@ class TextileProcurementController extends Controller
         $this->authorizeCapability('procurement_purchase_order', 'requisition_id');
 
         $validated = $request->validate([
-            'source_type' => ['required', 'in:requisition,rfq'],
+            'source_type' => ['nullable', 'in:requisition,rfq'],
             'source_id' => ['required', 'integer', 'min:1'],
         ]);
 
-        $requisitionId = $validated['source_type'] === 'requisition' ? (int) $validated['source_id'] : null;
-        $rfqId = $validated['source_type'] === 'rfq' ? (int) $validated['source_id'] : null;
+        $sourceType = $validated['source_type'] ?? 'requisition';
+
+        $requisitionId = $sourceType === 'requisition' ? (int) $validated['source_id'] : null;
+        $rfqId = $sourceType === 'rfq' ? (int) $validated['source_id'] : null;
 
         try {
             $service->createPurchaseOrder($requisitionId, $rfqId);
@@ -150,7 +192,7 @@ class TextileProcurementController extends Controller
         return back()->with('success', __('Purchase order created successfully.'));
     }
 
-    public function approvePurchaseOrder(Request $request, TextileProcurementService $service)
+    public function approvePurchaseOrder(Request $request, TextileProcurementService $service, TextileApprovalService $approvalService)
     {
         $this->authorizeTextileAccess();
         $this->authorizeCapability('procurement_purchase_order', 'purchase_order_id');
@@ -162,7 +204,34 @@ class TextileProcurementController extends Controller
         try {
             $service->approvePurchaseOrder((int) $validated['purchase_order_id']);
         } catch (RuntimeException $exception) {
-            return back()->withErrors(['purchase_order_id' => __($exception->getMessage())]);
+            // If approval workflow is enabled, record this actor's approval decision
+            // and retry once so "Send Proforma" works as a single-step action.
+            if (str_contains($exception->getMessage(), 'Approval required before transition')) {
+                try {
+                    $approvalService->recordDecision(
+                        (int) $validated['purchase_order_id'],
+                        'approved',
+                        'approved',
+                        'Recorded from Send Proforma action.'
+                    );
+
+                    $service->approvePurchaseOrder((int) $validated['purchase_order_id']);
+
+                    return back()->with('success', __('Purchase order approved successfully.'));
+                } catch (RuntimeException $retryException) {
+                    $message = __($retryException->getMessage());
+
+                    return back()
+                        ->withErrors(['purchase_order_id' => $message])
+                        ->with('error', $message);
+                }
+            }
+
+            $message = __($exception->getMessage());
+
+            return back()
+                ->withErrors(['purchase_order_id' => $message])
+                ->with('error', $message);
         }
 
         return back()->with('success', __('Purchase order approved successfully.'));
@@ -175,10 +244,13 @@ class TextileProcurementController extends Controller
 
         $validated = $request->validate([
             'purchase_order_id' => ['required', 'integer', 'min:1'],
+            'lot_reference' => ['nullable', 'string', 'max:100'],
         ]);
 
         try {
-            $service->createGrn((int) $validated['purchase_order_id']);
+            $service->createGrn((int) $validated['purchase_order_id'], [
+                'lot_reference' => $validated['lot_reference'] ?? null,
+            ]);
         } catch (RuntimeException $exception) {
             return back()->withErrors(['purchase_order_id' => __($exception->getMessage())]);
         }
@@ -323,10 +395,13 @@ class TextileProcurementController extends Controller
 
     private function documents(string $type)
     {
-        return TextileWorkflowDocument::query()
+        $query = TextileWorkflowDocument::query()
             ->where('created_by', creatorId())
-            ->where('document_type', $type)
-            ->latest()
+            ->where('document_type', $type);
+
+        TextileBranchScope::applyWorkflowScope($query);
+
+        return $query->latest()
             ->get()
             ->map(function (TextileWorkflowDocument $document) {
                 $metadata = is_array($document->metadata) ? $document->metadata : [];
@@ -334,6 +409,48 @@ class TextileProcurementController extends Controller
 
                 return $document;
             });
+    }
+
+    private function purchaseInvoices(): array
+    {
+        $user = Auth::user();
+
+        if (! $user || ! $user->can('manage-purchase-invoices')) {
+            return [];
+        }
+
+        $query = PurchaseInvoice::query()
+            ->where('created_by', creatorId())
+            ->with('vendor:id,name')
+            ->when($user->can('manage-own-purchase-invoices') && ! $user->can('manage-any-purchase-invoices'), function ($q) use ($user) {
+                $q->where(function ($scope) use ($user) {
+                    $scope->where('creator_id', $user->id)
+                        ->orWhere('vendor_id', $user->id);
+                });
+
+                if ($user->type === 'vendor') {
+                    $q->where('status', '!=', 'draft');
+                }
+            })
+            ->when(! $user->can('manage-own-purchase-invoices') && ! $user->can('manage-any-purchase-invoices'), fn ($q) => $q->whereRaw('1 = 0'));
+
+        $this->applyWarehouseScope($query, 'warehouse_id', $user);
+
+        return $query
+            ->latest()
+            ->get()
+            ->map(fn (PurchaseInvoice $invoice) => [
+                'id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'vendor_name' => $invoice->vendor?->name ?? '-',
+                'invoice_date' => $invoice->invoice_date?->format('d M Y') ?? '-',
+                'due_date' => $invoice->due_date?->format('d M Y') ?? '-',
+                'total_amount' => $invoice->total_amount,
+                'paid_amount' => $invoice->paid_amount,
+                'balance_amount' => $invoice->balance_amount,
+                'status' => $invoice->display_status,
+            ])
+            ->all();
     }
 
     private function unitOptions(): array
@@ -350,6 +467,46 @@ class TextileProcurementController extends Controller
             ->all();
     }
 
+    private function supplierSummaries(): array
+    {
+        $statsQuery = TextileWorkflowDocument::query()
+            ->where('created_by', creatorId())
+            ->whereNotNull('party_name')
+            ->selectRaw('party_name, count(*) as doc_count, sum(quantity) as total_quantity, max(created_at) as last_purchase_at')
+            ->groupBy('party_name');
+
+        TextileBranchScope::applyWorkflowScope($statsQuery);
+
+        $stats = $statsQuery
+            ->get()
+            ->keyBy('party_name');
+
+        return Vendor::query()
+            ->where('created_by', creatorId())
+            ->whereNotNull('company_name')
+            ->get()
+            ->map(function (Vendor $vendor) use ($stats) {
+                $vendorStats = $stats->get($vendor->company_name);
+
+                return [
+                    'id' => $vendor->id,
+                    'name' => $vendor->company_name,
+                    'contact_person' => $vendor->contact_person_name,
+                    'contact_mobile' => $vendor->contact_person_mobile,
+                    'primary_email' => $vendor->primary_email,
+                    'credit_limit' => $vendor->credit_limit,
+                    'payment_terms' => $vendor->payment_terms,
+                    'currency_code' => $vendor->currency_code,
+                    'doc_count' => $vendorStats?->doc_count ?? 0,
+                    'total_quantity' => $vendorStats?->total_quantity ?? 0,
+                    'last_purchase_at' => $vendorStats?->last_purchase_at,
+                ];
+            })
+            ->sortByDesc('doc_count')
+            ->values()
+            ->all();
+    }
+
     private function partyOptions(): array
     {
         $vendors = collect();
@@ -360,10 +517,13 @@ class TextileProcurementController extends Controller
                 ->pluck('company_name');
         }
 
-        $workflowParties = TextileWorkflowDocument::query()
+        $workflowQuery = TextileWorkflowDocument::query()
             ->where('created_by', creatorId())
-            ->whereNotNull('party_name')
-            ->pluck('party_name');
+            ->whereNotNull('party_name');
+
+        TextileBranchScope::applyWorkflowScope($workflowQuery);
+
+        $workflowParties = $workflowQuery->pluck('party_name');
 
         return $vendors
             ->merge($workflowParties)
@@ -386,8 +546,11 @@ class TextileProcurementController extends Controller
 
         $workflowLots = TextileWorkflowDocument::query()
             ->where('created_by', creatorId())
-            ->whereNotNull('lot_reference')
-            ->pluck('lot_reference');
+            ->whereNotNull('lot_reference');
+
+        TextileBranchScope::applyWorkflowScope($workflowLots);
+
+        $workflowLots = $workflowLots->pluck('lot_reference');
 
         return $lots
             ->merge($workflowLots)
@@ -402,7 +565,7 @@ class TextileProcurementController extends Controller
     {
         $user = Auth::user();
 
-        abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+        abort_unless($user && in_array($user->type, ['company', 'superadmin', 'staff'], true), 403);
     }
 
     private function authorizeCapability(string $capability, string $errorKey): void

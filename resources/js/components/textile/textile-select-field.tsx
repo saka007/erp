@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -18,9 +19,9 @@ interface TextileSelectFieldProps {
     includeEmpty?: boolean;
     emptyLabel?: string;
     searchable?: boolean;
-    helperText?: string;
+    helperText?: ReactNode;
     disabled?: boolean;
-    disabledReason?: string;
+    disabledReason?: ReactNode;
 }
 
 export function TextileSelectField({

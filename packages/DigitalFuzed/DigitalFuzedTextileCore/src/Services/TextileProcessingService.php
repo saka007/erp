@@ -3,12 +3,16 @@
 namespace DigitalFuzed\TextileCore\Services;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Support\TextileBranchScope;
+use DigitalFuzed\TextileInventory\Services\TextileLotAutoCreationService;
 use RuntimeException;
 
 class TextileProcessingService
 {
-    public function __construct(protected TextileWorkflowService $workflowService)
-    {
+    public function __construct(
+        protected TextileWorkflowService $workflowService,
+        protected TextileLotAutoCreationService $lotAutoCreationService
+    ) {
     }
 
     public function createJobWorkOutward(array $payload): TextileWorkflowDocument
@@ -87,7 +91,7 @@ class TextileProcessingService
             throw new RuntimeException('Processing batch must be released before inward receipt.');
         }
 
-        return $this->workflowService->createDocument([
+        $inward = $this->workflowService->createDocument([
             'document_type' => 'job_work_inward',
             'source_reference_type' => 'textile_workflow_document',
             'source_reference_id' => $batch->id,
@@ -100,6 +104,11 @@ class TextileProcessingService
             'metadata' => $payload['metadata'] ?? null,
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
+
+        // Auto-create finished fabric lot
+        $this->lotAutoCreationService->createFromJobWorkInward($inward);
+
+        return $inward;
     }
 
     public function finalizeJobWorkInward(int $inwardId, string $decision): TextileWorkflowDocument
@@ -271,11 +280,13 @@ class TextileProcessingService
     {
         $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
 
-        $document = TextileWorkflowDocument::query()
+        $query = TextileWorkflowDocument::query()
             ->where('id', $documentId)
             ->where('document_type', $documentType)
-            ->when($tenantId !== null, fn ($query) => $query->where('created_by', $tenantId))
-            ->first();
+            ->when($tenantId !== null, fn ($query) => $query->where('created_by', $tenantId));
+
+        TextileBranchScope::applyWorkflowScope($query);
+        $document = $query->first();
 
         if ($document === null) {
             throw new RuntimeException('Document not found for tenant context.');

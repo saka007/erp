@@ -39,7 +39,7 @@ function AuthenticatedLayoutContent({
     className?: string;
 }>) {
     const { t } = useTranslation();
-    const { auth, companyAllSetting, adminAllSetting } = usePage<PageProps>().props as any;
+    const { auth, companyAllSetting, adminAllSetting, branchContext } = usePage<PageProps>().props as any;
     const { settings } = useBrand();
     const isTextileCompany = auth?.user?.type === 'company' && (
         auth?.user?.industry_type === 'textile' ||
@@ -47,8 +47,19 @@ function AuthenticatedLayoutContent({
     );
     const dashboardLabel = isTextileCompany ? t('Textile Dashboard') : t('Dashboard');
     const dashboardRoute = isTextileCompany ? route('textile.dashboard.index') : route('dashboard');
+    const branchOptions = branchContext?.branches || [];
+    const canManageAllBranches = Boolean(branchContext?.can_manage_all_branches);
+    const activeBranchId = branchContext?.active_branch_id;
     useFavicon();
     useFlashMessages();
+
+    const updateBranchContext = (value: string) => {
+        router.post(
+            route('branch-context.update'),
+            { branch_id: value === '' ? null : Number(value) },
+            { preserveScroll: true, preserveState: true }
+        );
+    };
 
     return (
         <>
@@ -119,6 +130,28 @@ function AuthenticatedLayoutContent({
                         settings.layoutDirection === "rtl" ? "order-1 flex-row-reverse" : "order-2"
                         }`}
                     >
+                        {canManageAllBranches && (
+                            <select
+                                className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                                value={activeBranchId ?? ''}
+                                onChange={(event) => updateBranchContext(event.target.value)}
+                                aria-label={t('Active Branch')}
+                                disabled={branchOptions.length === 0}
+                            >
+                                <option value="">{t('All Branches')}</option>
+                                {branchOptions.length === 0 ? (
+                                    <option value="" disabled>
+                                        {t('No branches available')}
+                                    </option>
+                                ) : null}
+                                {branchOptions.map((branch: { id: number; name: string }) => (
+                                    <option key={branch.id} value={branch.id}>
+                                        {branch.name}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+
                         {/* Leave Impersonation Button */}
                         {auth.impersonating && (
                             <Button

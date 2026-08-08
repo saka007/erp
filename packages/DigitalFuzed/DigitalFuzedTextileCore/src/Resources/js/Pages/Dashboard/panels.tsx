@@ -93,7 +93,7 @@ export function PurchasePanel({ data }: { data: DomainData }) {
                         <ChartEmpty icon={ShoppingCart} title={t('No purchase data')} description={t('Purchase documents will be charted here.')} />
                     )}
                 </ChartCard>
-                <ChartCard title={t('Document Mix')} subtitle={t('Orders, requisitions and GRNs')}>
+                <ChartCard title={t('Document Mix')} subtitle={t('Orders, requisitions and GRNs (Goods Received Notes)')}>
                     {(data.types ?? []).length > 0 ? (
                         <Donut data={data.types ?? []} />
                     ) : (

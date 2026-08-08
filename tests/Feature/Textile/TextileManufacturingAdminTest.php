@@ -7,9 +7,11 @@ use App\Models\Plan;
 use App\Models\User;
 use App\Models\UserActiveModule;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileInventory\Models\TextileLot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
+use Workdo\Hrm\Models\Branch;
 
 class TextileManufacturingAdminTest extends TestCase
 {
@@ -28,6 +30,12 @@ class TextileManufacturingAdminTest extends TestCase
 
         $companyA = $this->company();
         $companyB = $this->company();
+        $branchA = Branch::create([
+            'branch_name' => 'Main Production Branch',
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+        $this->withSession(['active_branch_id' => $branchA->id]);
 
         $this->actingAs($companyA)
             ->post(route('textile.manufacturing.beams.store'), [
@@ -123,6 +131,30 @@ class TextileManufacturingAdminTest extends TestCase
         $this->assertSame(7.5, (float) $loomMaster->metadata['running_hours']);
         $this->assertSame(0.5, (float) $loomMaster->metadata['idle_hours']);
         $this->assertSame('Operator A', $loomMaster->metadata['operator_name']);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.loom-masters.store'), [
+                'source_reference_type' => 'factory',
+                'source_reference_id' => 9002,
+                'source_action' => 'loom_register',
+                'party_name' => 'Loom-A2',
+                'lot_reference' => 'Rapier',
+                'quantity' => 520,
+                'unit' => 'rpm',
+                'shed_type' => 'dobby',
+                'width' => 110,
+                'loom_status' => 'running',
+                'running_hours' => 7,
+                'idle_hours' => 1,
+                'operator_name' => 'Operator B',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $secondLoomMaster = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'loom_master')
+            ->where('source_reference_id', 9002)
+            ->firstOrFail();
 
         $this->actingAs($companyA)
             ->post(route('textile.manufacturing.loom-breakdowns.store'), [
@@ -323,6 +355,78 @@ class TextileManufacturingAdminTest extends TestCase
 
         $batch->refresh();
         $this->assertSame('released', $batch->status);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.production-assignments.store'), [
+                'batch_id' => $batch->id,
+                'production_mode' => 'own_unit',
+                'assigned_quantity' => 200,
+                'assignment_date' => now()->toDateString(),
+                'expected_completion_date' => now()->addDays(2)->toDateString(),
+                'loom_allocations' => [
+                    ['loom_master_id' => $loomMaster->id, 'quantity' => 125],
+                    ['loom_master_id' => $secondLoomMaster->id, 'quantity' => 75],
+                ],
+                'planned_shift' => 'day',
+                'operator_name' => 'Operator A',
+                'notes' => 'Own-unit beam assignment',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $productionAssignment = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'production_assignment')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($productionAssignment);
+        $this->assertSame($batch->id, $productionAssignment->source_reference_id);
+        $this->assertSame('own_unit', $productionAssignment->metadata['production_mode']);
+        $this->assertCount(2, $productionAssignment->metadata['loom_allocations']);
+        $this->assertSame($loomMaster->id, $productionAssignment->metadata['loom_allocations'][0]['loom_master_id']);
+        $this->assertSame($secondLoomMaster->id, $productionAssignment->metadata['loom_allocations'][1]['loom_master_id']);
+        $this->assertSame($branchA->id, $productionAssignment->branch_id);
+        $this->assertSame($batch->branch_id, $productionAssignment->branch_id);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.takha-entries.store'), [
+                'production_assignment_id' => $productionAssignment->id,
+                'takhas' => [
+                    ['takha_number' => 'TAKHA-ASSIGN-001', 'quantity' => 60],
+                    ['takha_number' => 'TAKHA-ASSIGN-002', 'quantity' => 65],
+                ],
+                'unit' => 'mtr',
+                'production_date' => now()->toDateString(),
+                'loom_master_id' => $loomMaster->id,
+                'operator_name' => 'Operator A',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $assignmentTakha = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'takha_entry')
+            ->where('source_reference_id', $productionAssignment->id)
+            ->where('lot_reference', 'TAKHA-ASSIGN-001')
+            ->first();
+
+        $this->assertNotNull($assignmentTakha);
+        $this->assertSame('TAKHA-ASSIGN-001', $assignmentTakha->lot_reference);
+        $this->assertSame('own_unit', $assignmentTakha->metadata['production_mode']);
+        $this->assertSame($productionAssignment->branch_id, $assignmentTakha->branch_id);
+        $this->assertSame(2, TextileWorkflowDocument::query()->where('document_type', 'takha_entry')->where('source_reference_id', $productionAssignment->id)->count());
+        $this->assertDatabaseHas('textile_lots', ['created_by' => $companyA->id, 'lot_reference' => 'TAKHA-ASSIGN-001', 'material_type' => TextileLot::TYPE_GREY_FABRIC]);
+        $this->assertDatabaseHas('textile_lots', ['created_by' => $companyA->id, 'lot_reference' => 'TAKHA-ASSIGN-002', 'material_type' => TextileLot::TYPE_GREY_FABRIC]);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.takha-entries.store'), [
+                'production_assignment_id' => $productionAssignment->id,
+                'takha_number' => 'TAKHA-ASSIGN-OVER',
+                'quantity' => 1,
+                'unit' => 'mtr',
+                'production_date' => now()->toDateString(),
+                'loom_master_id' => $loomMaster->id,
+            ])
+            ->assertSessionHasErrors('production_assignment_id');
 
         $this->actingAs($companyA)
             ->post(route('textile.manufacturing.weaving-output.store'), [
@@ -610,6 +714,50 @@ class TextileManufacturingAdminTest extends TestCase
         $this->assertSame($warpPlan->id, $yarnAllocation->source_reference_id);
 
         $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.beams.from-yarn-allocation'), [
+                'yarn_allocation_id' => $yarnAllocation->id,
+                'quantity' => 121,
+            ])
+            ->assertSessionHasErrors('yarn_allocation_id');
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.beams.from-yarn-allocation'), [
+                'yarn_allocation_id' => $yarnAllocation->id,
+                'quantity' => 110,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $vendorBeam = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'beam')
+            ->where('source_reference_id', $yarnAllocation->id)
+            ->first();
+
+        $this->assertNotNull($vendorBeam);
+        $this->assertSame('draft', $vendorBeam->status);
+        $this->assertSame('vendor_beam_receipt', $vendorBeam->source_action);
+        $this->assertSame($yarnAllocation->party_name, $vendorBeam->party_name);
+        $this->assertSame('BEAM-' . str_pad((string) $yarnAllocation->id, 6, '0', STR_PAD_LEFT), $vendorBeam->lot_reference);
+        $this->assertSame($yarnAllocation->lot_reference, $vendorBeam->metadata['source_yarn_lot']);
+        $this->assertEquals(110, (float) $vendorBeam->quantity);
+
+        $vendorBeamLot = TextileLot::query()
+            ->where('created_by', $companyA->id)
+            ->where('lot_reference', $vendorBeam->lot_reference)
+            ->first();
+
+        $this->assertNotNull($vendorBeamLot);
+        $this->assertSame(TextileLot::TYPE_BEAM, $vendorBeamLot->material_type);
+        $this->assertEquals(110, (float) $vendorBeamLot->available_quantity);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.beams.from-yarn-allocation'), [
+                'yarn_allocation_id' => $yarnAllocation->id,
+                'quantity' => 100,
+            ])
+            ->assertSessionHasErrors('yarn_allocation_id');
+
+        $this->actingAs($companyA)
             ->post(route('textile.manufacturing.warp-sheets.store'), [
                 'yarn_allocation_id' => $yarnAllocation->id,
             ])
@@ -806,6 +954,19 @@ class TextileManufacturingAdminTest extends TestCase
                 ->assertSee($chemicalConsumption->document_number)
                 ->assertSee($beamInspection->document_number)
                 ->assertSee($beamCost->document_number);
+
+        $this->withSession(['active_branch_id' => null])
+            ->actingAs($companyA)
+            ->post(route('textile.manufacturing.beams.store'), [
+                'source_reference_type' => 'sales_order',
+                'source_reference_id' => 99001,
+                'source_action' => 'beam_prepare',
+                'party_name' => 'Blocked Without Branch',
+                'lot_reference' => 'BRANCH-REQUIRED',
+                'quantity' => 10,
+                'unit' => 'mtr',
+            ])
+            ->assertSessionHasErrors('source_reference_id');
     }
 
     private function company(): User

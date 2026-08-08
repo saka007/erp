@@ -15,7 +15,7 @@ class StoreVendorRequest extends FormRequest
     {
         return [
             'user_id' => 'nullable|exists:users,id',
-            'supplier_type' => 'required|string|in:yarn,chemical,spare_part,processing,dyeing,transport,job_worker',
+            'supplier_type' => 'required|string|in:yarn,chemical,spare_part,processing,sizing,powerloom,dyeing,transport,job_worker',
             'company_name' => 'required|string|max:255',
             'contact_person_name' => 'required|string|max:255',
             'contact_person_email' => 'nullable|email|max:255',

@@ -7,6 +7,7 @@ use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
 use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextileQualityService;
+use DigitalFuzed\TextileCore\Traits\ProvidesRecentActivity;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -20,6 +21,8 @@ use Workdo\Account\Models\Vendor;
 
 class TextileQualityController extends Controller
 {
+    use ProvidesRecentActivity;
+
     public function __construct(protected TextileOperatingPolicyService $policyService)
     {
     }
@@ -42,6 +45,7 @@ class TextileQualityController extends Controller
             'unitOptions' => $this->unitOptions(),
             'partyOptions' => $this->partyOptions(),
             'lotReferenceOptions' => $this->lotReferenceOptions(),
+            'recentActivity' => $this->recentActivity(),
         ]);
     }
 
@@ -387,7 +391,7 @@ class TextileQualityController extends Controller
     {
         $user = Auth::user();
 
-        abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+        abort_unless($user && in_array($user->type, ['company', 'superadmin', 'staff'], true), 403);
     }
 
     private function authorizeCapability(string $capability, string $errorKey): void

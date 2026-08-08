@@ -3,6 +3,7 @@
 namespace DigitalFuzed\TextileCore\Services;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -22,6 +23,7 @@ class TextileWorkflowService
         return DB::transaction(function () use ($payload) {
             $documentType = $payload['document_type'];
             $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
+            $branchId = TextileBranchScope::requireBranchIdForCreate();
 
             if (!empty($payload['idempotency_key'])) {
                 $existingId = $this->idempotencyService->findResourceId($payload['idempotency_key'], 'textile_workflow_document');
@@ -41,12 +43,14 @@ class TextileWorkflowService
                     $payload['source_reference_id'] = (int) $mapped->canonical_id;
                 }
 
-                $existing = TextileWorkflowDocument::query()
+                $existingQuery = TextileWorkflowDocument::query()
                     ->where('created_by', $tenantId)
                     ->where('source_reference_type', $payload['source_reference_type'])
                     ->where('source_reference_id', $payload['source_reference_id'])
-                    ->where('source_action', $payload['source_action'])
-                    ->first();
+                    ->where('source_action', $payload['source_action']);
+
+                TextileBranchScope::applyWorkflowScope($existingQuery);
+                $existing = $existingQuery->first();
 
                 if ($existing) {
                     return $existing;
@@ -70,6 +74,7 @@ class TextileWorkflowService
                 'metadata' => $payload['metadata'] ?? null,
                 'creator_id' => auth()->id(),
                 'created_by' => $tenantId,
+                'branch_id' => $branchId,
             ]);
 
             if (!empty($payload['idempotency_key'])) {
@@ -93,9 +98,11 @@ class TextileWorkflowService
     {
         $tenantId = (auth()->check() && function_exists('creatorId')) ? creatorId() : null;
 
-        $document = TextileWorkflowDocument::query()
-            ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId))
-            ->findOrFail($documentId);
+        $documentQuery = TextileWorkflowDocument::query()
+            ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId));
+
+        TextileBranchScope::applyWorkflowScope($documentQuery);
+        $document = $documentQuery->findOrFail($documentId);
 
         $allowed = [
             'draft' => ['approved', 'rejected', 'cancelled'],
@@ -136,19 +143,25 @@ class TextileWorkflowService
     {
         $tenantId = (auth()->check() && function_exists('creatorId')) ? creatorId() : null;
 
-        return TextileWorkflowDocument::query()
+        $query = TextileWorkflowDocument::query()
             ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId))
-            ->where('document_type', $documentType)
-            ->latest('id')
-            ->get();
+            ->where('document_type', $documentType);
+
+        TextileBranchScope::applyWorkflowScope($query);
+
+        return $query->latest('id')->get();
     }
 
     public function summary(): array
     {
         $tenantId = (auth()->check() && function_exists('creatorId')) ? creatorId() : null;
 
-        $counts = TextileWorkflowDocument::query()
-            ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId))
+        $query = TextileWorkflowDocument::query()
+            ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId));
+
+        TextileBranchScope::applyWorkflowScope($query);
+
+        $counts = $query
             ->selectRaw('document_type, COUNT(*) as total')
             ->groupBy('document_type')
             ->pluck('total', 'document_type')

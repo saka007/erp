@@ -3,12 +3,17 @@
 namespace DigitalFuzed\TextileCore\Services;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Support\TextileBranchScope;
+use DigitalFuzed\TextileInventory\Services\TextileLotAutoCreationService;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class TextileManufacturingService
 {
-    public function __construct(protected TextileWorkflowService $workflowService)
-    {
+    public function __construct(
+        protected TextileWorkflowService $workflowService,
+        protected TextileLotAutoCreationService $lotAutoCreationService
+    ) {
     }
 
     public function createBeam(array $payload): TextileWorkflowDocument
@@ -17,7 +22,7 @@ class TextileManufacturingService
             throw new RuntimeException('Beam requires an upstream source reference.');
         }
 
-        return $this->workflowService->createDocument([
+        $beam = $this->workflowService->createDocument([
             'document_type' => 'beam',
             'source_reference_type' => $payload['source_reference_type'],
             'source_reference_id' => (int) $payload['source_reference_id'],
@@ -30,6 +35,58 @@ class TextileManufacturingService
             'metadata' => $payload['metadata'] ?? null,
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
+
+        // Auto-create beam lot
+        $this->lotAutoCreationService->createFromBeam($beam);
+
+        return $beam;
+    }
+
+    public function createBeamFromYarnAllocation(int $yarnAllocationId, array $payload = []): TextileWorkflowDocument
+    {
+        $yarnAllocation = $this->findTenantDocument($yarnAllocationId, 'yarn_allocation');
+        if (! in_array($yarnAllocation->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Yarn issue must be completed before receiving a beam.');
+        }
+
+        $existingBeamQuery = TextileWorkflowDocument::query()
+            ->where('created_by', $yarnAllocation->created_by)
+            ->where('document_type', 'beam')
+            ->where('source_reference_type', 'textile_workflow_document')
+            ->where('source_reference_id', $yarnAllocation->id);
+        TextileBranchScope::applyWorkflowScope($existingBeamQuery);
+
+        if ($existingBeamQuery->exists()) {
+            throw new RuntimeException('A beam has already been received for this yarn issue.');
+        }
+
+        $quantity = (float) ($payload['quantity'] ?? $yarnAllocation->quantity);
+        if ($quantity <= 0 || $quantity > (float) $yarnAllocation->quantity) {
+            throw new RuntimeException('Received beam quantity must not exceed the issued yarn quantity.');
+        }
+
+        $beam = $this->workflowService->createDocument([
+            'document_type' => 'beam',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $yarnAllocation->id,
+            'source_action' => 'vendor_beam_receipt',
+            'party_name' => $yarnAllocation->party_name,
+            'lot_reference' => sprintf('BEAM-%06d', $yarnAllocation->id),
+            'quantity' => $quantity,
+            'unit' => $yarnAllocation->unit,
+            'status' => 'draft',
+            'metadata' => [
+                'yarn_allocation_number' => $yarnAllocation->document_number,
+                'source_yarn_lot' => $yarnAllocation->lot_reference,
+                'issued_quantity' => $yarnAllocation->quantity,
+                'sizing_vendor' => $yarnAllocation->party_name,
+            ],
+            'idempotency_key' => $payload['idempotency_key'] ?? null,
+        ]);
+
+        $this->lotAutoCreationService->createFromBeam($beam);
+
+        return $beam;
     }
 
     public function createWarpPlan(array $payload): TextileWorkflowDocument
@@ -574,6 +631,162 @@ class TextileManufacturingService
         return $this->workflowService->transitionStatus($batch->id, 'released');
     }
 
+    public function createProductionAssignment(int $batchId, array $payload): TextileWorkflowDocument
+    {
+        $batch = $this->findTenantDocument($batchId, 'production_batch');
+        if ($batch->status !== 'released') {
+            throw new RuntimeException('Production batch must be released before beam assignment.');
+        }
+
+        $existingQuery = TextileWorkflowDocument::query()
+            ->where('created_by', $batch->created_by)
+            ->where('document_type', 'production_assignment')
+            ->where('source_reference_type', 'textile_workflow_document')
+            ->where('source_reference_id', $batch->id);
+        TextileBranchScope::applyWorkflowScope($existingQuery);
+
+        if ($existingQuery->exists()) {
+            throw new RuntimeException('This production batch is already assigned.');
+        }
+
+        $quantity = (float) ($payload['assigned_quantity'] ?? $batch->quantity);
+        if ($quantity <= 0 || $quantity > (float) $batch->quantity) {
+            throw new RuntimeException('Assigned quantity must not exceed the production batch quantity.');
+        }
+
+        $productionMode = $payload['production_mode'] ?? null;
+        $partyName = $payload['powerloom_vendor_name'] ?? null;
+        $loomAllocations = [];
+
+        if ($productionMode === 'own_unit') {
+            foreach ($payload['loom_allocations'] ?? [] as $allocation) {
+                $loomMaster = $this->findTenantDocument((int) ($allocation['loom_master_id'] ?? 0), 'loom_master');
+                $loomAllocations[] = [
+                    'loom_master_id' => $loomMaster->id,
+                    'loom_number' => $loomMaster->document_number,
+                    'loom_name' => $loomMaster->party_name,
+                    'quantity' => (float) ($allocation['quantity'] ?? 0),
+                ];
+            }
+
+            $allocatedQuantity = array_sum(array_column($loomAllocations, 'quantity'));
+            if ($loomAllocations === [] || abs($allocatedQuantity - $quantity) > 0.01) {
+                throw new RuntimeException('Own-loom allocation quantities must equal the assigned quantity.');
+            }
+
+            $partyName = count($loomAllocations) === 1
+                ? $loomAllocations[0]['loom_name']
+                : sprintf('%d branch looms', count($loomAllocations));
+        }
+
+        return $this->workflowService->createDocument([
+            'document_type' => 'production_assignment',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $batch->id,
+            'source_action' => 'assign_for_production',
+            'party_name' => $partyName,
+            'lot_reference' => $batch->lot_reference,
+            'quantity' => $quantity,
+            'unit' => $batch->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'production_mode' => $productionMode,
+                'batch_id' => $batch->id,
+                'batch_number' => $batch->document_number,
+                'loom_allocations' => $loomAllocations,
+                'powerloom_vendor_id' => $payload['powerloom_vendor_id'] ?? null,
+                'assignment_date' => $payload['assignment_date'] ?? null,
+                'expected_completion_date' => $payload['expected_completion_date'] ?? null,
+                'planned_shift' => $payload['planned_shift'] ?? null,
+                'operator_name' => $payload['operator_name'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
+        ]);
+    }
+
+    public function createTakhaFromAssignment(int $assignmentId, array $payload): TextileWorkflowDocument
+    {
+        $assignment = $this->findTenantDocument($assignmentId, 'production_assignment');
+        if (! in_array($assignment->status, ['approved', 'released'], true)) {
+            throw new RuntimeException('Production assignment must be active before recording Takha.');
+        }
+
+        $recordedQuery = TextileWorkflowDocument::query()
+            ->where('created_by', $assignment->created_by)
+            ->where('document_type', 'takha_entry')
+            ->where('source_reference_type', 'textile_workflow_document')
+            ->where('source_reference_id', $assignment->id);
+        TextileBranchScope::applyWorkflowScope($recordedQuery);
+
+        $quantity = (float) ($payload['quantity'] ?? 0);
+        $recordedQuantity = (float) $recordedQuery->sum('quantity');
+        if ($quantity <= 0 || ($recordedQuantity + $quantity) > (float) $assignment->quantity) {
+            throw new RuntimeException('Takha quantity exceeds the remaining assigned quantity.');
+        }
+
+        $takhaNumber = trim((string) ($payload['takha_number'] ?? ''));
+        $duplicateNumberQuery = TextileWorkflowDocument::query()
+            ->where('created_by', $assignment->created_by)
+            ->where('document_type', 'takha_entry')
+            ->where('lot_reference', $takhaNumber);
+        TextileBranchScope::applyWorkflowScope($duplicateNumberQuery);
+        if ($duplicateNumberQuery->exists()) {
+            throw new RuntimeException('Takha number already exists in this branch.');
+        }
+
+        $metadata = is_array($assignment->metadata) ? $assignment->metadata : [];
+        $loomMasterId = isset($payload['loom_master_id']) ? (int) $payload['loom_master_id'] : null;
+        if (($metadata['production_mode'] ?? null) === 'own_unit') {
+            $loomAllocations = collect($metadata['loom_allocations'] ?? []);
+            $loomAllocation = $loomAllocations->firstWhere('loom_master_id', $loomMasterId);
+            if (! is_array($loomAllocation)) {
+                throw new RuntimeException('Select a loom allocated to this production assignment.');
+            }
+
+            $loomRecordedQuantity = (float) (clone $recordedQuery)
+                ->where('metadata->loom_master_id', $loomMasterId)
+                ->sum('quantity');
+            if (($loomRecordedQuantity + $quantity) > (float) ($loomAllocation['quantity'] ?? 0)) {
+                throw new RuntimeException('Takha quantity exceeds the selected loom allocation.');
+            }
+        }
+
+        $takha = $this->workflowService->createDocument([
+            'document_type' => 'takha_entry',
+            'source_reference_type' => 'textile_workflow_document',
+            'source_reference_id' => $assignment->id,
+            'party_name' => $assignment->party_name,
+            'lot_reference' => $takhaNumber,
+            'quantity' => $quantity,
+            'unit' => $payload['unit'] ?? $assignment->unit,
+            'status' => 'approved',
+            'metadata' => [
+                'takha_number' => $takhaNumber,
+                'production_mode' => $metadata['production_mode'] ?? null,
+                'batch_id' => $metadata['batch_id'] ?? null,
+                'batch_number' => $metadata['batch_number'] ?? null,
+                'loom_master_id' => $loomMasterId,
+                'powerloom_vendor_id' => $metadata['powerloom_vendor_id'] ?? null,
+                'production_date' => $payload['production_date'] ?? null,
+                'operator_name' => $payload['operator_name'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+            ],
+        ]);
+
+        $this->lotAutoCreationService->createFromWeavingOutput($takha);
+
+        return $takha;
+    }
+
+    public function createTakhasFromAssignment(int $assignmentId, array $payload)
+    {
+        return DB::transaction(function () use ($assignmentId, $payload) {
+            return collect($payload['takhas'] ?? [])->map(function (array $takha) use ($assignmentId, $payload) {
+                return $this->createTakhaFromAssignment($assignmentId, array_merge($payload, $takha));
+            });
+        });
+    }
+
     public function createWeavingOutput(int $batchId, array $payload = []): TextileWorkflowDocument
     {
         $batch = $this->findTenantDocument($batchId, 'production_batch');
@@ -581,7 +794,7 @@ class TextileManufacturingService
             throw new RuntimeException('Production batch must be released before weaving output.');
         }
 
-        return $this->workflowService->createDocument([
+        $output = $this->workflowService->createDocument([
             'document_type' => 'weaving_output',
             'source_reference_type' => 'textile_workflow_document',
             'source_reference_id' => $batch->id,
@@ -594,6 +807,11 @@ class TextileManufacturingService
             'metadata' => $payload['metadata'] ?? null,
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
+
+        // Auto-create grey fabric lot
+        $this->lotAutoCreationService->createFromWeavingOutput($output);
+
+        return $output;
     }
 
     public function createShiftProduction(int $batchId, array $payload = []): TextileWorkflowDocument
@@ -887,11 +1105,13 @@ class TextileManufacturingService
     {
         $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
 
-        $document = TextileWorkflowDocument::query()
+        $query = TextileWorkflowDocument::query()
             ->where('id', $documentId)
             ->where('document_type', $documentType)
-            ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId))
-            ->first();
+            ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId));
+
+        TextileBranchScope::applyWorkflowScope($query);
+        $document = $query->first();
 
         if ($document === null) {
             throw new RuntimeException('Document not found for tenant context.');

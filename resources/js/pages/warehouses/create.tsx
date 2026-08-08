@@ -1,5 +1,5 @@
 import { DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useForm, usePage } from "@inertiajs/react";
+import { useForm } from "@inertiajs/react";
 import { useTranslation } from 'react-i18next';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { useFormFields } from '@/hooks/useFormFields';
 
 import { CreateWarehouseProps, CreateWarehouseFormData } from './types';
 
-export default function Create({ onSuccess }: CreateWarehouseProps) {
+export default function Create({ onSuccess, branches, canManageAllBranches }: CreateWarehouseProps) {
     const { t } = useTranslation();
     const { data, setData, post, processing, errors } = useForm<CreateWarehouseFormData>({
         name: '',
@@ -20,6 +20,7 @@ export default function Create({ onSuccess }: CreateWarehouseProps) {
         zip_code: '',
         phone: '',
         email: '',
+        branch_id: null,
         is_active: true,
     });
 
@@ -117,6 +118,28 @@ export default function Create({ onSuccess }: CreateWarehouseProps) {
                         <InputError message={errors.email} />
                     </div>
                 </div>
+                {canManageAllBranches && branches.length > 0 && (
+                    <div>
+                        <Label htmlFor="branch_id">{t('Branch')}</Label>
+                        <Select
+                            value={data.branch_id ? String(data.branch_id) : 'none'}
+                            onValueChange={(value) => setData('branch_id', value === 'none' ? null : Number(value))}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder={t('Select branch')} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">{t('No Branch')}</SelectItem>
+                                {branches.map((branch) => (
+                                    <SelectItem key={branch.id} value={String(branch.id)}>
+                                        {branch.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <InputError message={errors.branch_id} />
+                    </div>
+                )}
                 <div>
                     <Label htmlFor="is_active">{t('Status')}</Label>
                     <Select value={data.is_active ? "1" : "0"} onValueChange={(value) => setData('is_active', value === "1")}>

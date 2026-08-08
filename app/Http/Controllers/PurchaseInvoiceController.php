@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HasBranchWarehouseScope;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseInvoiceItem;
 use App\Models\PurchaseInvoiceItemTax;
@@ -23,6 +24,8 @@ use App\Events\EditPurchaseInvoice;
 
 class PurchaseInvoiceController extends Controller
 {
+    use HasBranchWarehouseScope;
+
     private function checkInvoiceAccess(PurchaseInvoice $purchaseInvoice)
     {
         if(Auth::user()->can('manage-any-purchase-invoices')) {
@@ -41,6 +44,7 @@ class PurchaseInvoiceController extends Controller
     public function index(Request $request)
     {
         if(Auth::user()->can('manage-purchase-invoices')){
+            $user = Auth::user();
             $query = PurchaseInvoice::with(['vendor', 'vendorDetails', 'items'])
                 ->where(function($q) {
                     if(Auth::user()->can('manage-any-purchase-invoices')) {
@@ -54,6 +58,8 @@ class PurchaseInvoiceController extends Controller
                         $q->whereRaw('1 = 0');
                     }
                 });
+
+            $this->applyWarehouseScope($query, 'warehouse_id', $user);
 
             // Apply filters
             if ($request->vendor_id) {
@@ -105,7 +111,7 @@ class PurchaseInvoiceController extends Controller
             return $invoice;
         });
         $vendors = User::where('type', 'vendor')->select('id', 'name', 'email')->where('created_by', creatorId())->get();
-        $warehouses = Warehouse::where('is_active', true)->select('id', 'name')->where('created_by', creatorId())->get();
+        $warehouses = $this->scopedWarehouseQuery($user)->select('id', 'name')->get();
 
             return Inertia::render('Purchase/Index', [
                 'invoices' => $invoices,
@@ -122,6 +128,7 @@ class PurchaseInvoiceController extends Controller
     public function create()
     {
         if(Auth::user()->can('create-purchase-invoices')){
+            $user = Auth::user();
             $vendors = User::where('type', 'vendor')->select('id', 'name', 'email')->where('created_by', creatorId())->get();
             $products = ProductServiceItem::select('id', 'name', 'sku', 'purchase_price', 'tax_ids', 'unit', 'type')
             ->where('is_active', true)->where('created_by', creatorId())
@@ -144,7 +151,7 @@ class PurchaseInvoiceController extends Controller
                 ];
             });
 
-            $warehouses = Warehouse::where('is_active', true)->select('id', 'name', 'address')->where('created_by', creatorId())->get();
+            $warehouses = $this->scopedWarehouseQuery($user)->select('id', 'name', 'address')->get();
 
             return Inertia::render('Purchase/Create', [
                 'vendors' => $vendors,
@@ -163,6 +170,10 @@ class PurchaseInvoiceController extends Controller
     public function store(StorePurchaseInvoiceRequest $request)
     {
         if(Auth::user()->can('create-purchase-invoices')){
+            if (!$this->isWarehouseAccessible($request->warehouse_id, Auth::user())) {
+                return redirect()->route('purchase-invoices.index')->with('error', __('Selected warehouse is not accessible for this user.'));
+            }
+
             $totals = $this->calculateTotals($request->items);
 
             $invoice = new PurchaseInvoice();
@@ -205,6 +216,10 @@ class PurchaseInvoiceController extends Controller
                 return redirect()->route('purchase-invoices.index')->with('error', __('Permission denied'));
             }
 
+            if (!$this->isWarehouseAccessible($purchaseInvoice->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('purchase-invoices.index')->with('error', __('Permission denied'));
+            }
+
             $purchaseInvoice->load(['vendor', 'vendorDetails', 'items.product', 'items.taxes', 'warehouse']);
 
             return Inertia::render('Purchase/View', [
@@ -219,7 +234,12 @@ class PurchaseInvoiceController extends Controller
     public function edit(PurchaseInvoice $purchaseInvoice)
     {
         if(Auth::user()->can('edit-purchase-invoices') && $purchaseInvoice->created_by == creatorId()){
+            $user = Auth::user();
             if(!$this->checkInvoiceAccess($purchaseInvoice)) {
+                return redirect()->route('purchase-invoices.index')->with('error', __('Permission denied'));
+            }
+
+            if (!$this->isWarehouseAccessible($purchaseInvoice->warehouse_id, $user, true)) {
                 return redirect()->route('purchase-invoices.index')->with('error', __('Permission denied'));
             }
 
@@ -253,7 +273,7 @@ class PurchaseInvoiceController extends Controller
                     ];
                 });
 
-            $warehouses = Warehouse::where('is_active', true)->select('id', 'name', 'address')->where('created_by', creatorId())->get();
+            $warehouses = $this->scopedWarehouseQuery($user)->select('id', 'name', 'address')->get();
 
             return Inertia::render('Purchase/Edit', [
                 'invoice' => $purchaseInvoice,
@@ -273,6 +293,10 @@ class PurchaseInvoiceController extends Controller
     public function update(UpdatePurchaseInvoiceRequest $request, PurchaseInvoice $purchaseInvoice)
     {
         if(Auth::user()->can('edit-purchase-invoices') && $purchaseInvoice->created_by == creatorId()){
+            if (!$this->isWarehouseAccessible($purchaseInvoice->warehouse_id, Auth::user(), true) || !$this->isWarehouseAccessible($request->warehouse_id, Auth::user())) {
+                return redirect()->route('purchase-invoices.index')->with('error', __('Selected warehouse is not accessible for this user.'));
+            }
+
             if ($purchaseInvoice->status != 'draft') {
                 return redirect()->route('purchase-invoices.index')->with('error', __('Cannot update posted invoice.'));
             }
@@ -308,6 +332,10 @@ class PurchaseInvoiceController extends Controller
     public function destroy(PurchaseInvoice $purchaseInvoice)
     {
         if(Auth::user()->can('delete-purchase-invoices')){
+            if (!$this->isWarehouseAccessible($purchaseInvoice->warehouse_id, Auth::user(), true)) {
+                return redirect()->route('purchase-invoices.index')->with('error', __('Permission denied'));
+            }
+
             if ($purchaseInvoice->status === 'posted') {
                 return back()->withErrors(['error' => __('Cannot delete posted invoice.')]);
             }
@@ -377,6 +405,10 @@ class PurchaseInvoiceController extends Controller
     public function post(PurchaseInvoice $purchaseInvoice)
     {
         if(Auth::user()->can('post-purchase-invoices')){
+        if (!$this->isWarehouseAccessible($purchaseInvoice->warehouse_id, Auth::user(), true)) {
+            return back()->with('error', __('Permission denied'));
+        }
+
         if ($purchaseInvoice->status !== 'draft') {
             return back()->withErrors(['error' => __('Only draft invoices can be posted.')]);
         }
@@ -399,6 +431,10 @@ class PurchaseInvoiceController extends Controller
     public function print(PurchaseInvoice $purchaseInvoice)
     {
         if(Auth::user()->can('print-purchase-invoices')){
+            if (!$this->isWarehouseAccessible($purchaseInvoice->warehouse_id, Auth::user(), true)) {
+                return back()->with('error', __('Permission denied'));
+            }
+
             $purchaseInvoice->load(['vendor', 'vendorDetails', 'items.product', 'items.taxes', 'warehouse']);
 
             return Inertia::render('Purchase/Print', [

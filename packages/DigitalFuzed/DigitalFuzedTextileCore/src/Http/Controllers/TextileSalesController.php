@@ -8,6 +8,8 @@ use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextileSalesService;
+use DigitalFuzed\TextileCore\Support\TextileBranchScope;
+use DigitalFuzed\TextileCore\Traits\ProvidesRecentActivity;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -15,9 +17,12 @@ use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use RuntimeException;
 use Workdo\Account\Models\Customer;
+use Workdo\Quotation\Models\SalesQuotation;
 
 class TextileSalesController extends Controller
 {
+    use ProvidesRecentActivity;
+
     public function __construct(protected TextileOperatingPolicyService $policyService)
     {
     }
@@ -33,35 +38,59 @@ class TextileSalesController extends Controller
             'dispatches' => $this->documents('dispatch'),
             'challans' => $this->documents('challan'),
             'pods' => $this->documents('pod'),
+            'quotations' => $this->quotations(),
             'customers' => $this->customerOptions(),
+            'warehouseOptions' => $this->warehouseOptions(),
+            'sellableLotOptions' => $this->sellableLotOptions(),
             'sourceTypeOptions' => $this->sourceTypeOptions(),
             'sourceActionOptions' => $this->sourceActionOptions(),
             'unitOptions' => $this->unitOptions(),
             'partyOptions' => $this->partyOptions(),
             'lotReferenceOptions' => $this->lotReferenceOptions(),
+            'recentActivity' => $this->recentActivity(),
         ]);
     }
 
     public function storeSalesOrder(Request $request, TextileSalesService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('sales_order', 'source_reference_id');
+        $this->authorizeCapability('sales_order', 'customer_id');
 
         $validated = $request->validate([
-            'source_reference_type' => ['required', 'string', 'max:100'],
-            'source_reference_id' => ['required', 'integer', 'min:1'],
+            'source_reference_type' => ['nullable', 'string', 'max:100'],
+            'source_reference_id' => ['nullable', 'integer', 'min:1'],
             'source_action' => ['nullable', 'string', 'max:100'],
-            'customer_id' => ['nullable', 'integer', 'min:1'],
+            'customer_id' => ['nullable', 'required_without:source_reference_id', 'integer', 'min:1'],
+            'lot_selections' => ['nullable', 'required_without:source_reference_id', 'array', 'min:1'],
+            'lot_selections.*.lot_reference' => ['required', 'string', 'max:100', 'distinct'],
+            'lot_selections.*.quantity' => ['required', 'numeric', 'gt:0'],
             'party_name' => ['nullable', 'string', 'max:100'],
-            'lot_reference' => ['required', 'string', 'max:100'],
-            'quantity' => ['required', 'numeric', 'gt:0'],
+            'lot_reference' => ['nullable', 'string', 'max:100'],
+            'quantity' => ['nullable', 'required_with:source_reference_id', 'numeric', 'gt:0'],
             'unit' => ['nullable', 'string', 'max:50'],
+            'rate' => ['nullable', 'required_without:source_reference_id', 'numeric', 'gte:0'],
+            'required_delivery_date' => ['nullable', 'required_without:source_reference_id', 'date'],
+            'warehouse' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
         ]);
+
+        if (! empty($validated['customer_id']) && ! empty($validated['lot_selections'])) {
+            $customer = Customer::query()->where('created_by', creatorId())->findOrFail((int) $validated['customer_id']);
+            $validated['party_name'] = $customer->company_name;
+            $validated['metadata'] = [
+                'item_name' => 'Takha / Woven Fabric',
+                'rate' => (float) $validated['rate'],
+                'required_delivery_date' => $validated['required_delivery_date'],
+                'warehouse' => $validated['warehouse'] ?? null,
+                'notes' => $validated['notes'] ?? null,
+            ];
+        }
 
         try {
             $service->createSalesOrder($validated);
         } catch (RuntimeException $exception) {
-            return back()->withErrors(['source_reference_id' => __($exception->getMessage())]);
+            $errorKey = ! empty($validated['source_reference_id']) ? 'source_reference_id' : 'customer_id';
+            return back()->withErrors([$errorKey => __($exception->getMessage())]);
         }
 
         return back()->with('success', __('Sales order created successfully.'));
@@ -92,10 +121,22 @@ class TextileSalesController extends Controller
 
         $validated = $request->validate([
             'sales_order_id' => ['required', 'integer', 'min:1'],
+            'lot_allocations' => ['nullable', 'array', 'min:1'],
+            'lot_allocations.*.lot_reference' => ['required', 'string', 'max:100', 'distinct'],
+            'lot_allocations.*.quantity' => ['required', 'numeric', 'gt:0'],
         ]);
 
+        $salesOrderQuery = TextileWorkflowDocument::query()
+            ->where('id', $validated['sales_order_id'])
+            ->where('created_by', creatorId())
+            ->where('document_type', 'sales_order');
+        TextileBranchScope::applyWorkflowScope($salesOrderQuery);
+        $salesOrder = $salesOrderQuery->firstOrFail();
+        $salesOrderMetadata = is_array($salesOrder->metadata) ? $salesOrder->metadata : [];
+        $validated['lot_allocations'] = $validated['lot_allocations'] ?? ($salesOrderMetadata['requested_lots'] ?? null);
+
         try {
-            $service->createAllocation((int) $validated['sales_order_id']);
+            $service->createAllocation((int) $validated['sales_order_id'], $validated);
         } catch (RuntimeException $exception) {
             return back()->withErrors(['sales_order_id' => __($exception->getMessage())]);
         }
@@ -195,11 +236,33 @@ class TextileSalesController extends Controller
 
     private function documents(string $type)
     {
-        return TextileWorkflowDocument::query()
+        $query = TextileWorkflowDocument::query()
             ->where('created_by', creatorId())
-            ->where('document_type', $type)
+            ->where('document_type', $type);
+
+        TextileBranchScope::applyWorkflowScope($query);
+
+        return $query->latest()->get();
+    }
+
+    private function quotations(): array
+    {
+        return SalesQuotation::query()
+            ->where('created_by', creatorId())
+            ->with('customer:id,company_name')
             ->latest()
-            ->get();
+            ->get()
+            ->map(fn (SalesQuotation $q) => [
+                'id' => $q->id,
+                'quotation_number' => $q->quotation_number,
+                'customer_name' => $q->customer?->company_name ?? '-',
+                'quotation_date' => $q->quotation_date?->format('d M Y') ?? '-',
+                'due_date' => $q->due_date?->format('d M Y') ?? '-',
+                'total_amount' => $q->total_amount,
+                'status' => $q->status,
+                'converted_to_invoice' => $q->converted_to_invoice,
+            ])
+            ->all();
     }
 
     private function customerOptions()
@@ -222,6 +285,64 @@ class TextileSalesController extends Controller
                 ];
             })
             ->values();
+    }
+
+    private function warehouseOptions(): array
+    {
+        if (! Schema::hasTable('warehouses')) {
+            return [];
+        }
+
+        $query = \DB::table('warehouses')->where('created_by', creatorId());
+        if (Schema::hasColumn('warehouses', 'branch_id') && session('active_branch_id')) {
+            $query->where('branch_id', (int) session('active_branch_id'));
+        }
+
+        return $query->orderBy('name')->pluck('name')->map(fn ($name) => ['value' => (string) $name, 'label' => (string) $name])->values()->all();
+    }
+
+    private function sellableLotOptions(): array
+    {
+        if (! Schema::hasTable('textile_lots')) {
+            return [];
+        }
+
+        $sourceQuery = TextileWorkflowDocument::query()->where('created_by', creatorId());
+        TextileBranchScope::applyWorkflowScope($sourceQuery);
+        $sourceDocuments = $sourceQuery->get(['id', 'party_name', 'unit', 'metadata', 'created_at'])->keyBy('id');
+
+        return TextileLot::query()
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->where('available_quantity', '>', 0)
+            ->where('material_type', TextileLot::TYPE_GREY_FABRIC)
+            ->where('source_document_type', 'takha_entry')
+            ->whereIn('source_document_id', $sourceDocuments->keys())
+            ->latest('created_at')
+            ->get()
+            ->map(function (TextileLot $lot) use ($sourceDocuments) {
+                $source = $sourceDocuments->get($lot->source_document_id);
+                $metadata = is_array($source?->metadata) ? $source->metadata : [];
+                $quantity = rtrim(rtrim(number_format((float) $lot->available_quantity, 2, '.', ''), '0'), '.');
+                $details = array_filter([
+                    $quantity . ' available',
+                    $metadata['grade'] ?? null,
+                    isset($metadata['gsm']) ? $metadata['gsm'] . ' GSM' : null,
+                    isset($metadata['width']) ? $metadata['width'] . ' width' : null,
+                    $metadata['warehouse'] ?? null,
+                    $source?->created_at?->format('d M Y'),
+                ]);
+
+                return [
+                    'value' => $lot->lot_reference,
+                    'label' => $lot->lot_reference . ' (' . implode(' | ', $details) . ')',
+                    'available_quantity' => $quantity,
+                    'material_type' => $lot->material_type,
+                    'unit' => (string) ($source?->unit ?? ''),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function sourceTypeOptions(): array
@@ -308,10 +429,13 @@ class TextileSalesController extends Controller
                 ->pluck('company_name');
         }
 
-        $workflowParties = TextileWorkflowDocument::query()
+        $workflowPartiesQuery = TextileWorkflowDocument::query()
             ->where('created_by', creatorId())
-            ->whereNotNull('party_name')
-            ->pluck('party_name');
+            ->whereNotNull('party_name');
+
+        TextileBranchScope::applyWorkflowScope($workflowPartiesQuery);
+
+        $workflowParties = $workflowPartiesQuery->pluck('party_name');
 
         return $customers
             ->merge($workflowParties)
@@ -332,10 +456,13 @@ class TextileSalesController extends Controller
                 ->pluck('lot_reference');
         }
 
-        $workflowLots = TextileWorkflowDocument::query()
+        $workflowLotsQuery = TextileWorkflowDocument::query()
             ->where('created_by', creatorId())
-            ->whereNotNull('lot_reference')
-            ->pluck('lot_reference');
+            ->whereNotNull('lot_reference');
+
+        TextileBranchScope::applyWorkflowScope($workflowLotsQuery);
+
+        $workflowLots = $workflowLotsQuery->pluck('lot_reference');
 
         return $lots
             ->merge($workflowLots)
@@ -350,7 +477,7 @@ class TextileSalesController extends Controller
     {
         $user = Auth::user();
 
-        abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
+        abort_unless($user && in_array($user->type, ['company', 'superadmin', 'staff'], true), 403);
     }
 
     private function authorizeCapability(string $capability, string $errorKey): void
