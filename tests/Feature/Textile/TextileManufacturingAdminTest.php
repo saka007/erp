@@ -969,6 +969,77 @@ class TextileManufacturingAdminTest extends TestCase
             ->assertSessionHasErrors('source_reference_id');
     }
 
+    public function test_takha_entry_requires_unique_number_and_stays_within_output_quantity(): void
+    {
+        AddOn::create([
+            'module' => 'TextileCore',
+            'name' => 'Textile Core',
+            'package_name' => 'textile-core',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        $companyA = $this->company();
+        $branchA = Branch::create([
+            'branch_name' => 'Takha Branch',
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+        $this->withSession(['active_branch_id' => $branchA->id]);
+
+        $weavingOutput = TextileWorkflowDocument::create([
+            'document_type' => 'weaving_output',
+            'document_number' => 'WO-GATE-001',
+            'lot_reference' => 'WO-LOT-GATE-1',
+            'quantity' => 100,
+            'unit' => 'mtr',
+            'status' => 'approved',
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+            'branch_id' => $branchA->id,
+        ]);
+
+        // Valid takha within output quantity.
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.takha-entries.store'), [
+                'weaving_output_id' => $weavingOutput->id,
+                'takha_number' => 'TAKHA-GATE-1',
+                'quantity' => 60,
+                'unit' => 'mtr',
+            ])
+            ->assertSessionHasNoErrors();
+
+        // Duplicate takha number in the same branch is rejected.
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.takha-entries.store'), [
+                'weaving_output_id' => $weavingOutput->id,
+                'takha_number' => 'TAKHA-GATE-1',
+                'quantity' => 10,
+                'unit' => 'mtr',
+            ])
+            ->assertSessionHasErrors('production_assignment_id');
+
+        // Sum of takhas exceeding the weaving output quantity is rejected.
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.takha-entries.store'), [
+                'weaving_output_id' => $weavingOutput->id,
+                'takha_number' => 'TAKHA-GATE-2',
+                'quantity' => 50,
+                'unit' => 'mtr',
+            ])
+            ->assertSessionHasErrors('production_assignment_id');
+
+        // Missing takha number is rejected.
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.takha-entries.store'), [
+                'weaving_output_id' => $weavingOutput->id,
+                'quantity' => 10,
+                'unit' => 'mtr',
+            ])
+            ->assertSessionHasErrors('takha_number');
+    }
+
     private function company(): User
     {
         $plan = Plan::create([

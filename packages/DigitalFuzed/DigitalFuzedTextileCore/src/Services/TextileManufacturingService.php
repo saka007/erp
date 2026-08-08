@@ -784,6 +784,9 @@ class TextileManufacturingService
         }
 
         $takhaNumber = trim((string) ($payload['takha_number'] ?? ''));
+        if ($takhaNumber === '') {
+            throw new RuntimeException('Takha number is required for takha entry.');
+        }
         $duplicateNumberQuery = TextileWorkflowDocument::query()
             ->where('created_by', $assignment->created_by)
             ->where('document_type', 'takha_entry')
@@ -902,8 +905,39 @@ class TextileManufacturingService
     public function createTakhaEntry(int $weavingOutputId, array $payload = []): TextileWorkflowDocument
     {
         $output = $this->findTenantDocument($weavingOutputId, 'weaving_output');
-        if (!in_array($output->status, ['approved', 'released', 'closed'], true)) {
+        if (! in_array($output->status, ['approved', 'released', 'closed'], true)) {
             throw new RuntimeException('Weaving output must be completed before takha entry.');
+        }
+
+        $takhaNumber = trim((string) ($payload['takha_number'] ?? ''));
+        if ($takhaNumber === '') {
+            throw new RuntimeException('Takha number is required for takha entry.');
+        }
+
+        $quantity = (float) ($payload['quantity'] ?? 0);
+        if ($quantity <= 0) {
+            throw new RuntimeException('Takha quantity must be greater than zero.');
+        }
+
+        $recordedQuery = TextileWorkflowDocument::query()
+            ->where('created_by', $output->created_by)
+            ->where('document_type', 'takha_entry')
+            ->where('source_reference_type', 'textile_workflow_document')
+            ->where('source_reference_id', $output->id);
+        TextileBranchScope::applyWorkflowScope($recordedQuery);
+
+        $recordedQuantity = (float) $recordedQuery->sum('quantity');
+        if (($recordedQuantity + $quantity) > (float) $output->quantity) {
+            throw new RuntimeException('Takha quantity exceeds the remaining weaving output quantity.');
+        }
+
+        $duplicateNumberQuery = TextileWorkflowDocument::query()
+            ->where('created_by', $output->created_by)
+            ->where('document_type', 'takha_entry')
+            ->where('lot_reference', $takhaNumber);
+        TextileBranchScope::applyWorkflowScope($duplicateNumberQuery);
+        if ($duplicateNumberQuery->exists()) {
+            throw new RuntimeException('Takha number already exists in this branch.');
         }
 
         return $this->workflowService->createDocument([
@@ -911,12 +945,12 @@ class TextileManufacturingService
             'source_reference_type' => 'textile_workflow_document',
             'source_reference_id' => $output->id,
             'party_name' => $payload['operator_name'] ?? $output->party_name,
-            'lot_reference' => $payload['takha_number'] ?? $output->lot_reference,
-            'quantity' => $payload['quantity'] ?? 0,
+            'lot_reference' => $takhaNumber,
+            'quantity' => $quantity,
             'unit' => $payload['unit'] ?? $output->unit,
             'status' => 'approved',
             'metadata' => [
-                'takha_number' => $payload['takha_number'] ?? null,
+                'takha_number' => $takhaNumber,
                 'operator_name' => $payload['operator_name'] ?? null,
                 'notes' => $payload['notes'] ?? null,
             ],
