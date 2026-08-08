@@ -280,9 +280,17 @@ export default function Index({
                                     {resolvedRouteOptions.length > 0 && (
                                         <SelectField label={t('Route')} value={planningForm.data.route_id} onChange={(value: string) => planningForm.setData('route_id', value)} options={resolvedRouteOptions} includeEmpty emptyLabel={t('Select route')} helperText={t('Managed from Master Setup > Dispatch Setup > Routes.')} />
                                     )}
-                                    {resolvedTransportVendorOptions.length > 0 && (
-                                        <SelectField label={t('Transport Vendor')} value={planningForm.data.transport_vendor_id} onChange={(value: string) => planningForm.setData('transport_vendor_id', value)} options={resolvedTransportVendorOptions} includeEmpty emptyLabel={t('Select transport vendor')} helperText={t('Use Account > Vendors with supplier type Transport Vendor.')} />
-                                    )}
+                                    <SelectField
+                                        label={t('Transport Vendor')}
+                                        value={planningForm.data.transport_vendor_id}
+                                        onChange={(value: string) => planningForm.setData('transport_vendor_id', value)}
+                                        options={resolvedTransportVendorOptions}
+                                        includeEmpty
+                                        emptyLabel={resolvedTransportVendorOptions.length > 0 ? t('Select transport vendor') : t('Optional — no vendor selected')}
+                                        helperText={resolvedTransportVendorOptions.length > 0
+                                            ? t('Optional. Leave empty for own-vehicle dispatch.')
+                                            : t('Optional. Leave empty for own-vehicle dispatch. To dispatch via a vendor, create one under Account > Vendors (supplier type Transport Vendor).')}
+                                    />
                                     <div className="grid grid-cols-2 gap-3">
                                         <Field label={t('LR Number')} value={planningForm.data.lr_number} onChange={(value: string) => planningForm.setData('lr_number', value)} placeholder={t('e.g. LR-1001')} />
                                         <Field label={t('E-Way Bill')} value={planningForm.data.eway_bill_number} onChange={(value: string) => planningForm.setData('eway_bill_number', value)} placeholder={t('e.g. EWB-9001')} />
@@ -346,9 +354,17 @@ export default function Index({
                                     {resolvedRouteOptions.length > 0 && (
                                         <SelectField label={t('Route')} value={trackingForm.data.route_id} onChange={(value: string) => trackingForm.setData('route_id', value)} options={resolvedRouteOptions} includeEmpty emptyLabel={t('Select route')} helperText={t('Managed from Master Setup > Dispatch Setup > Routes.')} />
                                     )}
-                                    {resolvedTransportVendorOptions.length > 0 && (
-                                        <SelectField label={t('Transport Vendor')} value={trackingForm.data.transport_vendor_id} onChange={(value: string) => trackingForm.setData('transport_vendor_id', value)} options={resolvedTransportVendorOptions} includeEmpty emptyLabel={t('Select transport vendor')} helperText={t('Use Account > Vendors with supplier type Transport Vendor.')} />
-                                    )}
+                                    <SelectField
+                                        label={t('Transport Vendor')}
+                                        value={trackingForm.data.transport_vendor_id}
+                                        onChange={(value: string) => trackingForm.setData('transport_vendor_id', value)}
+                                        options={resolvedTransportVendorOptions}
+                                        includeEmpty
+                                        emptyLabel={resolvedTransportVendorOptions.length > 0 ? t('Select transport vendor') : t('Optional — no vendor selected')}
+                                        helperText={resolvedTransportVendorOptions.length > 0
+                                            ? t('Optional. Leave empty for own-vehicle dispatch.')
+                                            : t('Optional. Leave empty for own-vehicle dispatch. To dispatch via a vendor, create one under Account > Vendors (supplier type Transport Vendor).')}
+                                    />
                                     <div className="grid grid-cols-2 gap-3">
                                         <Field label={t('LR Number')} value={trackingForm.data.lr_number} onChange={(value: string) => trackingForm.setData('lr_number', value)} placeholder={t('e.g. LR-1001')} />
                                         <Field label={t('E-Way Bill')} value={trackingForm.data.eway_bill_number} onChange={(value: string) => trackingForm.setData('eway_bill_number', value)} placeholder={t('e.g. EWB-9001')} />
