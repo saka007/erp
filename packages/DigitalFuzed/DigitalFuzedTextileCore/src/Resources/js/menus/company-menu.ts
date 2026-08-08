@@ -2,7 +2,6 @@ import {
     AlertTriangle,
     ArrowDownLeft,
     ArrowLeftRight,
-    ArrowRightLeft,
     ArrowUpRight,
     Award,
     BadgeCheck,
@@ -34,7 +33,6 @@ import {
     Cpu,
     Droplets,
     Factory,
-    FileCheck2,
     FileClock,
     FileSignature,
     FileStack,
@@ -117,26 +115,6 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                 href: route('textile.sales.index'),
                 capability: 'sales',
                 icon: ShoppingBag,
-                children: [
-                    {
-                        title: t('Sales Orders'),
-                        href: route('textile.sales.index', { section: 'sales-order' }),
-                        capability: 'sales_order',
-                        icon: ReceiptText,
-                    },
-                    {
-                        title: t('Allocation and Dispatch'),
-                        href: route('textile.sales.index', { section: 'allocation-dispatch' }),
-                        capability: 'sales_allocation_dispatch',
-                        icon: ArrowRightLeft,
-                    },
-                    {
-                        title: t('Challan and POD'),
-                        href: route('textile.sales.index', { section: 'challan-pod' }),
-                        capability: 'sales_challan_pod',
-                        icon: FileCheck2,
-                    },
-                ],
             },
             {
                 title: t('Manufacturing'),
