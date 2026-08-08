@@ -1,7 +1,7 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, Factory, FileEdit, Gauge, LayoutDashboard, ListChecks, Plus, RotateCcw, Send, ShieldCheck, Trash2, Wrench, XCircle, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, Factory, FileEdit, Gauge, LayoutDashboard, ListChecks, Plus, RotateCcw, Send, ShieldCheck, Trash2, Truck, Wrench, XCircle, type LucideIcon } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -164,6 +164,9 @@ export default function Index({
     const capabilityMap = textileCapabilities as Record<string, boolean | undefined>;
     const canManufacturingWarping = capabilityMap.manufacturing_warping !== false;
     const canManufacturingSizing = capabilityMap.manufacturing_sizing !== false;
+    // Yarn dispatch to sizing vendor can be handed over to the Dispatch module for
+    // transport planning/tracking when the tenant operating model enables it.
+    const canDispatchYarnSource = capabilityMap.dispatch_source_yarn !== false;
     // Vendor-sizing mode: when own sizing is disabled globally, hide in-house warping chain.
     const useVendorSizingFlow = !canManufacturingSizing;
     const showInternalWarpingFlow = canManufacturingWarping && !useVendorSizingFlow;
@@ -684,6 +687,25 @@ export default function Index({
                             />
                             <Button type="submit" disabled={yarnAllocationForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{allocateYarnButtonLabel}</Button>
                         </form>
+                        {useVendorSizingFlow && canDispatchYarnSource && (
+                            <div className="mt-3 border-t pt-3">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="w-full"
+                                    onClick={() => router.get(route('textile.dispatch.index', {
+                                        section: 'planning',
+                                        source_type: 'yarn_dispatch',
+                                        source_id: yarnAllocationForm.data.warp_plan_id || undefined,
+                                    }), {}, { preserveState: false })}
+                                >
+                                    <Truck className="mr-2 h-4 w-4" />{t('Create Dispatch for Yarn')}
+                                </Button>
+                                <p className="mt-2 text-xs text-muted-foreground">
+                                    {t('Hand over the approved yarn dispatch plan to Dispatch for transport planning and tracking.')}
+                                </p>
+                            </div>
+                        )}
                     </TextileFormCard>
                         ) },
                                 { id: 'warp-sheet', title: t('Create Warp Sheet from Yarn Allocation'), icon: Check, status: warpStatuses[2], count: warpSheets.length, form: (
@@ -922,6 +944,133 @@ export default function Index({
                                 ? visibleWarpStepsWithStatus
                                 : visibleWarpStepsWithStatus.slice(0, visibleStepCount);
 
+                            const warpPlanTable = (
+                                <TextileDataTableSection
+                                    title={t('Warp Plan Records')}
+                                    data={warpPlans}
+                                    columns={createTextileWorkflowColumns(t, {
+                                        actions: createTextileWorkflowActions([
+                                            {
+                                                statuses: textileActionableStatuses.draft,
+                                                actions: [{ label: t('Approve'), icon: Check, onClick: (row) => approveWarpPlan(row.id) }],
+                                            },
+                                        ]),
+                                    })}
+                                    emptyState={<NoRecordsFound icon={Factory} title={t('No warp plans found')} description={t('Create warp plans before yarn allocation.')} />}
+                                />
+                            );
+                            const yarnAllocationTable = (
+                                <TextileDataTableSection
+                                    title={t('Yarn Allocation Records')}
+                                    data={yarnAllocations}
+                                    columns={createTextileWorkflowColumns(t)}
+                                    emptyState={<NoRecordsFound icon={Factory} title={t('No yarn allocations found')} description={t('Allocate yarn from approved warp plans.')} />}
+                                />
+                            );
+                            const warpSheetTable = (
+                                <TextileDataTableSection
+                                    title={t('Warp Sheet Records')}
+                                    data={warpSheets}
+                                    columns={createTextileWorkflowColumns(t)}
+                                    emptyState={<NoRecordsFound icon={Factory} title={t('No warp sheets found')} description={t('Create warp sheets from completed yarn allocations.')} />}
+                                />
+                            );
+                            const warpProductionTable = (
+                                <TextileDataTableSection
+                                    title={t('Warp Production Records')}
+                                    data={warpProductions}
+                                    columns={createTextileWorkflowColumns(t)}
+                                    emptyState={<NoRecordsFound icon={Factory} title={t('No warp production found')} description={t('Create warp production entries from completed warp sheets.')} />}
+                                />
+                            );
+                            const sizingRecipeTable = (
+                                <TextileDataTableSection
+                                    title={t('Sizing Recipe Records')}
+                                    data={sizingRecipes}
+                                    columns={createTextileWorkflowColumns(t)}
+                                    emptyState={<NoRecordsFound icon={Factory} title={t('No sizing recipe found')} description={t('Create sizing recipe entries from completed warp production.')} />}
+                                />
+                            );
+                            const chemicalConsumptionTable = (
+                                <TextileDataTableSection
+                                    title={t('Chemical Consumption Records')}
+                                    data={chemicalConsumptions}
+                                    columns={[
+                                        { key: 'document_number', header: t('Number') },
+                                        { key: 'source_reference_id', header: t('Sizing Recipe ID') },
+                                        { key: 'chemical_type', header: t('Chemical'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.chemical_type ?? '')) },
+                                        { key: 'composition_percent', header: t('Composition %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.composition_percent ?? '-') },
+                                        { key: 'quantity', header: t('Consumption Qty') },
+                                        { key: 'unit', header: t('Unit') },
+                                        { key: 'status', header: t('Status') },
+                                    ]}
+                                    emptyState={<NoRecordsFound icon={Factory} title={t('No chemical consumption found')} description={t('Record chemical composition and consumption from completed sizing recipes.')} />}
+                                />
+                            );
+                            const beamInspectionTable = (
+                                <TextileDataTableSection
+                                    title={t('Beam Inspection Records')}
+                                    data={beamInspections}
+                                    columns={[
+                                        { key: 'document_number', header: t('Number') },
+                                        {
+                                            key: 'source_reference_id',
+                                            header: t('Beam'),
+                                            render: (value: unknown) => {
+                                                const beamId = Number(value ?? 0);
+                                                const beamRecord = beamById.get(beamId);
+
+                                                return beamRecord?.document_number ?? String(value ?? '-');
+                                            },
+                                        },
+                                        { key: 'inspection_result', header: t('Result'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.inspection_result ?? '')) },
+                                        { key: 'remarks', header: t('Remarks'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.remarks ?? '-') },
+                                        { key: 'status', header: t('Status') },
+                                    ]}
+                                    emptyState={<NoRecordsFound icon={Factory} title={t('No beam inspection found')} description={t('Record beam inspection from completed beams.')} />}
+                                />
+                            );
+                            const beamCostTable = (
+                                <TextileDataTableSection
+                                    title={t('Beam Cost Records')}
+                                    data={beamCosts}
+                                    columns={[
+                                        { key: 'document_number', header: t('Number') },
+                                        {
+                                            key: 'source_reference_id',
+                                            header: t('Beam'),
+                                            render: (value: unknown) => {
+                                                const beamId = Number(value ?? 0);
+                                                const beamRecord = beamById.get(beamId);
+
+                                                return beamRecord?.document_number ?? String(value ?? '-');
+                                            },
+                                        },
+                                        { key: 'cost_type', header: t('Cost Type'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.cost_type ?? '')) },
+                                        { key: 'cost_amount', header: t('Cost Amount'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_amount ?? '-') },
+                                        { key: 'cost_per_unit', header: t('Cost/Unit'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_per_unit ?? '-') },
+                                        { key: 'quantity', header: t('Quantity') },
+                                        { key: 'unit', header: t('Unit') },
+                                        { key: 'status', header: t('Status') },
+                                    ]}
+                                    emptyState={<NoRecordsFound icon={Factory} title={t('No beam cost found')} description={t('Record beam cost entries from completed beams.')} />}
+                                />
+                            );
+                            const warpRecordsByStep: Record<string, ReactNode> = {
+                                'warp-plan': warpPlanTable,
+                                'allocate-yarn': yarnAllocationTable,
+                                ...(showInternalWarpingFlow ? {
+                                    'warp-sheet': warpSheetTable,
+                                    'warp-production': warpProductionTable,
+                                } : {}),
+                                ...(canManufacturingSizing ? {
+                                    'sizing-recipe': sizingRecipeTable,
+                                    'chemical-consumption': chemicalConsumptionTable,
+                                } : {}),
+                                'beam-inspection': beamInspectionTable,
+                                'beam-cost': beamCostTable,
+                            };
+
                             return (
                                 <div className="space-y-6">
                                     <div className="flex justify-end">
@@ -934,109 +1083,16 @@ export default function Index({
                                             {showAllWarpSteps ? t('Show Fewer Steps') : t('Show All Steps')}
                                         </Button>
                                     </div>
-                                    <TextileWorkflowSteps steps={visibleWarpSteps} openId={openStep} onOpenChange={setOpenStep} records={
+                                    <TextileWorkflowSteps steps={visibleWarpSteps} openId={openStep} onOpenChange={setOpenStep} recordsByStep={warpRecordsByStep} records={
                                     <div className="grid gap-6 xl:grid-cols-2">
-                    <TextileDataTableSection
-                        title={t('Warp Plan Records')}
-                        data={warpPlans}
-                        columns={createTextileWorkflowColumns(t, {
-                            actions: createTextileWorkflowActions([
-                                {
-                                    statuses: textileActionableStatuses.draft,
-                                    actions: [{ label: t('Approve'), icon: Check, onClick: (row) => approveWarpPlan(row.id) }],
-                                },
-                            ]),
-                        })}
-                        emptyState={<NoRecordsFound icon={Factory} title={t('No warp plans found')} description={t('Create warp plans before yarn allocation.')} />}
-                    />
-                    <TextileDataTableSection
-                        title={t('Yarn Allocation Records')}
-                        data={yarnAllocations}
-                        columns={createTextileWorkflowColumns(t)}
-                        emptyState={<NoRecordsFound icon={Factory} title={t('No yarn allocations found')} description={t('Allocate yarn from approved warp plans.')} />}
-                    />
-                    <TextileDataTableSection
-                        title={t('Warp Sheet Records')}
-                        data={warpSheets}
-                        columns={createTextileWorkflowColumns(t)}
-                        emptyState={<NoRecordsFound icon={Factory} title={t('No warp sheets found')} description={t('Create warp sheets from completed yarn allocations.')} />}
-                    />
-                    <TextileDataTableSection
-                        title={t('Warp Production Records')}
-                        data={warpProductions}
-                        columns={createTextileWorkflowColumns(t)}
-                        emptyState={<NoRecordsFound icon={Factory} title={t('No warp production found')} description={t('Create warp production entries from completed warp sheets.')} />}
-                    />
-                    {canManufacturingSizing ? (
-                        <>
-                            <TextileDataTableSection
-                                title={t('Sizing Recipe Records')}
-                                data={sizingRecipes}
-                                columns={createTextileWorkflowColumns(t)}
-                                emptyState={<NoRecordsFound icon={Factory} title={t('No sizing recipe found')} description={t('Create sizing recipe entries from completed warp production.')} />}
-                            />
-                            <TextileDataTableSection
-                                title={t('Chemical Consumption Records')}
-                                data={chemicalConsumptions}
-                                columns={[
-                                    { key: 'document_number', header: t('Number') },
-                                    { key: 'source_reference_id', header: t('Sizing Recipe ID') },
-                                    { key: 'chemical_type', header: t('Chemical'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.chemical_type ?? '')) },
-                                    { key: 'composition_percent', header: t('Composition %'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.composition_percent ?? '-') },
-                                    { key: 'quantity', header: t('Consumption Qty') },
-                                    { key: 'unit', header: t('Unit') },
-                                    { key: 'status', header: t('Status') },
-                                ]}
-                                emptyState={<NoRecordsFound icon={Factory} title={t('No chemical consumption found')} description={t('Record chemical composition and consumption from completed sizing recipes.')} />}
-                            />
-                        </>
-                    ) : null}
-                    <TextileDataTableSection
-                        title={t('Beam Inspection Records')}
-                        data={beamInspections}
-                        columns={[
-                            { key: 'document_number', header: t('Number') },
-                            {
-                                key: 'source_reference_id',
-                                header: t('Beam'),
-                                render: (value: unknown) => {
-                                    const beamId = Number(value ?? 0);
-                                    const beamRecord = beamById.get(beamId);
-
-                                    return beamRecord?.document_number ?? String(value ?? '-');
-                                },
-                            },
-                            { key: 'inspection_result', header: t('Result'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.inspection_result ?? '')) },
-                            { key: 'remarks', header: t('Remarks'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.remarks ?? '-') },
-                            { key: 'status', header: t('Status') },
-                        ]}
-                        emptyState={<NoRecordsFound icon={Factory} title={t('No beam inspection found')} description={t('Record beam inspection from completed beams.')} />}
-                    />
-                    <TextileDataTableSection
-                        title={t('Beam Cost Records')}
-                        data={beamCosts}
-                        columns={[
-                            { key: 'document_number', header: t('Number') },
-                            {
-                                key: 'source_reference_id',
-                                header: t('Beam'),
-                                render: (value: unknown) => {
-                                    const beamId = Number(value ?? 0);
-                                    const beamRecord = beamById.get(beamId);
-
-                                    return beamRecord?.document_number ?? String(value ?? '-');
-                                },
-                            },
-                            { key: 'cost_type', header: t('Cost Type'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.cost_type ?? '')) },
-                            { key: 'cost_amount', header: t('Cost Amount'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_amount ?? '-') },
-                            { key: 'cost_per_unit', header: t('Cost/Unit'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.cost_per_unit ?? '-') },
-                            { key: 'quantity', header: t('Quantity') },
-                            { key: 'unit', header: t('Unit') },
-                            { key: 'status', header: t('Status') },
-                        ]}
-                        emptyState={<NoRecordsFound icon={Factory} title={t('No beam cost found')} description={t('Record beam cost entries from completed beams.')} />}
-                    />
-                    </div>
+                                        {warpPlanTable}
+                                        {yarnAllocationTable}
+                                        {showInternalWarpingFlow ? warpSheetTable : null}
+                                        {showInternalWarpingFlow ? warpProductionTable : null}
+                                        {canManufacturingSizing ? (<>{sizingRecipeTable}{chemicalConsumptionTable}</>) : null}
+                                        {beamInspectionTable}
+                                        {beamCostTable}
+                                    </div>
                         } />
                                 </div>
                             );

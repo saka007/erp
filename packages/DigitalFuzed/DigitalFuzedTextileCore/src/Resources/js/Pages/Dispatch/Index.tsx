@@ -11,6 +11,7 @@ import { TextileSelectField as SelectField } from '@/components/textile/textile-
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { TextileDataTableSection } from '@/components/textile/textile-data-table-section';
 import { TextileKpiOverview } from '@/components/textile/textile-kpi-overview';
+import { TextileFormErrors } from '@/components/textile/textile-form-errors';
 import { formatTextileOptionLabel } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 import { PageProps } from '@/types';
@@ -24,6 +25,7 @@ interface WorkflowDocument {
     unit?: string | null;
     status: string;
     metadata?: {
+        source_type?: string | null;
         dispatch_mode?: string | null;
         truck_number?: string | null;
         container_number?: string | null;
@@ -55,7 +57,10 @@ export default function Index({
     dispatchPlans,
     dispatchTrackings,
     challans,
+    jobWorkOutwards,
+    yarnDispatches,
     pods,
+    dispatchSourceFlags,
     sourceTypeOptions,
     sourceActionOptions,
     dispatchModeOptions,
@@ -72,7 +77,14 @@ export default function Index({
     dispatchPlans: WorkflowDocument[];
     dispatchTrackings: WorkflowDocument[];
     challans: WorkflowDocument[];
+    jobWorkOutwards: WorkflowDocument[];
+    yarnDispatches: WorkflowDocument[];
     pods: WorkflowDocument[];
+    dispatchSourceFlags?: {
+        challan: boolean;
+        job_work_outward: boolean;
+        yarn_dispatch: boolean;
+    };
     sourceTypeOptions: string[];
     sourceActionOptions: string[];
     dispatchModeOptions: string[];
@@ -89,10 +101,23 @@ export default function Index({
     const { t } = useTranslation();
     const { auth } = usePage<PageProps>().props;
     const textileCapabilities = auth.user?.textile_capabilities || {};
-    const hasFineGrainedCapabilities = Object.keys(textileCapabilities).some((key) => key.startsWith('sales_'));
-    const canDispatch = !hasFineGrainedCapabilities || textileCapabilities.sales_allocation_dispatch;
+    const hasFineGrainedCapabilities = Object.keys(textileCapabilities).some((key) => key.startsWith('sales_') || key.startsWith('dispatch_source_'));
+    const sourceFlags = dispatchSourceFlags ?? {
+        challan: !hasFineGrainedCapabilities || textileCapabilities.sales_allocation_dispatch !== false,
+        job_work_outward: !hasFineGrainedCapabilities || textileCapabilities.dispatch_source_job_work !== false,
+        yarn_dispatch: !hasFineGrainedCapabilities || textileCapabilities.dispatch_source_yarn !== false,
+    };
+    const canDispatch = sourceFlags.challan || sourceFlags.job_work_outward || sourceFlags.yarn_dispatch;
+
+    const dispatchSourceToggleOptions = [
+        ...(sourceFlags.challan ? [{ value: 'challan', label: t('From Challan') }] : []),
+        ...(sourceFlags.job_work_outward ? [{ value: 'job_work_outward', label: t('From Job-Work Outward') }] : []),
+        ...(sourceFlags.yarn_dispatch ? [{ value: 'yarn_dispatch', label: t('From Yarn Dispatch') }] : []),
+    ];
 
     const sectionParam = new URLSearchParams(window.location.search).get('section');
+    const sourceTypeParam = new URLSearchParams(window.location.search).get('source_type');
+    const sourceIdParam = new URLSearchParams(window.location.search).get('source_id');
     const visibleSections: DispatchSection[] = canDispatch ? [...DISPATCH_SECTIONS] : [];
     const activeSection = sectionParam && visibleSections.includes(sectionParam as DispatchSection)
         ? sectionParam as DispatchSection
@@ -112,12 +137,20 @@ export default function Index({
     const resolvedEwayBillOptions = ewayBillOptions.map((value) => ({ value, label: value }));
 
     const challanOptions = createTextileWorkflowSelectOptions(challans);
+    const jobWorkOutwardOptions = createTextileWorkflowSelectOptions(jobWorkOutwards);
+    const yarnDispatchOptions = createTextileWorkflowSelectOptions(yarnDispatches);
     const approvedPlans = dispatchPlans.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
 
+    const initialSourceType = dispatchSourceToggleOptions.some((option) => option.value === sourceTypeParam)
+        ? (sourceTypeParam as string)
+        : (dispatchSourceToggleOptions[0]?.value ?? 'challan');
+    const initialSourceId = sourceTypeParam && sourceIdParam ? sourceIdParam : '';
+
     const planningForm = useForm({
+        source_type: initialSourceType,
+        source_id: initialSourceId,
         source_reference_type: resolvedSourceTypeOptions[0]?.value ?? 'dispatch_plan',
         source_action: resolvedSourceActionOptions[0]?.value ?? 'dispatch_plan',
-        challan_id: '',
         dispatch_mode: resolvedDispatchModeOptions[0]?.value ?? 'truck',
         truck_number: '',
         container_number: '',
@@ -164,7 +197,7 @@ export default function Index({
                 title={t('Dispatch Overview')}
                 className="mb-6"
                 items={[
-                    { label: t('Dispatch Plans'), value: dispatchPlans.length, hint: t('Planning records linked with challan') },
+                    { label: t('Dispatch Plans'), value: dispatchPlans.length, hint: t('Planning records linked with dispatch sources') },
                     { label: t('In Transit'), value: activeTrackingCount, hint: t('Tracking entries currently in transit') },
                     { label: t('Delivered'), value: deliveredTrackingCount, hint: t('Tracking entries marked delivered') },
                     { label: t('POD Records'), value: pods.length, hint: t('Proof of delivery from Sales flow') },
@@ -190,13 +223,45 @@ export default function Index({
                                     onSubmit={(event) => {
                                         event.preventDefault();
                                         planningForm.post(route('textile.dispatch.plans.store'), {
-                                            onSuccess: () => planningForm.reset('challan_id', 'truck_number', 'container_number', 'driver_id', 'vehicle_id', 'route_id', 'transport_vendor_id', 'lr_number', 'eway_bill_number', 'freight_amount', 'notes'),
+                                            onSuccess: () => planningForm.reset('source_type', 'source_id', 'truck_number', 'container_number', 'driver_id', 'vehicle_id', 'route_id', 'transport_vendor_id', 'lr_number', 'eway_bill_number', 'freight_amount', 'notes'),
                                         });
                                     }}
                                 >
+                                    <TextileFormErrors errors={planningForm.errors} />
+                                    {dispatchSourceToggleOptions.length > 1 && (
+                                        <div className="grid gap-2">
+                                            <span className="text-sm font-medium">{t('Dispatch Source')}</span>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {dispatchSourceToggleOptions.map((option) => (
+                                                    <Button
+                                                        key={option.value}
+                                                        type="button"
+                                                        variant={planningForm.data.source_type === option.value ? 'default' : 'outline'}
+                                                        className="h-8 text-xs"
+                                                        onClick={() => {
+                                                            planningForm.setData('source_type', option.value);
+                                                            planningForm.setData('source_id', '');
+                                                            const url = new URL(window.location.href);
+                                                            url.searchParams.set('source_type', option.value);
+                                                            url.searchParams.delete('source_id');
+                                                            window.history.replaceState({}, '', url.toString());
+                                                        }}
+                                                    >
+                                                        {t(option.label)}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                     <SelectField label={t('Source Type')} value={planningForm.data.source_reference_type} onChange={(value: string) => planningForm.setData('source_reference_type', value)} options={resolvedSourceTypeOptions} includeEmpty emptyLabel={t('Select source type')} helperText={t('Source types are managed from Master Setup > Dispatch Setup > Source Types.')} required />
                                     <SelectField label={t('Source Action')} value={planningForm.data.source_action} onChange={(value: string) => planningForm.setData('source_action', value)} options={resolvedSourceActionOptions} includeEmpty emptyLabel={t('Select source action')} helperText={t('Source actions are managed from Master Setup > Dispatch Setup > Source Actions.')} required />
-                                    <SelectField label={t('Released Challan')} value={planningForm.data.challan_id} onChange={(value: string) => planningForm.setData('challan_id', value)} options={challanOptions} includeEmpty emptyLabel={t('Select released challan')} helperText={t('Delivery challan is mandatory for dispatch planning.')} disabled={challanOptions.length === 0} disabledReason={t('No released challan found. Release challan from Sales first.')} required />
+                                    {planningForm.data.source_type === 'job_work_outward' ? (
+                                        <SelectField label={t('Released Job-Work Outward')} value={planningForm.data.source_id} onChange={(value: string) => planningForm.setData('source_id', value)} options={jobWorkOutwardOptions} includeEmpty emptyLabel={t('Select released job-work outward')} helperText={t('Yarn issue to weaver / processing vendor dispatch.')} disabled={jobWorkOutwardOptions.length === 0} disabledReason={t('No released job-work outward found. Release one from Processing first.')} required />
+                                    ) : planningForm.data.source_type === 'yarn_dispatch' ? (
+                                        <SelectField label={t('Approved Yarn Dispatch Plan')} value={planningForm.data.source_id} onChange={(value: string) => planningForm.setData('source_id', value)} options={yarnDispatchOptions} includeEmpty emptyLabel={t('Select approved yarn dispatch plan')} helperText={t('Yarn dispatch to sizing vendor tracking.')} disabled={yarnDispatchOptions.length === 0} disabledReason={t('No approved yarn dispatch plan found. Create one from Manufacturing first.')} required />
+                                    ) : (
+                                        <SelectField label={t('Released Challan')} value={planningForm.data.source_id} onChange={(value: string) => planningForm.setData('source_id', value)} options={challanOptions} includeEmpty emptyLabel={t('Select released challan')} helperText={t('Delivery challan is mandatory for sales dispatch planning.')} disabled={challanOptions.length === 0} disabledReason={t('No released challan found. Release challan from Sales first.')} required />
+                                    )}
                                     <SelectField label={t('Dispatch Mode')} value={planningForm.data.dispatch_mode} onChange={(value: string) => planningForm.setData('dispatch_mode', value)} options={resolvedDispatchModeOptions} includeEmpty emptyLabel={t('Select mode')} helperText={t('Truck and container dispatch are both supported.')} required />
                                     <div className="grid grid-cols-2 gap-3">
                                         <SelectField label={t('Truck Number')} value={planningForm.data.truck_number} onChange={(value: string) => planningForm.setData('truck_number', value)} options={resolvedTruckNumberOptions} includeEmpty emptyLabel={t('Select truck number')} helperText={t('Managed from Master Setup > Dispatch Setup > Truck Numbers.')} disabled={resolvedTruckNumberOptions.length === 0} disabledReason={t('No truck number master found. Create dispatch truck numbers first.')} />
@@ -229,6 +294,7 @@ export default function Index({
                                             },
                                         ]),
                                     }),
+                                    { key: 'source_type', header: t('Source'), render: (_value: unknown, row: WorkflowDocument) => metadataLabel(row.metadata?.source_type) },
                                     { key: 'dispatch_mode', header: t('Mode'), render: (_value: unknown, row: WorkflowDocument) => metadataLabel(row.metadata?.dispatch_mode) },
                                     { key: 'truck_number', header: t('Truck'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.truck_number || '-' },
                                     { key: 'container_number', header: t('Container'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.container_number || '-' },
@@ -240,7 +306,7 @@ export default function Index({
                                     { key: 'eway_bill_number', header: t('E-Way'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.eway_bill_number || '-' },
                                     { key: 'freight_amount', header: t('Freight'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.freight_amount ?? '-' },
                                 ]}
-                                emptyState={<NoRecordsFound icon={Truck} title={t('No dispatch plans found')} description={t('Create dispatch plans from released challans.')} />}
+                                emptyState={<NoRecordsFound icon={Truck} title={t('No dispatch plans found')} description={t('Create dispatch plans from released challans, job-work outward, or yarn dispatch.')} />}
                             />
                         </div>
                     </TabsContent>
@@ -308,7 +374,7 @@ export default function Index({
                     </TabsContent>
                 </Tabs>
             ) : (
-                <NoRecordsFound icon={Truck} title={t('Dispatch is not enabled')} description={t('Enable Sales Allocation/Dispatch capability in Textile Operating Model to use dispatch workflows.')} />
+                <NoRecordsFound icon={Truck} title={t('Dispatch is not enabled')} description={t('Enable a dispatch source capability in Textile Operating Model (Sales Allocation/Dispatch, Job-Work Outward, or Yarn Dispatch) to use dispatch workflows.')} />
             )}
         </AuthenticatedLayout>
     );

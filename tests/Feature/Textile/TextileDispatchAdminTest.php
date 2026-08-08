@@ -9,8 +9,10 @@ use App\Models\UserActiveModule;
 use DigitalFuzed\TextileCore\Models\TextileDispatchDriver;
 use DigitalFuzed\TextileCore\Models\TextileDispatchRoute;
 use DigitalFuzed\TextileCore\Models\TextileDispatchVehicle;
+use DigitalFuzed\TextileCore\Models\TextileOperatingPolicy;
 use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
+use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -115,9 +117,10 @@ class TextileDispatchAdminTest extends TestCase
 
         $this->actingAs($companyA)
             ->post(route('textile.dispatch.plans.store'), [
+                'source_type' => 'challan',
+                'source_id' => $challanA->id,
                 'source_reference_type' => 'dispatch_plan',
                 'source_action' => 'vehicle_assign',
-                'challan_id' => $challanA->id,
                 'dispatch_mode' => 'truck',
                 'truck_number' => 'GJ01-TR-5555',
                 'driver_id' => $driverA->id,
@@ -132,9 +135,10 @@ class TextileDispatchAdminTest extends TestCase
 
         $this->actingAs($companyA)
             ->post(route('textile.dispatch.plans.store'), [
+                'source_type' => 'challan',
+                'source_id' => $challanA->id,
                 'source_reference_type' => 'dispatch_plan',
                 'source_action' => 'vehicle_assign',
-                'challan_id' => $challanA->id,
                 'dispatch_mode' => 'container',
                 'container_number' => 'CONT-4455',
                 'driver_id' => $driverB->id,
@@ -232,6 +236,226 @@ class TextileDispatchAdminTest extends TestCase
                 'tracking_id' => $tracking->id,
             ])
             ->assertSessionHasErrors('tracking_id');
+    }
+
+    public function test_company_can_create_dispatch_plans_from_job_work_outward_and_yarn_dispatch_sources(): void
+    {
+        AddOn::create([
+            'module' => 'TextileCore',
+            'name' => 'Textile Core',
+            'package_name' => 'textile-core',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        $companyA = $this->company();
+        $companyB = $this->company();
+
+        $this->seedDispatchMasters($companyA->id);
+
+        // Tenant A uses vendor sizing (no in-house sizing) so the yarn dispatch
+        // source is available while manufacturing stays enabled.
+        TextileOperatingPolicy::create([
+            'created_by' => $companyA->id,
+            'creator_id' => $companyA->id,
+            'operating_model' => TextileOperatingPolicyService::MODEL_FULL_PACKAGE,
+            'material_ownership' => 'company_owned',
+            'billing_mode' => 'sale_value',
+            'settings' => [
+                TextileOperatingPolicyService::SETTING_HAS_SIZING => false,
+            ],
+        ]);
+
+        $driver = TextileDispatchDriver::create([
+            'name' => 'Ramesh Driver',
+            'driver_source' => 'vendor',
+            'phone' => '9000000001',
+            'license_number' => 'DL-001',
+            'is_active' => true,
+            'created_by' => $companyA->id,
+            'creator_id' => $companyA->id,
+        ]);
+
+        $vehicle = TextileDispatchVehicle::create([
+            'vehicle_number' => 'GJ01-VH-7788',
+            'vehicle_type' => 'truck',
+            'is_active' => true,
+            'created_by' => $companyA->id,
+            'creator_id' => $companyA->id,
+        ]);
+
+        $route = TextileDispatchRoute::create([
+            'route_name' => 'Surat to Ahmedabad',
+            'origin_location' => 'Surat',
+            'destination_location' => 'Ahmedabad',
+            'is_active' => true,
+            'created_by' => $companyA->id,
+            'creator_id' => $companyA->id,
+        ]);
+
+        $jobWorkOutward = TextileWorkflowDocument::create([
+            'document_type' => 'job_work_outward',
+            'document_number' => 'JW-OUT-001',
+            'party_name' => 'Prem Processing House',
+            'lot_reference' => 'LOT-JW-1',
+            'quantity' => 220,
+            'unit' => 'kg',
+            'status' => 'released',
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+
+        $draftJobWorkOutward = TextileWorkflowDocument::create([
+            'document_type' => 'job_work_outward',
+            'document_number' => 'JW-OUT-002',
+            'party_name' => 'Draft Processing House',
+            'lot_reference' => 'LOT-JW-2',
+            'quantity' => 90,
+            'unit' => 'kg',
+            'status' => 'draft',
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+
+        $yarnDispatch = TextileWorkflowDocument::create([
+            'document_type' => 'warp_plan',
+            'document_number' => 'WP-YD-001',
+            'party_name' => 'Surya Sizing Works',
+            'lot_reference' => 'LOT-YD-1',
+            'quantity' => 500,
+            'unit' => 'kg',
+            'source_action' => 'yarn_dispatch',
+            'status' => 'approved',
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+
+        $inHouseWarpPlan = TextileWorkflowDocument::create([
+            'document_type' => 'warp_plan',
+            'document_number' => 'WP-IN-001',
+            'party_name' => 'In-House Warping',
+            'lot_reference' => 'LOT-IN-1',
+            'quantity' => 300,
+            'unit' => 'kg',
+            'source_action' => 'warp_plan',
+            'status' => 'approved',
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.dispatch.plans.store'), [
+                'source_type' => 'job_work_outward',
+                'source_id' => $jobWorkOutward->id,
+                'source_reference_type' => 'dispatch_plan',
+                'source_action' => 'vehicle_assign',
+                'dispatch_mode' => 'truck',
+                'truck_number' => 'GJ01-TR-5555',
+                'driver_id' => $driver->id,
+                'vehicle_id' => $vehicle->id,
+                'route_id' => $route->id,
+                'lr_number' => 'LR-1001',
+                'eway_bill_number' => 'EWB-9001',
+                'freight_amount' => 8500,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $jobWorkPlan = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'dispatch_plan')
+            ->whereJsonContains('metadata->source_type', 'job_work_outward')
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($jobWorkPlan);
+        $this->assertSame('draft', $jobWorkPlan->status);
+        $this->assertSame('Prem Processing House', $jobWorkPlan->party_name);
+        $this->assertSame('LOT-JW-1', $jobWorkPlan->lot_reference);
+        $this->assertSame('job_work_outward', $jobWorkPlan->metadata['source_type'] ?? null);
+        $this->assertSame($jobWorkOutward->id, $jobWorkPlan->metadata['source_document_id'] ?? null);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.dispatch.plans.store'), [
+                'source_type' => 'yarn_dispatch',
+                'source_id' => $yarnDispatch->id,
+                'source_reference_type' => 'dispatch_plan',
+                'source_action' => 'vehicle_assign',
+                'dispatch_mode' => 'truck',
+                'truck_number' => 'GJ01-TR-5555',
+                'driver_id' => $driver->id,
+                'vehicle_id' => $vehicle->id,
+                'route_id' => $route->id,
+                'lr_number' => 'LR-1002',
+                'eway_bill_number' => 'EWB-9002',
+                'freight_amount' => 9200,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $yarnPlan = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'dispatch_plan')
+            ->whereJsonContains('metadata->source_type', 'yarn_dispatch')
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($yarnPlan);
+        $this->assertSame('Surya Sizing Works', $yarnPlan->party_name);
+        $this->assertSame('LOT-YD-1', $yarnPlan->lot_reference);
+        $this->assertSame('yarn_dispatch', $yarnPlan->metadata['source_type'] ?? null);
+        $this->assertSame($yarnDispatch->id, $yarnPlan->metadata['source_document_id'] ?? null);
+
+        // Draft job-work outward must be rejected as a dispatch source.
+        $this->actingAs($companyA)
+            ->post(route('textile.dispatch.plans.store'), [
+                'source_type' => 'job_work_outward',
+                'source_id' => $draftJobWorkOutward->id,
+                'source_reference_type' => 'dispatch_plan',
+                'source_action' => 'vehicle_assign',
+                'dispatch_mode' => 'truck',
+                'truck_number' => 'GJ01-TR-5555',
+                'driver_id' => $driver->id,
+                'vehicle_id' => $vehicle->id,
+                'route_id' => $route->id,
+            ])
+            ->assertSessionHasErrors('source_id');
+
+        // In-house warp plan must not be accepted as a yarn dispatch source.
+        $this->actingAs($companyA)
+            ->post(route('textile.dispatch.plans.store'), [
+                'source_type' => 'yarn_dispatch',
+                'source_id' => $inHouseWarpPlan->id,
+                'source_reference_type' => 'dispatch_plan',
+                'source_action' => 'vehicle_assign',
+                'dispatch_mode' => 'truck',
+                'truck_number' => 'GJ01-TR-5555',
+                'driver_id' => $driver->id,
+                'vehicle_id' => $vehicle->id,
+                'route_id' => $route->id,
+            ])
+            ->assertSessionHasErrors('source_id');
+
+        // Tenant isolation: company B cannot use company A's job-work outward.
+        $this->actingAs($companyB)
+            ->post(route('textile.dispatch.plans.store'), [
+                'source_type' => 'job_work_outward',
+                'source_id' => $jobWorkOutward->id,
+                'source_reference_type' => 'dispatch_plan',
+                'source_action' => 'vehicle_assign',
+                'dispatch_mode' => 'truck',
+            ])
+            ->assertSessionHasErrors('source_id');
+
+        $this->actingAs($companyB)
+            ->get(route('textile.dispatch.index'))
+            ->assertOk()
+            ->assertDontSee('LOT-JW-1')
+            ->assertDontSee('Surya Sizing Works');
+
+        $this->actingAs($companyA)
+            ->get(route('textile.dispatch.index'))
+            ->assertOk()
+            ->assertSee('LOT-JW-1')
+            ->assertSee('Surya Sizing Works')
+            ->assertSee('LOT-YD-1');
     }
 
     private function company(): User

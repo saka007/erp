@@ -23,6 +23,12 @@ interface TextileWorkflowStepsProps {
     onOpenChange: (id: string | null) => void;
     /** Records tables rendered under the "Records" tab. */
     records: ReactNode;
+    /**
+     * Optional per-step records tables. When provided, the Records tab shows
+     * only the table(s) for the currently active step, falling back to the
+     * generic `records` for steps without a dedicated entry.
+     */
+    recordsByStep?: Record<string, ReactNode>;
 }
 
 /**
@@ -30,9 +36,12 @@ interface TextileWorkflowStepsProps {
  * and a Current Form | Records tab bar, so the active step's form is always visible
  * instead of being hidden behind accordions — matching the mockup's tab layout.
  */
-export function TextileWorkflowSteps({ steps, openId, onOpenChange, records }: TextileWorkflowStepsProps) {
+export function TextileWorkflowSteps({ steps, openId, onOpenChange, records, recordsByStep }: TextileWorkflowStepsProps) {
     const [tab, setTab] = useState<'form' | 'records'>('form');
     const active = steps.find((step) => step.id === openId) ?? steps[0];
+    // Only narrow to the active step's records when a step is explicitly opened;
+    // otherwise the Records tab shows the full section overview.
+    const stepRecords = openId !== null && recordsByStep && active ? recordsByStep[active.id] : undefined;
 
     return (
         <div className="space-y-4">
@@ -92,7 +101,9 @@ export function TextileWorkflowSteps({ steps, openId, onOpenChange, records }: T
             </div>
 
             {/* Content */}
-            {tab === 'form' ? (active ? <div key={active.id}>{active.form}</div> : null) : <div className="pt-4">{records}</div>}
+            {tab === 'form' ? (active ? <div key={active.id}>{active.form}</div> : null) : (
+                <div className="pt-4">{stepRecords ?? records}</div>
+            )}
         </div>
     );
 }

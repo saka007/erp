@@ -178,6 +178,9 @@ class TextileOperatingPolicyService
             'sales_allocation_dispatch' => false,
             'sales_challan_pod' => false,
             'sales_dispatch_tracking' => false,
+            'dispatch' => false,
+            'dispatch_source_job_work' => false,
+            'dispatch_source_yarn' => false,
             'inventory_transactions' => false,
             'inventory_controls' => false,
             'inventory_records' => false,
@@ -250,6 +253,11 @@ class TextileOperatingPolicyService
         $capabilities['sales_allocation_dispatch'] = $capabilities['sales'] && (($settings[self::SETTING_HAS_SALES_ALLOCATION] ?? false) || ($settings[self::SETTING_HAS_SALES_DISPATCH] ?? false));
         $capabilities['sales_challan_pod'] = $capabilities['sales'] && ($settings[self::SETTING_HAS_CHALLAN_POD] ?? false);
         $capabilities['sales_dispatch_tracking'] = $capabilities['sales'] && ($settings[self::SETTING_HAS_SALES_DISPATCH] ?? false);
+        // Non-sales dispatch sources: job-work outward (yarn to weaver/processing vendor) and
+        // vendor-sizing yarn dispatch (yarn sent out when in-house sizing is disabled).
+        $capabilities['dispatch_source_job_work'] = $capabilities['processing'];
+        $capabilities['dispatch_source_yarn'] = $capabilities['manufacturing'] && ! ($settings[self::SETTING_HAS_SIZING] ?? false);
+        $capabilities['dispatch'] = $capabilities['sales_allocation_dispatch'] || $capabilities['dispatch_source_job_work'] || $capabilities['dispatch_source_yarn'];
         $capabilities['inventory'] = $settings[self::SETTING_HAS_INVENTORY] ?? false;
         $capabilities['inventory_transactions'] = $capabilities['inventory'];
         $capabilities['inventory_controls'] = $capabilities['inventory'];
@@ -414,6 +422,24 @@ class TextileOperatingPolicyService
     private function tenantId(): ?int
     {
         return auth()->check() && function_exists('creatorId') ? (int) creatorId() : auth()->id();
+    }
+
+    private function resolveCompanyContextUser($user): ?User
+    {
+        if (! $user) {
+            return null;
+        }
+
+        if (in_array($user->type, ['company', 'superadmin'], true)) {
+            return $user;
+        }
+
+        $tenantId = (int) ($user->created_by ?? 0);
+        if ($tenantId <= 0) {
+            return null;
+        }
+
+        return User::query()->where('id', $tenantId)->where('type', 'company')->first();
     }
 
     private function capabilitiesForProfile(string $profile): array

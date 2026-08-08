@@ -158,31 +158,31 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
             {
                 title: t('Dispatch'),
                 href: route('textile.dispatch.index'),
-                capability: 'sales_allocation_dispatch',
+                capability: 'dispatch',
                 icon: Truck,
                 children: [
                     {
                         title: t('Dispatch Planning'),
                         href: route('textile.dispatch.index', { section: 'planning' }),
-                        capability: 'sales_allocation_dispatch',
+                        capability: 'dispatch',
                         icon: ListChecks,
                     },
                     {
                         title: t('Truck Dispatch'),
                         href: route('textile.dispatch.index', { section: 'planning', mode: 'truck' }),
-                        capability: 'sales_allocation_dispatch',
+                        capability: 'dispatch',
                         icon: Truck,
                     },
                     {
                         title: t('Container Dispatch'),
                         href: route('textile.dispatch.index', { section: 'planning', mode: 'container' }),
-                        capability: 'sales_allocation_dispatch',
+                        capability: 'dispatch',
                         icon: Container,
                     },
                     {
                         title: t('Dispatch Tracking'),
                         href: route('textile.dispatch.index', { section: 'tracking' }),
-                        capability: 'sales_dispatch_tracking',
+                        capability: 'dispatch',
                         icon: MapPin,
                     },
                     {

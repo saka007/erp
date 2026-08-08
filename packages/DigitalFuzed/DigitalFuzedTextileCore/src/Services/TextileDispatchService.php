@@ -13,22 +13,23 @@ class TextileDispatchService
 
     public function createDispatchPlan(array $payload): TextileWorkflowDocument
     {
-        $challan = $this->findTenantDocument((int) $payload['challan_id'], 'challan');
-        if (!in_array($challan->status, ['released', 'closed'], true)) {
-            throw new RuntimeException('Challan must be released before dispatch planning.');
-        }
+        $sourceType = $payload['source_type'] ?? 'challan';
+        $sourceId = (int) ($payload['source_id'] ?? $payload['challan_id'] ?? 0);
+
+        $sourceDocument = $this->resolveDispatchSource($sourceType, $sourceId);
 
         return $this->workflowService->createDocument([
             'document_type' => 'dispatch_plan',
             'source_reference_type' => $payload['source_reference_type'],
-            'source_reference_id' => $challan->id,
+            'source_reference_id' => $sourceDocument->id,
             'source_action' => $payload['source_action'],
-            'party_name' => $challan->party_name,
-            'lot_reference' => $challan->lot_reference,
-            'quantity' => $challan->quantity,
-            'unit' => $challan->unit,
+            'party_name' => $sourceDocument->party_name,
+            'lot_reference' => $sourceDocument->lot_reference,
+            'quantity' => $sourceDocument->quantity,
+            'unit' => $sourceDocument->unit,
             'status' => 'draft',
             'metadata' => [
+                'source_type' => $sourceType,
                 'dispatch_mode' => $payload['dispatch_mode'],
                 'truck_number' => $payload['truck_number'] ?? null,
                 'container_number' => $payload['container_number'] ?? null,
@@ -44,10 +45,46 @@ class TextileDispatchService
                 'eway_bill_number' => $payload['eway_bill_number'] ?? null,
                 'freight_amount' => $payload['freight_amount'] ?? null,
                 'notes' => $payload['notes'] ?? null,
-                'challan_id' => $challan->id,
+                'challan_id' => $sourceType === 'challan' ? $sourceDocument->id : null,
+                'source_document_id' => $sourceDocument->id,
             ],
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
+    }
+
+    protected function resolveDispatchSource(string $sourceType, int $sourceId): TextileWorkflowDocument
+    {
+        return match ($sourceType) {
+            'job_work_outward' => $this->findDispatchSource($sourceId, 'job_work_outward', ['released', 'closed'], 'Job-work outward must be released before dispatch planning.'),
+            'yarn_dispatch' => $this->findDispatchSource($sourceId, 'warp_plan', ['approved', 'released', 'closed'], 'Yarn dispatch plan must be approved before dispatch planning.', 'yarn_dispatch'),
+            default => $this->findDispatchSource($sourceId, 'challan', ['released', 'closed'], 'Challan must be released before dispatch planning.'),
+        };
+    }
+
+    protected function findDispatchSource(int $documentId, string $documentType, array $allowedStatuses, string $errorMessage, ?string $requiredSourceAction = null): TextileWorkflowDocument
+    {
+        $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
+
+        $query = TextileWorkflowDocument::query()
+            ->where('id', $documentId)
+            ->where('document_type', $documentType)
+            ->when($tenantId !== null, fn ($query) => $query->where('created_by', $tenantId));
+
+        if ($requiredSourceAction !== null) {
+            $query->where('source_action', $requiredSourceAction);
+        }
+
+        $document = $query->first();
+
+        if ($document === null) {
+            throw new RuntimeException('Document not found for tenant context.');
+        }
+
+        if (!in_array($document->status, $allowedStatuses, true)) {
+            throw new RuntimeException($errorMessage);
+        }
+
+        return $document;
     }
 
     public function approveDispatchPlan(int $dispatchPlanId): TextileWorkflowDocument
@@ -88,6 +125,8 @@ class TextileDispatchService
                 'lr_number' => $payload['lr_number'] ?? ($plan->metadata['lr_number'] ?? null),
                 'eway_bill_number' => $payload['eway_bill_number'] ?? ($plan->metadata['eway_bill_number'] ?? null),
                 'challan_id' => $plan->metadata['challan_id'] ?? null,
+                'source_type' => $plan->metadata['source_type'] ?? 'challan',
+                'source_document_id' => $plan->metadata['source_document_id'] ?? null,
                 'notes' => $payload['notes'] ?? null,
             ],
             'idempotency_key' => $payload['idempotency_key'] ?? null,

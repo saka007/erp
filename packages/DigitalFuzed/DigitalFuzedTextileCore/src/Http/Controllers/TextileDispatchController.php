@@ -28,13 +28,16 @@ class TextileDispatchController extends Controller
     public function index()
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapabilityOrAbort('sales_allocation_dispatch');
+        $this->authorizeAnyDispatchCapability();
 
         return Inertia::render('DigitalFuzedTextileCore/Dispatch/Index', [
             'dispatchPlans' => $this->documents('dispatch_plan'),
             'dispatchTrackings' => $this->documents('dispatch_tracking'),
             'challans' => $this->documents('challan')->filter(fn (TextileWorkflowDocument $row) => in_array($row->status, ['released', 'closed'], true))->values(),
+            'jobWorkOutwards' => $this->documents('job_work_outward')->filter(fn (TextileWorkflowDocument $row) => in_array($row->status, ['released', 'closed'], true))->values(),
+            'yarnDispatches' => $this->documents('warp_plan')->filter(fn (TextileWorkflowDocument $row) => $row->source_action === 'yarn_dispatch' && in_array($row->status, ['approved', 'released', 'closed'], true))->values(),
             'pods' => $this->documents('pod'),
+            'dispatchSourceFlags' => $this->dispatchSourceFlags(),
             'sourceTypeOptions' => $this->sourceTypeOptions(),
             'sourceActionOptions' => $this->sourceActionOptions(),
             'dispatchModeOptions' => $this->dispatchModeOptions(),
@@ -53,12 +56,12 @@ class TextileDispatchController extends Controller
     public function storeDispatchPlan(Request $request, TextileDispatchService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('sales_allocation_dispatch', 'challan_id');
 
         $validated = $request->validate([
+            'source_type' => ['required', 'string', Rule::in(['challan', 'job_work_outward', 'yarn_dispatch'])],
             'source_reference_type' => ['required', 'string', Rule::in($this->sourceTypeOptions())],
             'source_action' => ['required', 'string', Rule::in($this->sourceActionOptions())],
-            'challan_id' => ['required', 'integer', 'min:1'],
+            'source_id' => ['required', 'integer', 'min:1'],
             'dispatch_mode' => ['required', 'string', Rule::in($this->dispatchModeOptions())],
             'truck_number' => ['nullable', 'string', Rule::in($this->truckNumberOptions())],
             'container_number' => ['nullable', 'string', Rule::in($this->containerNumberOptions())],
@@ -71,6 +74,8 @@ class TextileDispatchController extends Controller
             'freight_amount' => ['nullable', 'numeric', 'gte:0'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
+
+        $this->authorizeDispatchSource($validated['source_type'], 'source_id');
 
         if (!empty($validated['driver_id'])) {
             $driver = TextileDispatchDriver::query()->where('created_by', creatorId())->where('is_active', true)->findOrFail((int) $validated['driver_id']);
@@ -95,7 +100,7 @@ class TextileDispatchController extends Controller
         try {
             $service->createDispatchPlan($validated);
         } catch (RuntimeException $exception) {
-            return back()->withErrors(['challan_id' => __($exception->getMessage())]);
+            return back()->withErrors(['source_id' => __($exception->getMessage())]);
         }
 
         return back()->with('success', __('Dispatch plan created successfully.'));
@@ -104,7 +109,7 @@ class TextileDispatchController extends Controller
     public function approveDispatchPlan(Request $request, TextileDispatchService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('sales_allocation_dispatch', 'dispatch_plan_id');
+        $this->authorizeDispatchCapability('dispatch_plan_id');
 
         $validated = $request->validate([
             'dispatch_plan_id' => ['required', 'integer', 'min:1'],
@@ -122,7 +127,7 @@ class TextileDispatchController extends Controller
     public function storeDispatchTracking(Request $request, TextileDispatchService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('sales_allocation_dispatch', 'dispatch_plan_id');
+        $this->authorizeDispatchCapability('dispatch_plan_id');
 
         $validated = $request->validate([
             'dispatch_plan_id' => ['required', 'integer', 'min:1'],
@@ -170,7 +175,7 @@ class TextileDispatchController extends Controller
     public function finalizeDispatchTracking(Request $request, TextileDispatchService $service)
     {
         $this->authorizeTextileAccess();
-        $this->authorizeCapability('sales_allocation_dispatch', 'tracking_id');
+        $this->authorizeDispatchCapability('tracking_id');
 
         $validated = $request->validate([
             'tracking_id' => ['required', 'integer', 'min:1'],
@@ -373,6 +378,46 @@ class TextileDispatchController extends Controller
         $user = Auth::user();
 
         abort_unless($user && in_array($user->type, ['company', 'superadmin', 'staff'], true), 403);
+    }
+
+    private function dispatchSourceFlags(): array
+    {
+        $capabilities = $this->policyService->capabilitiesForUser(Auth::user());
+
+        return [
+            'challan' => ($capabilities['sales_allocation_dispatch'] ?? false) !== false,
+            'job_work_outward' => ($capabilities['dispatch_source_job_work'] ?? false) !== false,
+            'yarn_dispatch' => ($capabilities['dispatch_source_yarn'] ?? false) !== false,
+        ];
+    }
+
+    private function authorizeAnyDispatchCapability(): void
+    {
+        $capabilities = $this->policyService->capabilitiesForUser(Auth::user());
+
+        $anyEnabled = ($capabilities['sales_allocation_dispatch'] ?? false)
+            || ($capabilities['dispatch_source_job_work'] ?? false)
+            || ($capabilities['dispatch_source_yarn'] ?? false);
+
+        if (! $anyEnabled) {
+            abort(403, __('You do not have permission to access dispatch.'));
+        }
+    }
+
+    private function authorizeDispatchSource(string $sourceType, string $errorKey): void
+    {
+        $capability = match ($sourceType) {
+            'job_work_outward' => 'dispatch_source_job_work',
+            'yarn_dispatch' => 'dispatch_source_yarn',
+            default => 'sales_allocation_dispatch',
+        };
+
+        $this->authorizeCapability($capability, $errorKey);
+    }
+
+    private function authorizeDispatchCapability(string $errorKey): void
+    {
+        $this->authorizeCapability('dispatch', $errorKey);
     }
 
     private function authorizeCapability(string $capability, string $errorKey): void
