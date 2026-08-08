@@ -1168,6 +1168,7 @@ Progress note (2026-08-04):
 
 - Textile backend suite (latest): `php artisan test tests/Feature/Textile`
 - Last recorded result (latest): `Tests: 41 passed (348 assertions)`.
+- Payments branch filter + Primary Defect pass-hide (2026-08-08): `php artisan test tests/Feature/Textile` = `64 passed (1214 assertions)`; `npx tsc --noEmit` = 0 errors; `npm run build` = pass (existing chunk-size warnings only). Payments workspace now accepts `?branch_id=` to scope KPIs/branch overview/vendor activity/reminders, and "Send Reminders" honors the selected branch. Deployed and verified on production (`/textile/payments?branch_id=1` route live, new build asset 200, no nginx symlink errors).
 - Approval workflow foundation: `php artisan test tests/Feature/Textile/TextileApprovalWorkflowTest.php` passed: `Tests: 2 passed (11 assertions)`.
 - Approval slice delivered (backend): tenant-scoped approval rules + decisions, transition gate integration, pending approvals API, and normalized workflow audit payload fields.
 - Approval admin UI: `php artisan test tests/Feature/Textile/TextileApprovalAdminTest.php` passed: `Tests: 1 passed (9 assertions)`; includes tenant isolation and web route coverage.

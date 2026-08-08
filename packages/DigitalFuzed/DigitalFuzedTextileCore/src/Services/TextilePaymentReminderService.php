@@ -32,7 +32,7 @@ class TextilePaymentReminderService
     /**
      * Branch-wise and vendor-wise outstanding summary for the tenant.
      */
-    public function summary(?int $tenantId = null): array
+    public function summary(?int $tenantId = null, ?int $branchId = null): array
     {
         $tenantId = $tenantId ?? $this->resolveTenantId();
 
@@ -49,6 +49,7 @@ class TextilePaymentReminderService
 
         $vendors = $vendorRows
             ->filter()
+            ->when($branchId !== null, fn ($rows) => $rows->where('branch_id', (int) $branchId))
             ->groupBy('party_key')
             ->map(function ($rows) {
                 $first = $rows->first();
@@ -98,7 +99,7 @@ class TextilePaymentReminderService
             'totals' => $totals,
             'branches' => $branches,
             'vendors' => $vendors,
-            'reminders' => $this->recentReminders($tenantId),
+            'reminders' => $this->recentReminders($tenantId, 15, $branchId),
         ];
     }
 
@@ -107,7 +108,7 @@ class TextilePaymentReminderService
      *
      * @return array{sent: int, skipped: int, failed: int}
      */
-    public function sendDueReminders(bool $force = false, ?int $tenantId = null, ?string $partyType = null, ?int $partyId = null): array
+    public function sendDueReminders(bool $force = false, ?int $tenantId = null, ?string $partyType = null, ?int $partyId = null, ?int $branchId = null): array
     {
         $tenantId = $tenantId ?? $this->resolveTenantId();
         $today = Carbon::today();
@@ -135,7 +136,19 @@ class TextilePaymentReminderService
             $invoiceType = $invoice instanceof PurchaseInvoice ? self::INVOICE_PURCHASE : self::INVOICE_SALES;
             $party = $this->resolveParty($invoice, $invoiceType, $tenantId);
 
-            if ($party === null || ! (bool) ($party['reminder_enabled'] ?? true)) {
+            if ($party === null) {
+                $skipped++;
+
+                continue;
+            }
+
+            if ($branchId !== null && (int) ($party['branch_id'] ?? 0) !== (int) $branchId) {
+                $skipped++;
+
+                continue;
+            }
+
+            if (! (bool) ($party['reminder_enabled'] ?? true)) {
                 $skipped++;
 
                 continue;
@@ -429,12 +442,13 @@ class TextilePaymentReminderService
         ]);
     }
 
-    private function recentReminders(?int $tenantId = null, int $limit = 15): array
+    private function recentReminders(?int $tenantId = null, int $limit = 15, ?int $branchId = null): array
     {
         $tenantId = $tenantId ?? $this->resolveTenantId();
 
         return TextilePaymentReminder::query()
             ->when($tenantId, fn ($query) => $query->where('created_by', $tenantId))
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', (int) $branchId))
             ->latest('reminded_at')
             ->limit($limit)
             ->get()

@@ -1,6 +1,6 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
-import { ArrowDownCircle, ArrowUpCircle, BellRing, Check, RefreshCw, Send, ShoppingBag, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, BellRing, Check, RefreshCw, Send, ShoppingBag, TrendingDown, TrendingUp, Wallet, Warehouse } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
 import { TextileField as Field } from '@/components/textile/textile-field';
@@ -115,6 +115,7 @@ export default function Index({
     summary,
     partyMasters,
     branchOptions,
+    selectedBranchId,
     templateNames,
 }: {
     summary: {
@@ -125,6 +126,7 @@ export default function Index({
     };
     partyMasters: PartyMaster[];
     branchOptions: BranchOption[];
+    selectedBranchId: number | null;
     templateNames: { supplier: string; buyer: string };
 }) {
     const { t } = useTranslation();
@@ -167,7 +169,20 @@ export default function Index({
     };
 
     const sendReminders = (force = false) => {
-        router.post(route('textile.payments.reminders.send'), { force }, { preserveScroll: true });
+        router.post(
+            route('textile.payments.reminders.send'),
+            { force, branch_id: selectedBranchId ?? undefined },
+            { preserveScroll: true }
+        );
+    };
+
+    const changeBranchFilter = (branchId: string) => {
+        const section = new URLSearchParams(window.location.search).get('section') ?? 'overview';
+        const params: Record<string, string | number> = { section };
+        if (branchId !== '') {
+            params.branch_id = branchId;
+        }
+        router.get(route('textile.payments.index', params), {}, { preserveState: true, replace: true });
     };
 
     const totals = summary.totals;
@@ -210,6 +225,26 @@ export default function Index({
                         case 'overview':
                             return (
                                 <TextileSection
+                                    formTitle={t('Branch Filter')}
+                                    formIcon={Warehouse}
+                                    form={
+                                        <div className="grid gap-4">
+                                            <SelectField
+                                                label={t('Branch')}
+                                                value={selectedBranchId != null ? String(selectedBranchId) : ''}
+                                                onChange={(value: string) => changeBranchFilter(value)}
+                                                options={branchOptions.map((branch) => ({ value: String(branch.id), label: branch.name }))}
+                                                includeEmpty
+                                                emptyLabel={t('All branches')}
+                                                helperText={t('Scope KPIs, branch overview, vendor activity, and reminders to a single branch.')}
+                                            />
+                                            <p className="text-xs text-gray-400">
+                                                {selectedBranchId != null
+                                                    ? t('Showing data for the selected branch only.')
+                                                    : t('Showing data across all branches.')}
+                                            </p>
+                                        </div>
+                                    }
                                     table={
                                         <TextileDataTableCard
                                             data={summary.branches}

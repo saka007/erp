@@ -2576,23 +2576,30 @@ export default function Index({
                                         <SelectField
                                             label={t('Inspection Result')}
                                             value={inspectionForm.data.inspection_result}
-                                            onChange={(value: string) => inspectionForm.setData('inspection_result', value)}
+                                            onChange={(value: string) => {
+                                                inspectionForm.setData('inspection_result', value);
+                                                if (value?.toLowerCase() === 'pass') {
+                                                    inspectionForm.setData('defects', []);
+                                                }
+                                            }}
                                             options={resolvedInspectionResultOptions}
                                             includeEmpty
                                             emptyLabel={t('Select result')}
                                             required
                                         />
                                     </div>
-                                    <SelectField
-                                        label={t('Primary Defect')}
-                                        value={inspectionForm.data.defects[0] ?? ''}
-                                        onChange={(value: string) => inspectionForm.setData('defects', value ? [value] : [])}
-                                        options={resolvedFabricDefectOptions}
-                                        includeEmpty
-                                        emptyLabel={t('Select defect')}
-                                        disabled={resolvedFabricDefectOptions.length === 0}
-                                        disabledReason={t('No defect options available yet. Create defect library first.')}
-                                    />
+                                    {inspectionForm.data.inspection_result?.toLowerCase() !== 'pass' ? (
+                                        <SelectField
+                                            label={t('Primary Defect')}
+                                            value={inspectionForm.data.defects[0] ?? ''}
+                                            onChange={(value: string) => inspectionForm.setData('defects', value ? [value] : [])}
+                                            options={resolvedFabricDefectOptions}
+                                            includeEmpty
+                                            emptyLabel={t('Select defect')}
+                                            disabled={resolvedFabricDefectOptions.length === 0}
+                                            disabledReason={t('No defect options available yet. Create defect library first.')}
+                                        />
+                                    ) : null}
                                     <Field label={t('Notes')} value={inspectionForm.data.notes} onChange={(value: string) => inspectionForm.setData('notes', value)} />
                                     <Button type="submit" disabled={inspectionForm.processing} className="w-full">
                                         <Plus className="mr-2 h-4 w-4" />{t('Record Inspection')}

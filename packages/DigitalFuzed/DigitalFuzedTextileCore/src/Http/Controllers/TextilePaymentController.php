@@ -18,15 +18,20 @@ class TextilePaymentController extends Controller
     {
     }
 
-    public function index(TextilePaymentReminderService $service)
+    public function index(Request $request, TextilePaymentReminderService $service)
     {
         $this->authorizeTextileAccess();
         $this->authorizeCapabilityOrAbort('payments');
 
+        $branchId = $request->has('branch_id') && $request->input('branch_id') !== ''
+            ? (int) $request->input('branch_id')
+            : null;
+
         return Inertia::render('DigitalFuzedTextileCore/Payments/Index', [
-            'summary' => $service->summary(),
+            'summary' => $service->summary(null, $branchId),
             'partyMasters' => $service->partyMasters(),
             'branchOptions' => $service->branchOptions(),
+            'selectedBranchId' => $branchId,
             'templateNames' => [
                 'supplier' => TextilePaymentReminderService::TEMPLATE_SUPPLIER,
                 'buyer' => TextilePaymentReminderService::TEMPLATE_BUYER,
@@ -69,6 +74,7 @@ class TextilePaymentController extends Controller
         $validated = $request->validate([
             'party_type' => ['nullable', Rule::in([TextilePaymentReminderService::PARTY_SUPPLIER, TextilePaymentReminderService::PARTY_BUYER])],
             'party_id' => ['nullable', 'integer'],
+            'branch_id' => ['nullable', 'integer'],
             'force' => ['nullable', 'boolean'],
         ]);
 
@@ -76,7 +82,8 @@ class TextilePaymentController extends Controller
             (bool) ($validated['force'] ?? false),
             null,
             $validated['party_type'] ?? null,
-            isset($validated['party_id']) ? (int) $validated['party_id'] : null
+            isset($validated['party_id']) ? (int) $validated['party_id'] : null,
+            isset($validated['branch_id']) ? (int) $validated['branch_id'] : null
         );
 
         return back()->with('flash', [
