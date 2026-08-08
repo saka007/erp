@@ -32,6 +32,12 @@ jobs:
       - name: Build assets
         run: npm run build
 
+      - name: Validate secrets
+        if: secrets.SERVER_HOST == '' || secrets.SERVER_USER == '' || secrets.SERVER_SSH_KEY == ''
+        run: |
+          echo "::error::Missing deployment secrets. Set SERVER_HOST, SERVER_USER and SERVER_SSH_KEY in GitHub repo Settings -> Secrets and variables -> Actions." >&2
+          exit 1
+
       - name: Prepare SSH key
         run: |
           mkdir -p ~/.ssh
