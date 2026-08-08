@@ -37,9 +37,11 @@ Route::middleware(['web', 'auth'])->prefix('newsletter-subscribers')->name('news
     Route::get('/export', [NewsletterSubscriberController::class, 'export'])->name('export');
 });
 
-// Public landing page
+// Public landing page — homepage disabled: redirect to login
 Route::middleware(['web'])->group(function () {
-    Route::get('/', [LandingPageController::class, 'index'])->name('landing.page');
+    Route::get('/', function () {
+        return redirect()->route('login');
+    })->name('landing.page');
     Route::get('/pricing', [LandingPageController::class, 'pricing'])->name('pricing.page');
     Route::get('/marketplace/{slug?}', [MarketplaceController::class, 'index'])->name('marketplace');
     Route::get('/page/{slug}', [CustomPageController::class, 'show'])->name('custom-page.show');
