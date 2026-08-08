@@ -42,6 +42,15 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -p 22 -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts || true
 
+      - name: Fix remote ownership before sync
+        # Older manual deploys left some dirs (public/build, package subdirs)
+        # owned by 'ubuntu'. Re-own the whole app root to the app user first so
+        # rsync (running as the app user) can write/delete everything.
+        run: |
+          ssh -i ~/.ssh/id_rsa -p 22 -o StrictHostKeyChecking=accept-new \
+            "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
+            "sudo -n chown -R digitalfuzed-erp-cp:digitalfuzed-erp-cp '${{ env.APP_PATH }}' && echo OWNERSHIP_FIXED"
+
       - name: Sync files to server
         run: |
           # Server-owned runtime/data paths are excluded so rsync --delete never
