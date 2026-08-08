@@ -42,6 +42,7 @@ class TextileQualityController extends Controller
             'fabricDefectOptions' => $this->fabricDefectOptions(),
             'unitOptions' => $this->unitOptions(),
             'lotReferenceOptions' => $this->lotReferenceOptions(),
+            'takhaOptions' => $this->takhaOptions(),
             'recentActivity' => $this->recentActivity(),
         ]);
     }
@@ -349,6 +350,72 @@ class TextileQualityController extends Controller
             ->unique()
             ->values()
             ->all();
+    }
+
+    /**
+     * Takha options for fabric QC — grey-fabric takha lots produced from
+     * weaving output. QC is performed PER TAKHA (a weaving output lot can
+     * contain multiple takhas and each takha can pass/fail independently),
+     * so the fabric inspection form is driven by these options instead of
+     * the flat all-lots picker.
+     */
+    private function takhaOptions(): array
+    {
+        $tenantId = creatorId();
+
+        $takhaLots = TextileLot::query()
+            ->where('created_by', $tenantId)
+            ->where('is_active', true)
+            ->where('material_type', TextileLot::TYPE_GREY_FABRIC)
+            ->where('source_document_type', 'takha_entry')
+            ->whereNotNull('source_document_id')
+            ->get();
+
+        $takhaSourceUnits = TextileWorkflowDocument::query()
+            ->where('created_by', $tenantId)
+            ->where('document_type', 'takha_entry')
+            ->whereNotNull('lot_reference')
+            ->get(['lot_reference', 'unit'])
+            ->pluck('unit', 'lot_reference')
+            ->map(fn ($unit) => (string) ($unit ?? 'mtr'));
+
+        $approvedTakhas = TextileWorkflowDocument::query()
+            ->where('created_by', $tenantId)
+            ->where('document_type', 'inspection')
+            ->whereIn('status', ['approved', 'released'])
+            ->whereNotNull('lot_reference')
+            ->pluck('lot_reference')
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
+            ->unique()
+            ->values();
+
+        $pendingTakhas = TextileWorkflowDocument::query()
+            ->where('created_by', $tenantId)
+            ->where('document_type', 'inspection')
+            ->where('status', 'draft')
+            ->whereNotNull('lot_reference')
+            ->pluck('lot_reference')
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
+            ->unique()
+            ->values();
+
+        return $takhaLots->map(function (TextileLot $lot) use ($approvedTakhas, $pendingTakhas, $takhaSourceUnits) {
+            $inspectionStatus = $approvedTakhas->contains($lot->lot_reference)
+                ? 'passed'
+                : ($pendingTakhas->contains($lot->lot_reference) ? 'pending' : 'uninspected');
+
+            return [
+                'value' => $lot->lot_reference,
+                'lot_reference' => $lot->lot_reference,
+                'quantity' => (float) $lot->available_quantity,
+                'unit' => (string) ($takhaSourceUnits->get($lot->lot_reference) ?? 'mtr'),
+                'parent_lot_reference' => (string) ($lot->parent_lot_reference ?? ''),
+                'inspection_status' => $inspectionStatus,
+                'label' => trim(sprintf('%s%s', $lot->lot_reference, $inspectionStatus === 'passed' ? ' (QC passed)' : ($inspectionStatus === 'pending' ? ' (QC pending)' : ''))),
+            ];
+        })->values()->all();
     }
 
     private function authorizeTextileAccess(): void

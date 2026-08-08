@@ -4,12 +4,15 @@ namespace DigitalFuzed\TextileCore\Services;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
+use DigitalFuzed\TextileInventory\Services\TextileLedgerService;
 use RuntimeException;
 
 class TextileQualityService
 {
-    public function __construct(protected TextileWorkflowService $workflowService)
-    {
+    public function __construct(
+        protected TextileWorkflowService $workflowService,
+        protected TextileLedgerService $ledgerService
+    ) {
     }
 
     public function createInspection(array $payload): TextileWorkflowDocument
@@ -50,7 +53,15 @@ class TextileQualityService
         ]);
         $inspection->save();
 
-        return $this->workflowService->transitionStatus($inspection->id, $decision === 'pass' ? 'approved' : 'rejected');
+        $finalized = $this->workflowService->transitionStatus($inspection->id, $decision === 'pass' ? 'approved' : 'rejected');
+
+        // Ledger: inspection pass is a real flow gate (takha cannot be sold until
+        // approved) — record the QC transfer so the ledger shows the full chain.
+        if ($decision === 'pass') {
+            $this->ledgerService->postInspectionPass($finalized, (string) ($finalized->unit ?? ''));
+        }
+
+        return $finalized;
     }
 
     public function createCertificate(array $payload): TextileWorkflowDocument

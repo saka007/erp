@@ -92,6 +92,7 @@ class TextileConsumptionService
         ?int $tenantId = null,
         ?string $reservationReferenceType = null,
         ?int $reservationReferenceId = null,
+        string $locationTo = 'sizing',
     ): bool {
         if ($yarnLotReference === '' || $quantity <= 0) {
             return false;
@@ -135,11 +136,13 @@ class TextileConsumptionService
             'reference_id' => $referenceId,
             'lot_reference' => $yarnLotReference,
             'location_from' => 'warehouse',
-            'location_to' => 'sizing',
+            'location_to' => $locationTo,
             'quantity' => $issueQuantity,
             'unit' => $unit,
             'status' => 'posted',
-            'notes' => 'Yarn issued for beam preparation (Smart Inventory Insights).',
+            'notes' => $locationTo === 'sizing-vendor'
+                ? 'Yarn issued to sizing vendor (outsourced sizing).'
+                : 'Yarn issued for beam preparation (in-house sizing).',
         ]);
 
         if ($reservation === null) {

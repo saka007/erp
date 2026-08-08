@@ -215,15 +215,15 @@ Verification gate: `npx tsc --noEmit` 0 errors; `npm run build` pass; `php artis
 
 **Goal**: Make inventory the operational decision screen — stage-by-stage pipeline, lot traceability chain (yarn → beam → grey → takha → finished), automatic movement ledger, yield/conversion insights, and a cleaned-up controls area.
 
-**Flow covered**: PO → GRN → Incoming QC (pass) → warp plan → yarn allocation → beam → production batch → weaving output → multiple takhas → Fabric Inspection → Hold/Release → SO → Dispatch → POD.
+**Flow covered**: PO → GRN → **Incoming QC (pass)** → warp plan → yarn allocation → beam → production batch → weaving output → multiple takhas → **Fabric Inspection (pass)** → Hold/Release → SO → Dispatch → POD. (QC is a mandatory gate at both ends — yarn cannot be warp-planned and takhas cannot be sold without an approved inspection.)
 
 **Slices (each end-to-end: backend + UI + menu + test):**
 
 | # | Slice | Scope | Effort | Status |
 |---|---|---|---|---|
 | A | Stock consumption & lot traceability | `parent_lot_reference`/`parent_lot_type` on lots; yarn allocation reserves+issues yarn; beam receipt consumes yarn; weaving output gets own grey lot ref (fix collision); takha receipt links to weaving-output lot | 3 hrs | `[x]` |
-| B | Automatic movement ledger | Post movements at every transition (yarn issue, beam receipt/issue, weaving output, takha receipt, inspection pass, dispatch issue); ledger = single source of truth | 2 hrs | `[ ]` |
-| C | Smart Overview pipeline | Stage cards (Procurement → QC → Warping → Sizing → Weaving → Processing → Packing → Dispatch) with qty per stage; KPIs (yarn available/in warping, beams ready/in weaving, takhas produced, grey available, inspected, dispatched); lot table with stage badge + days-in-stage aging | 3 hrs | `[ ]` |
+| B | Automatic movement ledger | Post movements at the stock boundaries (yarn issue, beam receipt, takha receipt, **inspection pass**, dispatch issue); ledger = single source of truth; **vendor-aware locations** — `sizing-vendor` when sizing is outsourced (`has_sizing=false` / beam metadata `sizing_vendor`), `sizing` for in-house | 2 hrs | `[x]` |
+| C | Smart Overview pipeline | Stage cards following the flow (Yarn PO → Yarn Issued to Sizing → Beam Received → Beam Issued to Manufacturing → Takha Produced → Takha Sold) with qty per stage; KPIs (yarn available/in warping, beams ready/in weaving, takhas produced, grey available, inspected, dispatched); lot table with stage badge + days-in-stage aging | 3 hrs | `[ ]` |
 | D | Material stock sections enriched | Yarn/Beam/Grey/Finished sections get available/WIP/reserved/aging summary, low-stock + reorder alert, stage filter, movement sparkline | 2 hrs | `[ ]` |
 | E | Yield & conversion report | Yarn→beam conversion %, beam→fabric meters, wastage/loss per batch, issued vs produced reconciliation | 2 hrs | `[ ]` |
 | F | Lot drill-down traceability | Enhance `LotShow`: parent → this → child chain, full movement history, linked docs (GRN, warp plan, beam, batch, takhas, inspection, dispatch) | 2 hrs | `[ ]` |
@@ -236,6 +236,7 @@ Verification gate: `npx tsc --noEmit` 0 errors; `npm run build` pass; `php artis
 - Only Incoming-QC-pass posts a receipt movement today; beam/weaving/takha transitions post nothing.
 - `storePhysicalVerification` is a strict subset of `storeCycleCount` (no record saved) — merge into one Stock Count control.
 - GRN `createFromGrn` hook is dead code — GRN lot is actually created in `TextileProcurementService::finalizeIncomingQc`.
+- **Sizing is a tenant-level policy, not a fixed stage**: `TextileOperatingPolicyService::SETTING_HAS_SIZING` decides in-house vs outsourced. In-house: `createBeam` (`beam_prepare`) consumes yarn to `sizing`. Outsourced: `createBeamFromYarnAllocation` (`vendor_beam_receipt`) consumes yarn to `sizing-vendor`, and the beam metadata carries `sizing_vendor` (the vendor party). Ledger + pipeline stages must be vendor-aware; vendor pickers already exist (`sizingVendorOptions`, `supplier_type = sizing/job_worker`, `production_mode = own_unit|powerloom_vendor`).
 
 **Slice A delivered (2026-08-08):**
 - New migration `2026_08_08_000012_add_parent_lot_to_textile_lots_table` → `parent_lot_reference` + `parent_lot_type` on `textile_lots` (schema-guarded, applied on production).
@@ -243,6 +244,21 @@ Verification gate: `npx tsc --noEmit` 0 errors; `npm run build` pass; `php artis
 - `TextileLotAutoCreationService`: source-document idempotency guard (fixes duplicate grey lot bug), weaving output derives own `GREY-*` reference, takha links to weaving-output grey lot, beam links to source yarn lot.
 - `TextileManufacturingService`: wired allocation→reservation, beam→yarn issue + parent link, weaving output→grey lot (own ref), takha→grey lot parent chain.
 - Verification: `php artisan test tests/Feature/Textile/TextileInventoryConsumptionTest.php` => 3 passed (57 assertions); full textile suite => 67 passed (1271 assertions); `npx tsc --noEmit` => 0 errors; `npm run build` => pass (existing chunk-size warnings only); migration applied + deployed on production (homepage 302 / login 200, no log errors).
+
+**Slice B delivered (2026-08-08):**
+- New migration `2026_08_08_000013_add_branch_id_to_textile_movements_table` → `branch_id` on `textile_movements` (schema-guarded; branch-scoped ledger reads; pending production apply).
+- New `TextileLedgerService` (single source of truth, Option B — stock boundaries only): `postBeamReceipt` (vendor-aware: `sizing-vendor` when beam metadata `sizing_vendor` present, else `sizing`), `postTakhaReceipt` (`loom-floor` → `warehouse`), `postInspectionPass` (`weaving` → `quality-approved`, QC is a real gate — takha can't be sold without an approved inspection), `postDispatchIssue` (`warehouse` → `customer`). All fail-open (missing lot/qty → logged skip, never blocks the business transition).
+- Wired into services: `TextileManufacturingService` (beam create + vendor beam receipt + takha entry), `TextileQualityService` (inspection finalize on `pass` only — fail/rework post nothing), `TextileSalesService` (dispatch release).
+- `TextileMovementService::createMovement` now resolves `branch_id` (from attributes or `TextileBranchScope::branchIdForCreate()`); `TextileBranchScope::applyScope()` generalized to any table; inventory movements list is branch-scoped.
+- UI: Inventory page gained a "Movement Ledger" table (Date / Stage / Type badge / Lot Reference / from→to / Qty / Status) with stage labels matching the flow: Yarn PO → Yarn Issued to Sizing → Beam Received → Beam Issued to Manufacturing → Takha Produced → Fabric Inspection (QC) → Takha Sold.
+- Verification: `php artisan test tests/Feature/Textile/TextileMovementLedgerTest.php` => 6 passed (54 assertions); full textile suite => 73 passed (1325 assertions); `npx tsc --noEmit` => 0 errors; `npm run build` => pass (existing chunk-size warnings only). **Not yet deployed** — awaiting user command.
+
+**Fabric QC granularity — per takha (validated 2026-08-08):**
+- User feedback: "takha fabric QC is confusing — i see lots but we need per takha entry; a lot can have multiple takhas where a single or many takhas can be defective, not the entire lot; it should be the weaving output — grey fabric."
+- Model confirmed correct at backend: each `takha_entry` creates its OWN grey-fabric lot (`lot_reference = takha number`, `material_type = grey_fabric`, `source_document_type = takha_entry`), tracing back to the weaving-output grey lot as `parent_lot_reference`. The sales gate already requires an **approved inspection per takha** (`document_type=inspection`, `lot_reference = takha lot reference`), so mixed pass/fail across takhas of one output is supported.
+- Confusing part was the FORM: the "Lot Reference" picker was a flat merge of ALL lots (yarn/beam/grey/takha) + workflow refs — no takha context, no qty auto-fill, no weaving-output link.
+- Fix: Quality index now serves `takhaOptions` — grey-fabric takha lots from weaving output with qty, unit (from takha entry doc), parent weaving-output reference, and inspection status (QC passed / QC pending / uninspected). When `qc_stage = final_qc`, the Fabric Inspection form shows a dedicated **"Takha Entry (Grey Fabric)"** picker that auto-fills qty+unit and shows the source grey lot; the flat lot picker remains for incoming/process/shade QC.
+- Verification: new test `test_per_takha_qc_granularity_one_takha_passes_another_rejected` — one output lot, two takhas, takha-1 passes (movement `weaving→quality-approved`), takha-2 fails (no movement, no approved inspection, sales gate blocks). Ledger test file => 7 passed (63 assertions); full textile suite => 74 passed (1334 assertions); `npx tsc --noEmit` => 0 errors; `npm run build` => pass.
 
 Verification gate per slice: `npx tsc --noEmit` 0 errors; `npm run build` pass; `php artisan test tests/Feature/Textile/` pass; browser check — section renders, deep links work, menu/submenu navigable, controlled fields select-based; navigation acceptance checklist satisfied.
 

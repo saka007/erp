@@ -47,6 +47,16 @@ interface TextileLot {
     status: string;
 }
 
+interface TakhaOption {
+    value: string;
+    lot_reference: string;
+    quantity: number;
+    unit: string;
+    parent_lot_reference: string;
+    inspection_status: 'passed' | 'pending' | 'uninspected';
+    label: string;
+}
+
 const QUALITY_SECTIONS = ['inspection', 'hold-release', 'certificates'] as const;
 type QualitySection = typeof QUALITY_SECTIONS[number];
 
@@ -78,6 +88,7 @@ export default function Index({
     fabricDefectOptions,
     unitOptions,
     lotReferenceOptions,
+    takhaOptions,
     recentActivity,
 }: {
     inspections: WorkflowDocument[];
@@ -91,6 +102,7 @@ export default function Index({
     fabricDefectOptions: string[];
     unitOptions: string[];
     lotReferenceOptions: string[];
+    takhaOptions: TakhaOption[];
     recentActivity: ActivityItem[];
 }) {
     const { t } = useTranslation();
@@ -152,6 +164,7 @@ export default function Index({
     const resolvedFabricDefectOptions = fabricDefectOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedLotReferenceOptions = lotReferenceOptions.map((value) => ({ value, label: value }));
     const resolvedUnitOptions = buildUnitOptions(unitOptions);
+    const resolvedTakhaOptions = takhaOptions.map((option) => ({ value: option.value, label: option.label }));
 
     const filteredInspections = inspections.filter((row) => {
         const rowQcStage = String(row.metadata?.qc_stage ?? row.source_reference_type ?? '').trim();
@@ -398,6 +411,45 @@ export default function Index({
                                 disabledReason={t('No lot options available yet. Create active inventory lots first.')}
                                 required
                             />
+                            {inspectionForm.data.qc_stage === 'final_qc' ? (
+                                <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                    <SelectField
+                                        label={t('Takha Entry (Grey Fabric)')}
+                                        value={inspectionForm.data.lot_reference}
+                                        onChange={(value: string) => {
+                                            const selected = takhaOptions.find((option) => option.value === value);
+                                            inspectionForm.setData('lot_reference', value);
+                                            if (selected) {
+                                                inspectionForm.setData('quantity', String(selected.quantity));
+                                                inspectionForm.setData('unit', selected.unit);
+                                            }
+                                        }}
+                                        options={resolvedTakhaOptions}
+                                        includeEmpty
+                                        emptyLabel={t('Select takha entry')}
+                                        helperText={t('Fabric QC is performed per takha entry from weaving output — each takha is inspected individually (a single takha can be defective while others pass).')}
+                                        disabled={resolvedTakhaOptions.length === 0}
+                                        disabledReason={t('No takha entries yet. Takha lots are created from weaving output in Manufacturing.')}
+                                        required
+                                    />
+                                    {inspectionForm.data.lot_reference ? (
+                                        <div className="grid grid-cols-3 gap-2 text-xs text-slate-600">
+                                            <div className="rounded-md bg-white px-2 py-1.5">
+                                                <span className="font-medium text-slate-800">{t('Takha')}: </span>
+                                                <span className="font-mono">{inspectionForm.data.lot_reference}</span>
+                                            </div>
+                                            <div className="rounded-md bg-white px-2 py-1.5">
+                                                <span className="font-medium text-slate-800">{t('Qty')}: </span>
+                                                <span>{inspectionForm.data.quantity} {inspectionForm.data.unit}</span>
+                                            </div>
+                                            <div className="rounded-md bg-white px-2 py-1.5">
+                                                <span className="font-medium text-slate-800">{t('From')}: </span>
+                                                <span>{takhaOptions.find((option) => option.value === inspectionForm.data.lot_reference)?.parent_lot_reference || '-'}</span>
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                </div>
+                            ) : null}
                             <div className="grid grid-cols-2 gap-3">
                                 <Field label={t('Quantity')} type="number" value={inspectionForm.data.quantity} onChange={(value: string) => inspectionForm.setData('quantity', value)} required />
                                 <SelectField

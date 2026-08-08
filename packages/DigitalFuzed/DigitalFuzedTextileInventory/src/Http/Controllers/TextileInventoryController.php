@@ -95,8 +95,9 @@ class TextileInventoryController extends Controller
             }
         }
 
-        // Movement filters
+        // Movement filters — branch-scoped so employees only see their branch's ledger.
         $movementsQuery = TextileMovement::query()->where('created_by', $tenantId);
+        \DigitalFuzed\TextileCore\Support\TextileBranchScope::applyScope($movementsQuery, 'textile_movements');
 
         if ($request->filled('movement_type')) {
             $movementsQuery->where('movement_type', $request->string('movement_type'));

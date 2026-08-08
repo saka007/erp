@@ -11,9 +11,25 @@ use RuntimeException;
 
 class TextileBranchScope
 {
+    /**
+     * Scope a workflow-document query to the current user's branch.
+     * Kept for backward compatibility; prefer applyScope() for non-document tables.
+     */
     public static function applyWorkflowScope(Builder $query): Builder
     {
-        if (! self::workflowBranchColumnExists()) {
+        return self::applyScope($query, 'textile_workflow_documents', 'branch_id');
+    }
+
+    /**
+     * Scope a query to the current user's branch.
+     *
+     * Works for any table that carries a branch_id column (workflow documents,
+     * movements, lots, reservations, ...). No-op when the column is missing so
+     * the same code path is safe before/after schema migrations.
+     */
+    public static function applyScope(Builder $query, string $table, string $column = 'branch_id'): Builder
+    {
+        if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
             return $query;
         }
 
@@ -26,7 +42,7 @@ class TextileBranchScope
 
         if (self::canManageAllBranches($user)) {
             if ($branchId !== null) {
-                return $query->where('branch_id', $branchId);
+                return $query->where($column, $branchId);
             }
 
             return $query;
@@ -36,7 +52,7 @@ class TextileBranchScope
             return $query->whereRaw('1 = 0');
         }
 
-        return $query->where('branch_id', $branchId);
+        return $query->where($column, $branchId);
     }
 
     public static function branchIdForCreate(): ?int

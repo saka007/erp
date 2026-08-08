@@ -2,6 +2,7 @@
 
 namespace DigitalFuzed\TextileInventory\Services;
 
+use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use DigitalFuzed\TextileInventory\Models\TextileMovement;
 
 class TextileMovementService
@@ -21,6 +22,8 @@ class TextileMovementService
             'status' => $attributes['status'] ?? 'posted',
             'notes' => $attributes['notes'] ?? null,
             'is_active' => $attributes['is_active'] ?? true,
+            // Explicit branch wins; otherwise resolve from the active branch context.
+            'branch_id' => $attributes['branch_id'] ?? TextileBranchScope::branchIdForCreate(),
         ];
 
         $defaults = [

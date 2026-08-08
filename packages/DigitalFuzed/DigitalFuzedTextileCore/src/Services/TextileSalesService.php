@@ -6,6 +6,7 @@ use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Services\TextileAvailabilityService;
+use DigitalFuzed\TextileInventory\Services\TextileLedgerService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
@@ -18,7 +19,8 @@ class TextileSalesService
     public function __construct(
         protected TextileWorkflowService $workflowService,
         protected TextileAvailabilityService $availabilityService,
-        protected TextileOperatingPolicyService $policyService
+        protected TextileOperatingPolicyService $policyService,
+        protected TextileLedgerService $ledgerService
     )
     {
     }
@@ -294,7 +296,12 @@ class TextileSalesService
             throw new RuntimeException('Only draft or approved dispatch can be released.');
         }
 
-        return $this->workflowService->transitionStatus($dispatch->id, 'released');
+        $released = $this->workflowService->transitionStatus($dispatch->id, 'released');
+
+        // Ledger: goods dispatched to customer (fail-open).
+        $this->ledgerService->postDispatchIssue($released, (string) ($released->unit ?? ''));
+
+        return $released;
     }
 
     public function createChallan(int $dispatchId, array $payload = []): TextileWorkflowDocument

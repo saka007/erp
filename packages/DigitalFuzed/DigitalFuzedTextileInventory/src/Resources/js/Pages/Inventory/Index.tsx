@@ -61,12 +61,16 @@ interface TextileMovement {
     id: number;
     movement_type: string;
     adjustment_direction?: string | null;
+    reference_type?: string | null;
+    reference_id?: number | null;
     lot_reference?: string | null;
     location_from?: string | null;
     location_to?: string | null;
     quantity: string;
     unit?: string | null;
     status: string;
+    branch_id?: number | null;
+    created_at?: string | null;
 }
 
 interface TextileReservation {
@@ -144,6 +148,47 @@ const SECTION_MATERIAL_LABELS: Record<string, string> = {
     'finished-fabric': 'Finished Fabric',
     chemicals: 'Chemicals',
     'packing-materials': 'Packing Materials',
+};
+
+// Movement ledger stage labels — follows the manufacturing flow:
+// Yarn PO → Yarn Issued to Sizing → Beam Received → Beam Issued to Manufacturing → Takha Produced → Takha Sold
+const MOVEMENT_STAGE_LABELS: Record<string, string> = {
+    incoming_qc: 'Yarn PO',
+    yarn_allocation: 'Yarn Issued to Sizing',
+    beam: 'Beam Received',
+    beam_issue: 'Beam Issued to Manufacturing',
+    weaving_output: 'Takha Produced',
+    takha_entry: 'Takha Produced',
+    inspection: 'Fabric Inspection (QC)',
+    dispatch: 'Takha Sold',
+    physical_verification: 'Stock Count',
+    cycle_count: 'Stock Count',
+    manual: 'Manual Entry',
+};
+
+const MOVEMENT_TYPE_STYLES: Record<string, string> = {
+    receipt: 'bg-emerald-100 text-emerald-700',
+    issue: 'bg-rose-100 text-rose-700',
+    transfer: 'bg-sky-100 text-sky-700',
+    adjustment: 'bg-amber-100 text-amber-700',
+};
+
+const movementStageLabel = (referenceType?: string | null): string => {
+    const key = referenceType || '';
+    return MOVEMENT_STAGE_LABELS[key] || key || '-';
+};
+
+const formatMovementDate = (value?: string | null): string => {
+    if (!value) {
+        return '-';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return '-';
+    }
+
+    return date.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 export default function Index({
@@ -656,6 +701,43 @@ export default function Index({
                                     onOpenChange={setOpenStep}
                                     records={
                                         <div className="grid gap-6 xl:grid-cols-2">
+                                            <TextileDataTableSection
+                                                title={t('Movement Ledger')}
+                                                className="xl:col-span-2"
+                                                data={movements}
+                                                columns={[
+                                                    { key: 'created_at', header: t('Date'), render: (_value: unknown, row: TextileMovement) => formatMovementDate(row.created_at) },
+                                                    { key: 'reference_type', header: t('Stage'), render: (_value: unknown, row: TextileMovement) => movementStageLabel(row.reference_type) },
+                                                    {
+                                                        key: 'movement_type',
+                                                        header: t('Type'),
+                                                        render: (_value: unknown, row: TextileMovement) => (
+                                                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${MOVEMENT_TYPE_STYLES[row.movement_type] || 'bg-gray-100 text-gray-700'}`}>
+                                                                {row.movement_type}
+                                                            </span>
+                                                        ),
+                                                    },
+                                                    { key: 'lot_reference', header: t('Lot Reference') },
+                                                    {
+                                                        key: 'location',
+                                                        header: t('Movement'),
+                                                        render: (_value: unknown, row: TextileMovement) => (
+                                                            <span className="inline-flex items-center gap-1 text-xs">
+                                                                <span>{row.location_from || '-'}</span>
+                                                                <MoveRight className="h-3 w-3 text-gray-400" />
+                                                                <span>{row.location_to || '-'}</span>
+                                                            </span>
+                                                        ),
+                                                    },
+                                                    { key: 'quantity', header: t('Qty'), render: (_value: unknown, row: TextileMovement) => `${row.quantity}${row.unit ? ` ${row.unit}` : ''}` },
+                                                    { key: 'status', header: t('Status') },
+                                                ]}
+                                                emptyState={<NoRecordsFound icon={MoveRight} title={t('No movements recorded yet')} description={t('Yarn issue, beam receipts, takha receipts and dispatches will appear here automatically.')} />}
+                                                searchable
+                                                searchPlaceholder={t('Search lot or reference...')}
+                                                showPagination
+                                                pageSize={10}
+                                            />
                                             <TextileDataTableSection title={t('Locations')} data={locations} columns={[{ key: 'name', header: t('Location') }, { key: 'code', header: t('Code') }, { key: 'rack', header: t('Rack') }, { key: 'bin', header: t('Bin') }, { key: 'location_type', header: t('Type') }]} emptyState={<NoRecordsFound icon={Boxes} title={t('No textile locations found')} description={t('Create dedicated locations to control stock movement flow.')} />} />
                                             <TextileDataTableSection title={t('Lots')} data={visibleLots} columns={[{ key: 'lot_reference', header: t('Lot Reference') }, { key: 'batch_number', header: t('Batch') }, { key: 'material_type', header: t('Material Type') }, { key: 'status', header: t('Status') }, { key: 'is_frozen', header: t('Frozen') }]} emptyState={<NoRecordsFound icon={Boxes} title={t('No textile lots found')} description={t('Create or auto-generate lots to begin tracking stock.')} />} />
                                             <TextileDataTableSection title={t('Cycle Counts')} data={cycleCounts} columns={[{ key: 'lot_reference', header: t('Lot') }, { key: 'expected_quantity', header: t('Expected') }, { key: 'counted_quantity', header: t('Counted') }, { key: 'variance_quantity', header: t('Variance') }, { key: 'adjustment_direction', header: t('Direction') }, { key: 'status', header: t('Status') }]} emptyState={<NoRecordsFound icon={Boxes} title={t('No cycle counts found')} description={t('Post a cycle count to track counted variance by lot.')} />} />

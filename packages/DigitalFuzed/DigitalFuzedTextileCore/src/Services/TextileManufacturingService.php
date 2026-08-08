@@ -6,6 +6,7 @@ use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Services\TextileConsumptionService;
+use DigitalFuzed\TextileInventory\Services\TextileLedgerService;
 use DigitalFuzed\TextileInventory\Services\TextileLotAutoCreationService;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -16,7 +17,8 @@ class TextileManufacturingService
         protected TextileWorkflowService $workflowService,
         protected TextileLotAutoCreationService $lotAutoCreationService,
         protected TextileOperatingPolicyService $policyService,
-        protected TextileConsumptionService $consumptionService
+        protected TextileConsumptionService $consumptionService,
+        protected TextileLedgerService $ledgerService
     ) {
     }
 
@@ -75,6 +77,9 @@ class TextileManufacturingService
                 $beam->created_by,
             );
         }
+
+        // Ledger: beam received from sizing.
+        $this->ledgerService->postBeamReceipt($beam, (string) ($beam->unit ?? ''));
 
         return $beam;
     }
@@ -148,6 +153,8 @@ class TextileManufacturingService
 
         // Consume the issued yarn from stock (fail-open). The yarn was reserved
         // at allocation time, so the reservation is fulfilled — not double-decremented.
+        // Sizing is outsourced here (vendor beam receipt), so the yarn is issued
+        // to the sizing vendor rather than an in-house sizing unit.
         $this->consumptionService->issueYarnForBeam(
             $sourceYarnLot,
             $quantity,
@@ -157,7 +164,11 @@ class TextileManufacturingService
             $yarnAllocation->created_by,
             'yarn_allocation',
             $yarnAllocation->id,
+            'sizing-vendor',
         );
+
+        // Ledger: beam received from sizing vendor (or in-house sizing).
+        $this->ledgerService->postBeamReceipt($beam, (string) ($beam->unit ?? ''));
 
         return $beam;
     }
@@ -1178,6 +1189,9 @@ class TextileManufacturingService
             $parentLot?->lot_reference,
             TextileLot::TYPE_GREY_FABRIC,
         );
+
+        // Ledger: takha received from weaving output.
+        $this->ledgerService->postTakhaReceipt($takha, (string) ($takha->unit ?? ''));
 
         return $takha;
     }
