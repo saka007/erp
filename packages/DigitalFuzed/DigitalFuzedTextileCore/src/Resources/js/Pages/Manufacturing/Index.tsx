@@ -1,7 +1,7 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, Factory, FileEdit, Gauge, LayoutDashboard, ListChecks, Plus, RotateCcw, Send, Trash2, Wrench, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, Factory, FileEdit, Gauge, LayoutDashboard, ListChecks, Plus, RotateCcw, Send, ShieldCheck, Trash2, Wrench, XCircle, type LucideIcon } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -85,6 +85,7 @@ export default function Index({
     costCenterOptions,
     costTypeOptions,
     inspectionResultOptions,
+    qcStageOptions,
     fabricDefectOptions,
     fabricGradeOptions,
     warehouseOptions,
@@ -144,6 +145,7 @@ export default function Index({
     costCenterOptions: Array<{ value: string; label: string }>;
     costTypeOptions: string[];
     inspectionResultOptions: string[];
+    qcStageOptions: string[];
     fabricDefectOptions: string[];
     fabricGradeOptions: string[];
     warehouseOptions: string[];
@@ -258,6 +260,24 @@ export default function Index({
     const greyFabricRollUpdateForm = useForm({ grey_roll_id: '', roll_weight: '', roll_length: '', gsm: '', width: '', defects: [] as string[], grade: '', warehouse: '', operator_name: '', notes: '' });
     const wasteForm = useForm({ batch_id: '', quantity: '', unit: 'mtr' });
     const reworkForm = useForm({ weaving_output_id: '', quantity: '', unit: 'mtr' });
+    const inspectionForm = useForm({
+        source_reference_type: 'final_qc',
+        source_reference_id: '',
+        source_action: 'final_qc',
+        party_name: '',
+        lot_reference: '',
+        quantity: '',
+        unit: 'mtr',
+        qc_stage: 'final_qc',
+        inspection_result: 'pass',
+        defects: [] as string[],
+        shade_reference: '',
+        notes: '',
+    });
+
+    const finalizeInspection = (id: number, decision: 'pass' | 'fail' | 'rework') => {
+        router.post(route('textile.quality.inspections.finalize'), { inspection_id: id, decision }, { preserveScroll: true });
+    };
     const approvedWarpPlans = warpPlans.filter((row) => row.status === 'approved');
     const actionableYarnAllocations = yarnAllocations.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
     const actionableWarpSheets = warpSheets.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
@@ -352,6 +372,14 @@ export default function Index({
     const resolvedChemicalOptions = chemicalOptions.map((value) => ({ value, label: value }));
     const resolvedCostTypeOptions = costTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedInspectionResultOptions = inspectionResultOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
+    const resolvedQcStageOptions = qcStageOptions.length > 0
+        ? qcStageOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }))
+        : [
+            { value: 'incoming_qc', label: formatTextileOptionLabel('incoming_qc') },
+            { value: 'in_process_qc', label: formatTextileOptionLabel('in_process_qc') },
+            { value: 'final_qc', label: formatTextileOptionLabel('final_qc') },
+            { value: 'shade_matching', label: formatTextileOptionLabel('shade_matching') },
+        ];
     const resolvedOperatorOptions = operatorOptions.map((value) => ({ value, label: value }));
 
     const allDocuments = [...warpPlans, ...yarnAllocations, ...warpSheets, ...warpProductions, ...sizingRecipes, ...chemicalConsumptions, ...loomMasters, ...loomBreakdowns, ...loomMaintenances, ...productionCalendars, ...capacityPlans, ...shiftPlans, ...machinePlans, ...materialPlans, ...productionSchedules, ...productionAssignments, ...beams, ...beamIssues, ...beamReturns, ...beamInspections, ...beamCosts, ...productionBatches, ...weavingOutputs, ...shiftProductions, ...takhaEntries, ...loomEfficiencies, ...operatorEfficiencies, ...machineDowntimes, ...productionCosts, ...greyFabricRolls, ...greyRollHistories, ...wastes, ...reworks];
@@ -2490,18 +2518,87 @@ export default function Index({
                         const lotRef = String(row.lot_reference ?? '');
                         return lotRef !== '' && !approvedInspectionLotRefs.has(lotRef);
                     });
+                    const takhaInspectionOptions = takhaEntries
+                        .filter((row) => String(row.lot_reference ?? '') !== '')
+                        .map((row) => ({ value: String(row.lot_reference), label: `${String(row.lot_reference)} — ${String(row.quantity ?? '-')} ${String(row.unit ?? '')}` }));
 
                     return (
                         <div className="space-y-6">
                             <div className="flex flex-wrap items-center justify-between gap-3">
                                 <p className="text-sm text-muted-foreground">
-                                    {t('Fabric inspections are recorded in the Quality workspace. Takha lots must pass inspection and be released from hold before they can be sold.')}
+                                    {t('Inspect woven takha lots here. Lots must pass inspection and be released from hold before they can be sold.')}
                                 </p>
                                 <Button type="button" variant="outline" onClick={() => router.get(route('textile.quality.index', { section: 'inspection' }), {}, { preserveState: true })}>
                                     <ClipboardCheck className="mr-2 h-4 w-4" />
-                                    {t('Open Fabric Inspection')}
+                                    {t('Full Inspection Register')}
                                 </Button>
                             </div>
+                            <TextileFormCard title={t('Record Fabric Inspection')} icon={ClipboardCheck}>
+                                <form
+                                    className="space-y-3"
+                                    onSubmit={(event) => {
+                                        event.preventDefault();
+                                        inspectionForm.post(route('textile.quality.inspections.store'), {
+                                            onSuccess: () => inspectionForm.reset('source_reference_id', 'party_name', 'lot_reference', 'quantity', 'defects', 'shade_reference', 'notes'),
+                                        });
+                                    }}
+                                >
+                                    <SelectField
+                                        label={t('Takha Lot')}
+                                        value={inspectionForm.data.lot_reference}
+                                        onChange={(value: string) => {
+                                            const takha = takhaEntries.find((row) => String(row.lot_reference ?? '') === value);
+                                            inspectionForm.setData('lot_reference', value);
+                                            inspectionForm.setData('source_reference_id', takha ? String(takha.id) : '');
+                                            inspectionForm.setData('quantity', takha ? String(takha.quantity ?? '') : '');
+                                            inspectionForm.setData('unit', takha?.unit ?? 'mtr');
+                                            inspectionForm.setData('party_name', takha?.party_name ?? '');
+                                        }}
+                                        options={takhaInspectionOptions}
+                                        includeEmpty
+                                        emptyLabel={t('Select takha lot')}
+                                        required
+                                    />
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <SelectField
+                                            label={t('QC Stage')}
+                                            value={inspectionForm.data.qc_stage}
+                                            onChange={(value: string) => {
+                                                inspectionForm.setData('qc_stage', value);
+                                                inspectionForm.setData('source_reference_type', value);
+                                                inspectionForm.setData('source_action', value);
+                                            }}
+                                            options={resolvedQcStageOptions}
+                                            includeEmpty
+                                            emptyLabel={t('Select QC stage')}
+                                            required
+                                        />
+                                        <SelectField
+                                            label={t('Inspection Result')}
+                                            value={inspectionForm.data.inspection_result}
+                                            onChange={(value: string) => inspectionForm.setData('inspection_result', value)}
+                                            options={resolvedInspectionResultOptions}
+                                            includeEmpty
+                                            emptyLabel={t('Select result')}
+                                            required
+                                        />
+                                    </div>
+                                    <SelectField
+                                        label={t('Primary Defect')}
+                                        value={inspectionForm.data.defects[0] ?? ''}
+                                        onChange={(value: string) => inspectionForm.setData('defects', value ? [value] : [])}
+                                        options={resolvedFabricDefectOptions}
+                                        includeEmpty
+                                        emptyLabel={t('Select defect')}
+                                        disabled={resolvedFabricDefectOptions.length === 0}
+                                        disabledReason={t('No defect options available yet. Create defect library first.')}
+                                    />
+                                    <Field label={t('Notes')} value={inspectionForm.data.notes} onChange={(value: string) => inspectionForm.setData('notes', value)} />
+                                    <Button type="submit" disabled={inspectionForm.processing} className="w-full">
+                                        <Plus className="mr-2 h-4 w-4" />{t('Record Inspection')}
+                                    </Button>
+                                </form>
+                            </TextileFormCard>
                             <TextileDataTableSection
                                 title={t('Takha Lots Pending Inspection')}
                                 data={pendingQcTakhas}
@@ -2515,21 +2612,29 @@ export default function Index({
                                 ]}
                                 emptyState={<NoRecordsFound icon={ClipboardCheck} title={t('All Takha lots inspected')} description={t('New takha entries from weaving production will appear here until they pass inspection.')} />}
                             />
-                            <TextileDataTableSection
-                                title={t('Inspection Records')}
-                                data={inspections}
-                                columns={[
-                                    { key: 'document_number', header: t('Number') },
-                                    { key: 'lot_reference', header: t('Lot') },
-                                    { key: 'qc_stage', header: t('QC Stage'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.qc_stage ?? '')) },
-                                    { key: 'inspection_result', header: t('Result'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.inspection_result ?? '')) },
-                                    { key: 'decision', header: t('Decision'), render: (_value: unknown, row: WorkflowDocument) => decisionLabel(inspectionDecision(row)) },
-                                    { key: 'quantity', header: t('Qty') },
-                                    { key: 'unit', header: t('Unit') },
-                                    { key: 'status', header: t('Status'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(row.status) },
-                                ]}
-                                emptyState={<NoRecordsFound icon={ClipboardCheck} title={t('No inspections yet')} description={t('Open Fabric Inspection in the Quality workspace to inspect woven takha lots.')} />}
-                            />
+                            <TextileDataTableSection title={t('Inspection Records')}>
+                                <TextileDataTableCard
+                                    data={inspections}
+                                    columns={createTextileWorkflowColumns(t, {
+                                        actions: createTextileWorkflowActions([
+                                            {
+                                                statuses: textileActionableStatuses.draft,
+                                                actions: [
+                                                    { label: t('Pass'), icon: Check, onClick: (row: WorkflowDocument) => finalizeInspection(row.id, 'pass') },
+                                                    { label: t('Reject'), icon: XCircle, onClick: (row: WorkflowDocument) => finalizeInspection(row.id, 'fail') },
+                                                    { label: t('Rework'), icon: ShieldCheck, onClick: (row: WorkflowDocument) => finalizeInspection(row.id, 'rework') },
+                                                ],
+                                            },
+                                        ]),
+                                    }).concat([
+                                        { key: 'qc_stage', header: t('QC Stage'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.qc_stage ?? '')) },
+                                        { key: 'inspection_result', header: t('Result'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.inspection_result ?? '')) },
+                                        { key: 'defects', header: t('Defects'), render: (_value: unknown, row: WorkflowDocument) => ((row.metadata?.defects ?? []) as string[]).join(', ') || '-' },
+                                        { key: 'decision', header: t('Decision'), render: (_value: unknown, row: WorkflowDocument) => decisionLabel(inspectionDecision(row)) },
+                                    ])}
+                                    emptyState={<NoRecordsFound icon={ClipboardCheck} title={t('No inspections yet')} description={t('Record an inspection above to start tracking fabric quality.')} />}
+                                />
+                            </TextileDataTableSection>
                         </div>
                     );
                 }

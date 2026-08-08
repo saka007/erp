@@ -84,6 +84,7 @@ class TextileManufacturingController extends Controller
             'costCenterOptions' => $this->costCenterOptions(),
             'costTypeOptions' => $this->costTypeOptions(),
             'inspectionResultOptions' => $this->inspectionResultOptions(),
+            'qcStageOptions' => $this->qcStageOptions(),
             'fabricDefectOptions' => $this->fabricDefectOptions(),
             'fabricGradeOptions' => $this->fabricGradeOptions(),
             'warehouseOptions' => $this->warehouseOptions(),
@@ -1218,6 +1219,36 @@ class TextileManufacturingController extends Controller
         $options = $query->orderBy('name')->pluck('name')->values()->all();
 
         return count($options) > 0 ? $options : $this->defaultInspectionResultOptions();
+    }
+
+    private function qcStageOptions(): array
+    {
+        if (!Schema::hasTable('textile_reference_masters')) {
+            return $this->defaultQcStageOptions();
+        }
+
+        $query = TextileReferenceMaster::query()
+            ->type('source_type')
+            ->where('created_by', creatorId())
+            ->where('is_active', true);
+
+        if (Schema::hasColumn('textile_reference_masters', 'master_domain')) {
+            $query->domain('quality');
+        }
+
+        $options = $query->orderBy('name')->pluck('name')->values()->all();
+
+        return count($options) > 0 ? $options : $this->defaultQcStageOptions();
+    }
+
+    private function defaultQcStageOptions(): array
+    {
+        return [
+            'incoming_qc',
+            'in_process_qc',
+            'final_qc',
+            'shade_matching',
+        ];
     }
 
     private function fabricDefectOptions(): array
