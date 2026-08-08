@@ -112,15 +112,20 @@ class TextilePartyBranchController extends Controller
             ? Vendor::query()
             : Customer::query();
 
+        $table = $partyType === TextilePartyBranchService::PARTY_VENDOR ? 'vendors' : 'customers';
+        $hasActiveColumn = Schema::hasColumn($table, 'is_active');
+
         $rows = $model->where('created_by', $tenantId)
             ->orderBy('company_name')
-            ->get(['id', 'company_name', 'is_active']);
+            ->get($hasActiveColumn
+                ? ['id', 'company_name', 'is_active']
+                : ['id', 'company_name']);
 
-        return $rows->map(function ($party) use ($partyType, $tenantId) {
+        return $rows->map(function ($party) use ($partyType, $tenantId, $hasActiveColumn) {
             return [
                 'id' => (int) $party->id,
                 'name' => (string) ($party->company_name ?? '-'),
-                'is_active' => (bool) $party->is_active,
+                'is_active' => $hasActiveColumn ? (bool) $party->is_active : true,
                 'assigned_branch_ids' => TextilePartyBranchService::assignedBranchIds($partyType, (int) $party->id, $tenantId),
             ];
         })->values()->all();
