@@ -46,6 +46,7 @@ class TextileOperatingPolicyService
     public const SETTING_HAS_INVENTORY_CYCLE_COUNT = 'has_inventory_cycle_count';
     public const SETTING_HAS_TRANSPORT_OWN = 'has_transport_own';
     public const SETTING_HAS_TRANSPORT_VENDOR = 'has_transport_vendor';
+    public const SETTING_HAS_PAYMENT_REMINDERS = 'has_payment_reminders';
 
     public function options(): array
     {
@@ -98,6 +99,7 @@ class TextileOperatingPolicyService
             self::SETTING_HAS_INVENTORY_CYCLE_COUNT,
             self::SETTING_HAS_TRANSPORT_OWN,
             self::SETTING_HAS_TRANSPORT_VENDOR,
+            self::SETTING_HAS_PAYMENT_REMINDERS,
         ];
     }
 
@@ -260,6 +262,7 @@ class TextileOperatingPolicyService
         $capabilities['inventory_cycle_count'] = $capabilities['inventory'] && ($settings[self::SETTING_HAS_INVENTORY_CYCLE_COUNT] ?? false);
         $capabilities['transport_operations'] = (($settings[self::SETTING_HAS_TRANSPORT_OWN] ?? false) || ($settings[self::SETTING_HAS_TRANSPORT_VENDOR] ?? false));
         $capabilities['maintenance_operations'] = $settings[self::SETTING_HAS_MAINTENANCE] ?? false;
+        $capabilities['payments'] = $settings[self::SETTING_HAS_PAYMENT_REMINDERS] ?? false;
 
         return $capabilities;
     }
@@ -659,6 +662,7 @@ class TextileOperatingPolicyService
                     $defaults[self::SETTING_HAS_MAINTENANCE] = true;
                     $defaults[self::SETTING_HAS_TRANSPORT_OWN] = true;
                     $defaults[self::SETTING_HAS_TRANSPORT_VENDOR] = true;
+                    $defaults[self::SETTING_HAS_PAYMENT_REMINDERS] = true;
                     break;
             }
         }

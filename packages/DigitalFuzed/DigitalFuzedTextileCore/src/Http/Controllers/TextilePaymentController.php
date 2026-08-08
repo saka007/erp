@@ -1,0 +1,106 @@
+<?php
+
+namespace DigitalFuzed\TextileCore\Http\Controllers;
+
+use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
+use DigitalFuzed\TextileCore\Services\TextilePaymentReminderService;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use RuntimeException;
+
+class TextilePaymentController extends Controller
+{
+    public function __construct(protected TextileOperatingPolicyService $policyService)
+    {
+    }
+
+    public function index(TextilePaymentReminderService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapabilityOrAbort('payments');
+
+        return Inertia::render('DigitalFuzedTextileCore/Payments/Index', [
+            'summary' => $service->summary(),
+            'partyMasters' => $service->partyMasters(),
+            'branchOptions' => $service->branchOptions(),
+            'templateNames' => [
+                'supplier' => TextilePaymentReminderService::TEMPLATE_SUPPLIER,
+                'buyer' => TextilePaymentReminderService::TEMPLATE_BUYER,
+            ],
+        ]);
+    }
+
+    public function updateCredit(Request $request, TextilePaymentReminderService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapabilityOrAbort('payments');
+
+        $validated = $request->validate([
+            'party_type' => ['required', Rule::in([TextilePaymentReminderService::PARTY_SUPPLIER, TextilePaymentReminderService::PARTY_BUYER])],
+            'party_id' => ['required', 'integer'],
+            'credit_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
+            'credit_limit' => ['nullable', 'numeric', 'min:0'],
+            'reminder_enabled' => ['required', 'boolean'],
+            'branch_id' => ['nullable', 'integer'],
+        ]);
+
+        try {
+            $party = $service->updateCredit($validated['party_type'], (int) $validated['party_id'], $validated);
+        } catch (RuntimeException $exception) {
+            throw ValidationException::withMessages([
+                'party_id' => __($exception->getMessage()),
+            ]);
+        }
+
+        return back()->with('flash', [
+            'success' => __('Credit settings updated for :name.', ['name' => $party['party_name']]),
+        ]);
+    }
+
+    public function sendReminders(Request $request, TextilePaymentReminderService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapabilityOrAbort('payments');
+
+        $validated = $request->validate([
+            'party_type' => ['nullable', Rule::in([TextilePaymentReminderService::PARTY_SUPPLIER, TextilePaymentReminderService::PARTY_BUYER])],
+            'party_id' => ['nullable', 'integer'],
+            'force' => ['nullable', 'boolean'],
+        ]);
+
+        $result = $service->sendDueReminders(
+            (bool) ($validated['force'] ?? false),
+            null,
+            $validated['party_type'] ?? null,
+            isset($validated['party_id']) ? (int) $validated['party_id'] : null
+        );
+
+        return back()->with('flash', [
+            'success' => __('Reminders sent: :sent, skipped: :skipped, failed: :failed.', [
+                'sent' => $result['sent'],
+                'skipped' => $result['skipped'],
+                'failed' => $result['failed'],
+            ]),
+        ]);
+    }
+
+    private function authorizeTextileAccess(): void
+    {
+        $user = Auth::user();
+
+        abort_unless($user && in_array($user->type, ['company', 'superadmin', 'staff'], true), 403);
+    }
+
+    private function authorizeCapabilityOrAbort(string $capability): void
+    {
+        try {
+            $this->policyService->assertCapability($capability);
+        } catch (RuntimeException $exception) {
+            abort(403, $exception->getMessage());
+        }
+    }
+}

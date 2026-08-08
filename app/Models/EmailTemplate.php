@@ -218,6 +218,13 @@ class EmailTemplate extends Model
             '{request_pickup_point}',
             '{request_category_type}',
             '{request_category}',
+
+            '{party_name}',
+            '{invoice_number}',
+            '{amount_due}',
+            '{due_date}',
+            '{overdue_days}',
+            '{credit_days}',
         ];
         $arrValue    = [
             'app_name' => '-',
@@ -325,6 +332,13 @@ class EmailTemplate extends Model
             'request_pickup_point'      => '-',
             'request_category_type'     => '-',
             'request_category'          => '-',
+
+            'party_name'      => '-',
+            'invoice_number'  => '-',
+            'amount_due'      => '-',
+            'due_date'        => '-',
+            'overdue_days'    => '-',
+            'credit_days'     => '-',
         ];
 
         foreach ($obj as $key => $val) {

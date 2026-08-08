@@ -2,12 +2,19 @@
 
 namespace DigitalFuzed\TextileCore\Providers;
 
+use DigitalFuzed\TextileCore\Console\Commands\SendPaymentReminders;
 use Illuminate\Support\ServiceProvider;
 
 class TextileCoreServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                SendPaymentReminders::class,
+            ]);
+        }
+
         $routesPath = __DIR__.'/../Routes/web.php';
         if (file_exists($routesPath)) {
             $this->loadRoutesFrom($routesPath);

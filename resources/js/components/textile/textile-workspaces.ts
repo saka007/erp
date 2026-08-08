@@ -1,6 +1,7 @@
 import {
     AlertTriangle,
     BarChart3,
+    BellRing,
     Boxes,
     Briefcase,
     ClipboardCheck,
@@ -256,6 +257,17 @@ export const textileWorkspaces: TextileWorkspace[] = [
             { id: 'finance', label: 'Finance', icon: Wallet },
             { id: 'maintenance', label: 'Maintenance', icon: Wrench },
             { id: 'hr', label: 'HR', icon: UserCheck },
+        ],
+    },
+    {
+        id: 'payments',
+        title: 'Payments',
+        routeName: 'textile.payments.index',
+        capability: 'payments',
+        sections: [
+            { id: 'overview', label: 'Branch Overview', icon: LayoutDashboard },
+            { id: 'vendors', label: 'Vendor-wise Activity', icon: ShoppingBag },
+            { id: 'reminders', label: 'Reminders', icon: BellRing },
         ],
     },
 ];

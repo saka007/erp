@@ -85,6 +85,7 @@ import {
     Users,
     UsersRound,
     Wand2,
+    Wallet,
     Warehouse,
     Workflow,
     Wrench,
@@ -753,6 +754,11 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                 title: t('Finance'),
                 href: route('textile.finance.index'),
                 icon: Banknote,
+            },
+            {
+                title: t('Payments'),
+                href: route('textile.payments.index'),
+                icon: Wallet,
             },
             {
                 title: t('Reports'),

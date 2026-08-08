@@ -12,7 +12,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // Send payment reminders for overdue supplier/buyer invoices every morning.
+        $schedule->command('textile:payment-reminders')->dailyAt('09:00')->withoutOverlapping();
     }
 
     /**
