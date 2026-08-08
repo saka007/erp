@@ -19,6 +19,8 @@ class TextileLot extends Model
         'production_stage' => 'string',
         'source_document_type' => 'string',
         'source_document_id' => 'integer',
+        'parent_lot_reference' => 'string',
+        'parent_lot_type' => 'string',
     ];
 
     // ── Material type constants ──

@@ -5,6 +5,7 @@ namespace DigitalFuzed\TextileCore\Services;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
+use DigitalFuzed\TextileInventory\Services\TextileConsumptionService;
 use DigitalFuzed\TextileInventory\Services\TextileLotAutoCreationService;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -14,7 +15,8 @@ class TextileManufacturingService
     public function __construct(
         protected TextileWorkflowService $workflowService,
         protected TextileLotAutoCreationService $lotAutoCreationService,
-        protected TextileOperatingPolicyService $policyService
+        protected TextileOperatingPolicyService $policyService,
+        protected TextileConsumptionService $consumptionService
     ) {
     }
 
@@ -49,10 +51,53 @@ class TextileManufacturingService
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
 
-        // Auto-create beam lot
-        $this->lotAutoCreationService->createFromBeam($beam);
+        // Auto-create beam lot, tracing back to the source yarn lot when present.
+        $sourceYarnLot = $this->resolveSourceYarnLot(
+            (string) ($payload['source_reference_type'] ?? ''),
+            (int) ($payload['source_reference_id'] ?? 0),
+            $beam->created_by,
+        );
+
+        $this->lotAutoCreationService->createFromBeam(
+            $beam,
+            $sourceYarnLot?->lot_reference,
+            TextileLot::TYPE_YARN,
+        );
+
+        // Consume the issued yarn from stock (fail-open).
+        if ($sourceYarnLot !== null) {
+            $this->consumptionService->issueYarnForBeam(
+                $sourceYarnLot->lot_reference,
+                (float) ($beam->quantity ?? 0),
+                (string) ($beam->unit ?? 'kg'),
+                'beam',
+                $beam->id,
+                $beam->created_by,
+            );
+        }
 
         return $beam;
+    }
+
+    /**
+     * Resolve a yarn lot by its source reference (textile_lot / inventory_lot).
+     */
+    private function resolveSourceYarnLot(string $sourceType, int $sourceId, ?int $tenantId): ?TextileLot
+    {
+        if (! in_array($sourceType, ['textile_lot', 'inventory_lot'], true) || $sourceId <= 0) {
+            return null;
+        }
+
+        $lot = TextileLot::query()
+            ->where('created_by', $tenantId)
+            ->where('id', $sourceId)
+            ->first();
+
+        if ($lot !== null && (string) ($lot->material_type ?? '') === TextileLot::TYPE_YARN) {
+            return $lot;
+        }
+
+        return null;
     }
 
     public function createBeamFromYarnAllocation(int $yarnAllocationId, array $payload = []): TextileWorkflowDocument
@@ -97,7 +142,22 @@ class TextileManufacturingService
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
 
-        $this->lotAutoCreationService->createFromBeam($beam);
+        // Auto-create beam lot, tracing back to the source yarn lot.
+        $sourceYarnLot = (string) ($yarnAllocation->lot_reference ?? '');
+        $this->lotAutoCreationService->createFromBeam($beam, $sourceYarnLot !== '' ? $sourceYarnLot : null, TextileLot::TYPE_YARN);
+
+        // Consume the issued yarn from stock (fail-open). The yarn was reserved
+        // at allocation time, so the reservation is fulfilled — not double-decremented.
+        $this->consumptionService->issueYarnForBeam(
+            $sourceYarnLot,
+            $quantity,
+            (string) ($yarnAllocation->unit ?? 'kg'),
+            'beam',
+            $beam->id,
+            $yarnAllocation->created_by,
+            'yarn_allocation',
+            $yarnAllocation->id,
+        );
 
         return $beam;
     }
@@ -183,7 +243,7 @@ class TextileManufacturingService
             throw new RuntimeException('Warp plan must be approved before yarn allocation.');
         }
 
-        return $this->workflowService->createDocument([
+        $allocation = $this->workflowService->createDocument([
             'document_type' => 'yarn_allocation',
             'source_reference_type' => 'textile_workflow_document',
             'source_reference_id' => $warpPlan->id,
@@ -196,6 +256,58 @@ class TextileManufacturingService
             'metadata' => $payload['metadata'] ?? null,
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
+
+        // Reserve yarn from the source lot committed by this allocation (fail-open).
+        $sourceYarnLot = $this->resolveWarpPlanYarnLot($warpPlan);
+        if ($sourceYarnLot !== null) {
+            $this->consumptionService->reserveYarnForAllocation(
+                $sourceYarnLot->lot_reference,
+                (float) ($allocation->quantity ?? 0),
+                'yarn_allocation',
+                $allocation->id,
+                $warpPlan->created_by,
+            );
+        }
+
+        return $allocation;
+    }
+
+    /**
+     * Resolve the yarn lot a warp plan draws from. The warp plan's source is
+     * either an inventory/textile lot directly, or its lot_reference maps to a
+     * yarn lot created by the incoming-QC pass.
+     */
+    private function resolveWarpPlanYarnLot(TextileWorkflowDocument $warpPlan): ?TextileLot
+    {
+        $tenantId = $warpPlan->created_by;
+        $sourceType = (string) ($warpPlan->source_reference_type ?? '');
+        $sourceId = (int) ($warpPlan->source_reference_id ?? 0);
+
+        if (in_array($sourceType, ['textile_lot', 'inventory_lot'], true) && $sourceId > 0) {
+            $lot = TextileLot::query()
+                ->where('created_by', $tenantId)
+                ->where('id', $sourceId)
+                ->first();
+
+            if ($lot !== null && (string) ($lot->material_type ?? '') === TextileLot::TYPE_YARN) {
+                return $lot;
+            }
+        }
+
+        // Fall back to resolving by lot_reference (matches GRN/QC-pass yarn lots).
+        $reference = (string) ($warpPlan->lot_reference ?? '');
+        if ($reference !== '') {
+            $lot = TextileLot::query()
+                ->where('created_by', $tenantId)
+                ->where('lot_reference', $reference)
+                ->first();
+
+            if ($lot !== null && (string) ($lot->material_type ?? '') === TextileLot::TYPE_YARN) {
+                return $lot;
+            }
+        }
+
+        return null;
     }
 
     public function createWarpSheet(int $yarnAllocationId, array $payload = []): TextileWorkflowDocument
@@ -835,7 +947,27 @@ class TextileManufacturingService
             ],
         ]);
 
-        $this->lotAutoCreationService->createFromWeavingOutput($takha);
+        // Takha grey lot traces back to the batch's weaving-output lot (fallback: beam lot).
+        $batch = $this->findBatchByIdForTenant((int) ($metadata['batch_id'] ?? 0), $assignment->created_by);
+        $parentReference = null;
+        $parentType = null;
+
+        if ($batch !== null) {
+            $weavingOutputLot = $this->resolveBatchWeavingOutputLot($batch);
+            if ($weavingOutputLot !== null) {
+                $parentReference = $weavingOutputLot->lot_reference;
+                $parentType = TextileLot::TYPE_GREY_FABRIC;
+            } else {
+                $beamReference = $this->resolveBatchBeamLotReference($batch);
+                $parentReference = $beamReference ?? (string) $batch->lot_reference;
+                $parentType = TextileLot::TYPE_BEAM;
+            }
+        } else {
+            $parentReference = (string) $assignment->lot_reference;
+            $parentType = TextileLot::TYPE_BEAM;
+        }
+
+        $this->lotAutoCreationService->createFromWeavingOutput($takha, $parentReference, $parentType);
 
         return $takha;
     }
@@ -870,10 +1002,92 @@ class TextileManufacturingService
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
 
-        // Auto-create grey fabric lot
-        $this->lotAutoCreationService->createFromWeavingOutput($output);
+        // Auto-create grey fabric lot, tracing back to the source beam lot.
+        $beamLotReference = $this->resolveBatchBeamLotReference($batch);
+        $this->lotAutoCreationService->createFromWeavingOutput(
+            $output,
+            $beamLotReference !== null ? $beamLotReference : (string) $batch->lot_reference,
+            TextileLot::TYPE_BEAM,
+        );
 
         return $output;
+    }
+
+    /**
+     * Resolve the beam lot reference a production batch was built from.
+     */
+    private function resolveBatchBeamLotReference(TextileWorkflowDocument $batch): ?string
+    {
+        $sourceType = (string) ($batch->source_reference_type ?? '');
+        $sourceId = (int) ($batch->source_reference_id ?? 0);
+
+        if ($sourceType === 'textile_workflow_document' && $sourceId > 0) {
+            $beam = TextileWorkflowDocument::query()
+                ->where('created_by', $batch->created_by)
+                ->where('document_type', 'beam')
+                ->where('id', $sourceId)
+                ->first();
+
+            if ($beam !== null) {
+                return (string) ($beam->lot_reference ?? '');
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Find a production batch for a tenant (fail-open: null when not found).
+     */
+    private function findBatchByIdForTenant(int $batchId, ?int $tenantId): ?TextileWorkflowDocument
+    {
+        if ($batchId <= 0) {
+            return null;
+        }
+
+        return TextileWorkflowDocument::query()
+            ->where('created_by', $tenantId)
+            ->where('document_type', 'production_batch')
+            ->where('id', $batchId)
+            ->first();
+    }
+
+    /**
+     * Resolve the grey fabric lot auto-created for a batch's weaving output.
+     */
+    private function resolveBatchWeavingOutputLot(TextileWorkflowDocument $batch): ?TextileLot
+    {
+        $output = TextileWorkflowDocument::query()
+            ->where('created_by', $batch->created_by)
+            ->where('document_type', 'weaving_output')
+            ->where('source_reference_type', 'textile_workflow_document')
+            ->where('source_reference_id', $batch->id)
+            ->latest('id')
+            ->first();
+
+        if ($output === null) {
+            return null;
+        }
+
+        return TextileLot::query()
+            ->where('created_by', $batch->created_by)
+            ->where('material_type', TextileLot::TYPE_GREY_FABRIC)
+            ->where('source_document_type', 'weaving_output')
+            ->where('source_document_id', $output->id)
+            ->first();
+    }
+
+    /**
+     * Resolve the grey fabric lot auto-created for a weaving output document.
+     */
+    private function resolveWeavingOutputGreyLot(TextileWorkflowDocument $output): ?TextileLot
+    {
+        return TextileLot::query()
+            ->where('created_by', $output->created_by)
+            ->where('material_type', TextileLot::TYPE_GREY_FABRIC)
+            ->where('source_document_type', 'weaving_output')
+            ->where('source_document_id', $output->id)
+            ->first();
     }
 
     public function createShiftProduction(int $batchId, array $payload = []): TextileWorkflowDocument
@@ -940,7 +1154,7 @@ class TextileManufacturingService
             throw new RuntimeException('Takha number already exists in this branch.');
         }
 
-        return $this->workflowService->createDocument([
+        $takha = $this->workflowService->createDocument([
             'document_type' => 'takha_entry',
             'source_reference_type' => 'textile_workflow_document',
             'source_reference_id' => $output->id,
@@ -956,6 +1170,16 @@ class TextileManufacturingService
             ],
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
+
+        // Takha grey lot traces back to the weaving output's grey lot.
+        $parentLot = $this->resolveWeavingOutputGreyLot($output);
+        $this->lotAutoCreationService->createFromWeavingOutput(
+            $takha,
+            $parentLot?->lot_reference,
+            TextileLot::TYPE_GREY_FABRIC,
+        );
+
+        return $takha;
     }
 
     public function createLoomEfficiency(int $loomMasterId, array $payload = []): TextileWorkflowDocument

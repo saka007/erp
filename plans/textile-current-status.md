@@ -209,6 +209,45 @@ Verification gate: `npx tsc --noEmit` 0 errors; `npm run build` pass; `php artis
 
 ---
 
+### Phase 3C — Smart Inventory Insights (Aug 2026)
+
+**Problem**: Inventory lots exist but carry no consumption, traceability, or pipeline visibility. A manager cannot see "500kg yarn received → 100kg allocated to warping → beam received → 10 takhas of 10kg woven → inspected → dispatched" at a glance. Material stock sections are bare tables; Locations & Controls is overloaded with 10 stacked forms (Physical Verification ≈ Cycle Count duplicate); no branch filter on inventory.
+
+**Goal**: Make inventory the operational decision screen — stage-by-stage pipeline, lot traceability chain (yarn → beam → grey → takha → finished), automatic movement ledger, yield/conversion insights, and a cleaned-up controls area.
+
+**Flow covered**: PO → GRN → Incoming QC (pass) → warp plan → yarn allocation → beam → production batch → weaving output → multiple takhas → Fabric Inspection → Hold/Release → SO → Dispatch → POD.
+
+**Slices (each end-to-end: backend + UI + menu + test):**
+
+| # | Slice | Scope | Effort | Status |
+|---|---|---|---|---|
+| A | Stock consumption & lot traceability | `parent_lot_reference`/`parent_lot_type` on lots; yarn allocation reserves+issues yarn; beam receipt consumes yarn; weaving output gets own grey lot ref (fix collision); takha receipt links to weaving-output lot | 3 hrs | `[x]` |
+| B | Automatic movement ledger | Post movements at every transition (yarn issue, beam receipt/issue, weaving output, takha receipt, inspection pass, dispatch issue); ledger = single source of truth | 2 hrs | `[ ]` |
+| C | Smart Overview pipeline | Stage cards (Procurement → QC → Warping → Sizing → Weaving → Processing → Packing → Dispatch) with qty per stage; KPIs (yarn available/in warping, beams ready/in weaving, takhas produced, grey available, inspected, dispatched); lot table with stage badge + days-in-stage aging | 3 hrs | `[ ]` |
+| D | Material stock sections enriched | Yarn/Beam/Grey/Finished sections get available/WIP/reserved/aging summary, low-stock + reorder alert, stage filter, movement sparkline | 2 hrs | `[ ]` |
+| E | Yield & conversion report | Yarn→beam conversion %, beam→fabric meters, wastage/loss per batch, issued vs produced reconciliation | 2 hrs | `[ ]` |
+| F | Lot drill-down traceability | Enhance `LotShow`: parent → this → child chain, full movement history, linked docs (GRN, warp plan, beam, batch, takhas, inspection, dispatch) | 2 hrs | `[ ]` |
+| G | Locations & Controls cleanup | Merge Physical Verification + Cycle Count → one Stock Count tab; group into 4 sub-tabs (Location Setup / Lot Controls / Stock Count / Reservations) | 1.5 hrs | `[ ]` |
+| H | Branch filter on inventory | `?branch_id=` scoping on lots/movements/reservations + branch selector in UI (parity with payments) | 1.5 hrs | `[ ]` |
+
+**Audit findings baked into the plan:**
+- Yarn allocation currently does NOT consume/reserve yarn — manufacturing service has zero reservation/decrement calls (verified).
+- Weaving output reuses the beam's `lot_reference`, so `firstOrCreate` finds the existing beam lot and never creates a grey lot (collision bug, verified in `TextileLotAutoCreationService`).
+- Only Incoming-QC-pass posts a receipt movement today; beam/weaving/takha transitions post nothing.
+- `storePhysicalVerification` is a strict subset of `storeCycleCount` (no record saved) — merge into one Stock Count control.
+- GRN `createFromGrn` hook is dead code — GRN lot is actually created in `TextileProcurementService::finalizeIncomingQc`.
+
+**Slice A delivered (2026-08-08):**
+- New migration `2026_08_08_000012_add_parent_lot_to_textile_lots_table` → `parent_lot_reference` + `parent_lot_type` on `textile_lots` (schema-guarded, applied on production).
+- New `TextileConsumptionService` (reserve yarn at allocation, issue+consume at beam receipt, fulfill reservation without double decrement, fail-open for legacy data).
+- `TextileLotAutoCreationService`: source-document idempotency guard (fixes duplicate grey lot bug), weaving output derives own `GREY-*` reference, takha links to weaving-output grey lot, beam links to source yarn lot.
+- `TextileManufacturingService`: wired allocation→reservation, beam→yarn issue + parent link, weaving output→grey lot (own ref), takha→grey lot parent chain.
+- Verification: `php artisan test tests/Feature/Textile/TextileInventoryConsumptionTest.php` => 3 passed (57 assertions); full textile suite => 67 passed (1271 assertions); `npx tsc --noEmit` => 0 errors; `npm run build` => pass (existing chunk-size warnings only); migration applied + deployed on production (homepage 302 / login 200, no log errors).
+
+Verification gate per slice: `npx tsc --noEmit` 0 errors; `npm run build` pass; `php artisan test tests/Feature/Textile/` pass; browser check — section renders, deep links work, menu/submenu navigable, controlled fields select-based; navigation acceptance checklist satisfied.
+
+---
+
 ### Phase 4 — Master/CRUD pages (light touch)
 
 - [ ] `Masters`, `Specifications`, `Costing`, `Approvals`, `CostCenters`, `CustomFields`, `OperatingPolicy`, `Logs`, `DispatchVehicles`, `DispatchDrivers`, `DispatchRoutes` — adopt shared `TextileFormCard`/`TextileSection`/KPIs where duplicated; no rail needed (single-purpose pages).
