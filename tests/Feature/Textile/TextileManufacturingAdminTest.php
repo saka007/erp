@@ -955,18 +955,30 @@ class TextileManufacturingAdminTest extends TestCase
                 ->assertSee($beamInspection->document_number)
                 ->assertSee($beamCost->document_number);
 
+        // With no branch selected in session, the platform auto-defaults to the
+        // tenant's first branch, so creation succeeds and lands in that branch.
         $this->withSession(['active_branch_id' => null])
             ->actingAs($companyA)
             ->post(route('textile.manufacturing.beams.store'), [
                 'source_reference_type' => 'sales_order',
                 'source_reference_id' => 99001,
                 'source_action' => 'beam_prepare',
-                'party_name' => 'Blocked Without Branch',
-                'lot_reference' => 'BRANCH-REQUIRED',
+                'party_name' => 'Auto Branch Beam',
+                'lot_reference' => 'BRANCH-DEFAULTED',
                 'quantity' => 10,
                 'unit' => 'mtr',
             ])
-            ->assertSessionHasErrors('source_reference_id');
+            ->assertSessionHasNoErrors();
+
+        $defaultedBeam = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'beam')
+            ->where('lot_reference', 'BRANCH-DEFAULTED')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($defaultedBeam);
+        $this->assertSame((int) $branchA->id, (int) $defaultedBeam->branch_id);
     }
 
     public function test_takha_entry_requires_unique_number_and_stays_within_output_quantity(): void

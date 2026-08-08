@@ -242,7 +242,7 @@ class TextileProcurementAdminTest extends TestCase
             ->assertSee('Alpha Fibers');
     }
 
-    public function test_requisition_create_without_active_branch_returns_friendly_error_not_500(): void
+    public function test_requisition_create_auto_defaults_to_first_branch_when_none_selected(): void
     {
         AddOn::create([
             'module' => 'TextileCore',
@@ -256,30 +256,30 @@ class TextileProcurementAdminTest extends TestCase
         $companyA = $this->company();
 
         // Tenant has branches but no active branch is selected in session.
-        Branch::create([
+        $branchA = Branch::create([
             'branch_name' => 'Main Office',
             'creator_id' => $companyA->id,
             'created_by' => $companyA->id,
         ]);
 
-        $response = $this->actingAs($companyA)
+        $this->actingAs($companyA)
             ->post(route('textile.procurement.requisitions.store'), [
                 'party_name' => 'Alpha Fibers',
-                'lot_reference' => 'LOT-NOBRANCH',
+                'lot_reference' => 'LOT-AUTOBRANCH',
                 'quantity' => 100,
                 'unit' => 'kg',
-            ]);
+            ])
+            ->assertSessionHasNoErrors();
 
-        $response->assertSessionHasErrors('party_name');
-        $response->assertSessionHas('errors');
+        $requisition = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'purchase_requisition')
+            ->latest('id')
+            ->first();
 
-        $this->assertSame(
-            0,
-            TextileWorkflowDocument::query()
-                ->where('created_by', $companyA->id)
-                ->where('document_type', 'purchase_requisition')
-                ->count()
-        );
+        $this->assertNotNull($requisition);
+        $this->assertSame('draft', $requisition->status);
+        $this->assertSame((int) $branchA->id, (int) $requisition->branch_id);
     }
 
     private function company(): User

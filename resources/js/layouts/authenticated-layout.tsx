@@ -50,6 +50,7 @@ function AuthenticatedLayoutContent({
     const branchOptions = branchContext?.branches || [];
     const canManageAllBranches = Boolean(branchContext?.can_manage_all_branches);
     const activeBranchId = branchContext?.active_branch_id;
+    const isSuperAdmin = auth?.user?.type === 'superadmin';
     useFavicon();
     useFlashMessages();
 
@@ -133,12 +134,14 @@ function AuthenticatedLayoutContent({
                         {canManageAllBranches && (
                             <select
                                 className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                                value={activeBranchId ?? ''}
+                                value={activeBranchId ?? branchOptions[0]?.id ?? ''}
                                 onChange={(event) => updateBranchContext(event.target.value)}
                                 aria-label={t('Active Branch')}
                                 disabled={branchOptions.length === 0}
                             >
-                                <option value="">{t('All Branches')}</option>
+                                {isSuperAdmin ? (
+                                    <option value="">{t('All Branches')}</option>
+                                ) : null}
                                 {branchOptions.length === 0 ? (
                                     <option value="" disabled>
                                         {t('No branches available')}

@@ -242,15 +242,37 @@ class HandleInertiaRequests extends Middleware
         if ($this->canManageAllBranches($user)) {
             $activeBranchId = $request->session()->get('active_branch_id');
             if (! is_numeric($activeBranchId)) {
-                return null;
+                $activeBranchId = null;
             }
 
-            return DB::table('branches')
-                ->where('created_by', creatorId())
-                ->where('id', (int) $activeBranchId)
-                ->exists()
-                ? (int) $activeBranchId
-                : null;
+            if ($activeBranchId !== null) {
+                $exists = DB::table('branches')
+                    ->where('created_by', creatorId())
+                    ->where('id', (int) $activeBranchId)
+                    ->exists();
+
+                if (! $exists) {
+                    $activeBranchId = null;
+                }
+            }
+
+            // Company accounts (and any non-superadmin user who can manage all
+            // branches) always operate inside a specific branch: when no branch
+            // has been chosen yet, default to the tenant's first branch so
+            // document creation works out of the box (no "All Branches" mode).
+            // Superadmin keeps the "All Branches" view.
+            if ($activeBranchId === null && $user->type !== 'superadmin') {
+                $activeBranchId = DB::table('branches')
+                    ->where('created_by', creatorId())
+                    ->orderBy('branch_name')
+                    ->value('id');
+
+                if ($activeBranchId !== null) {
+                    $request->session()->put('active_branch_id', (int) $activeBranchId);
+                }
+            }
+
+            return $activeBranchId !== null ? (int) $activeBranchId : null;
         }
 
         if (! Schema::hasTable('employees')) {

@@ -258,6 +258,13 @@ export default function Index({
                                         onSuccess: () => requisitionForm.reset('party_name', 'lot_reference', 'quantity', 'required_for', 'expected_date', 'remarks', 'warehouse'),
                                     });
                                 }}>
+                                    {Object.keys(requisitionForm.errors).length > 0 && (
+                                        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                                            {Object.values(requisitionForm.errors).map((message) => (
+                                                <p key={message}>{message}</p>
+                                            ))}
+                                        </div>
+                                    )}
                                     <div className="grid gap-4 md:grid-cols-3">
                                         <div className="space-y-3">
                                             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Supplier Information')}</p>
