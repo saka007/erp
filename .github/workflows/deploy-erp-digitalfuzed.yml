@@ -37,13 +37,24 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -p 22 -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -p 22 -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts || true
 
       - name: Sync files to server
         run: |
+          # Server-owned runtime/data paths are excluded so rsync --delete never
+          # removes them: .env, storage/installed (installer marker), logs,
+          # framework caches, user-uploaded media, and uploads.
           rsync -az --delete --omit-dir-times --no-perms --no-owner --no-group \
-            --exclude='.git' --exclude='.github' --exclude='node_modules' --exclude='tests' --exclude='.env' \
-            -e "ssh -i ~/.ssh/id_rsa -p 22 -o StrictHostKeyChecking=yes" \
+            --exclude='.git' --exclude='.github' --exclude='node_modules' --exclude='tests' \
+            --exclude='.env' --exclude='.env.backup' \
+            --exclude='storage/installed' \
+            --exclude='storage/logs/' \
+            --exclude='storage/framework/' \
+            --exclude='storage/debugbar/' \
+            --exclude='storage/app/public/media/' \
+            --exclude='storage/app/public/uploads/' \
+            --exclude='storage/app/temp/' \
+            -e "ssh -i ~/.ssh/id_rsa -p 22 -o StrictHostKeyChecking=accept-new" \
             ./ "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ env.APP_PATH }}/"
 
       - name: Remote post-deploy
@@ -57,8 +68,11 @@ jobs:
             set -e
             APP_PATH="/home/digitalfuzed-erp-cp/htdocs/erp.digitalfuzed.com"
             APP_USER="digitalfuzed-erp-cp"
+            export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
 
-            mkdir -p "$APP_PATH/storage/logs" "$APP_PATH/bootstrap/cache"
+            mkdir -p "$APP_PATH/storage/logs" "$APP_PATH/bootstrap/cache" \
+              "$APP_PATH/storage/framework/sessions" "$APP_PATH/storage/framework/views" \
+              "$APP_PATH/storage/framework/cache/data"
             if [ -f "$APP_PATH/.env.example" ] && [ ! -f "$APP_PATH/.env" ]; then
               cp "$APP_PATH/.env.example" "$APP_PATH/.env"
             fi
@@ -96,4 +110,15 @@ jobs:
             systemctl restart php8.4-fpm
             systemctl reload nginx
 
-            curl -sSI -H "Host: erp.digitalfuzed.com" http://127.0.0.1 | head -n 1
+            # Health check: site must answer on /login (200, or a redirect such as
+            # 301/302/307). Otherwise the deploy is considered failed.
+            sleep 2
+            HTTP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" -H "Host: erp.digitalfuzed.com" https://127.0.0.1/login || true)
+            if [ "$HTTP_CODE" = "000" ]; then
+              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: erp.digitalfuzed.com" http://127.0.0.1/login || true)
+            fi
+            echo "Health check HTTP $HTTP_CODE"
+            case "$HTTP_CODE" in
+              200|301|302|307) echo "Deploy OK";;
+              *) echo "Health check failed with HTTP $HTTP_CODE" >&2; exit 1;;
+            esac
