@@ -59,9 +59,29 @@ class TextileQualityService
         // approved) — record the QC transfer so the ledger shows the full chain.
         if ($decision === 'pass') {
             $this->ledgerService->postInspectionPass($finalized, (string) ($finalized->unit ?? ''));
+
+            // Mark the inspected lot quality-approved so the inventory table shows
+            // the QC stage (fail-open when the lot is missing).
+            if ((string) ($finalized->lot_reference ?? '') !== '') {
+                $this->markLotQualityApproved((string) $finalized->lot_reference);
+            }
         }
 
         return $finalized;
+    }
+
+    /**
+     * Flag a lot as quality-approved after a pass inspection (fail-open).
+     */
+    protected function markLotQualityApproved(string $lotReference): void
+    {
+        try {
+            $lot = $this->findTenantLot($lotReference);
+            $lot->production_stage = TextileLot::STAGE_QUALITY_APPROVED;
+            $lot->save();
+        } catch (\RuntimeException) {
+            // Fail-open: lot missing for this tenant — nothing to update.
+        }
     }
 
     public function createCertificate(array $payload): TextileWorkflowDocument

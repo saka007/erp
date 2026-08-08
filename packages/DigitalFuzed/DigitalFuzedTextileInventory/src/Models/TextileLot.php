@@ -50,6 +50,7 @@ class TextileLot extends Model
     public const STAGE_WEAVING = 'weaving';
     public const STAGE_PROCESSING = 'processing';
     public const STAGE_PACKING = 'packing';
+    public const STAGE_QUALITY_APPROVED = 'quality_approved';
     public const STAGE_DISPATCH = 'dispatch';
 
     // ── Scopes ──

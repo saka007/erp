@@ -2,6 +2,7 @@
 
 namespace DigitalFuzed\TextileInventory\Services;
 
+use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Models\TextileReservation;
 use Illuminate\Support\Facades\Log;
@@ -152,6 +153,206 @@ class TextileConsumptionService
         }
 
         return true;
+    }
+
+    /**
+     * Consume a beam lot when weaving output (grey fabric) is recorded.
+     *
+     * In-house weaving issues the beam warehouse → weaving. Outsourced weaving
+     * (powerloom vendor) issues the beam warehouse → powerloom-vendor.
+     * Fail-open: no-op when the beam lot is missing or has nothing available.
+     */
+    public function issueBeamForWeaving(
+        string $beamLotReference,
+        float $quantity,
+        string $unit,
+        string $referenceType = 'weaving_output',
+        ?int $referenceId = null,
+        ?int $tenantId = null,
+        bool $outsourced = false,
+    ): bool {
+        return $this->issueForProduction(
+            $beamLotReference,
+            $quantity,
+            $unit,
+            $referenceType,
+            $referenceId,
+            $tenantId,
+            'warehouse',
+            $outsourced ? 'powerloom-vendor' : 'weaving',
+            $outsourced
+                ? 'Beam issued to powerloom vendor for outsourced weaving.'
+                : 'Beam issued for in-house weaving.',
+        );
+    }
+
+    /**
+     * Consume the parent grey fabric lot when a takha is cut from it.
+     *
+     * In-house weaving moves grey weaving → warehouse. Outsourced weaving
+     * receives the takha grey back from the powerloom vendor.
+     * Fail-open: no-op when the parent grey lot is missing or has nothing
+     * available.
+     */
+    public function issueGreyForTakha(
+        string $greyLotReference,
+        float $quantity,
+        string $unit,
+        string $referenceType = 'takha_entry',
+        ?int $referenceId = null,
+        ?int $tenantId = null,
+        bool $outsourced = false,
+    ): bool {
+        return $this->issueForProduction(
+            $greyLotReference,
+            $quantity,
+            $unit,
+            $referenceType,
+            $referenceId,
+            $tenantId,
+            $outsourced ? 'powerloom-vendor' : 'weaving',
+            'warehouse',
+            $outsourced
+                ? 'Grey fabric received from powerloom vendor takha cutting.'
+                : 'Grey fabric issued for in-house takha cutting.',
+        );
+    }
+
+    /**
+     * Generic production consumption: post an issue movement and decrement the
+     * source lot's available_quantity (fail-open).
+     *
+     * When the movement unit differs from the lot's recorded unit and a
+     * conversion factor exists (e.g. kg → mtr), the consumed quantity is
+     * converted so the lot is not over-decremented. Without a conversion the
+     * raw quantity is used.
+     */
+    public function issueForProduction(
+        string $lotReference,
+        float $quantity,
+        string $unit,
+        string $referenceType,
+        ?int $referenceId,
+        ?int $tenantId,
+        string $locationFrom,
+        string $locationTo,
+        string $notes,
+    ): bool {
+        if ($lotReference === '' || $quantity <= 0) {
+            return false;
+        }
+
+        $lot = $this->findLot($lotReference, $tenantId);
+        if ($lot === null) {
+            Log::info("TextileConsumption: lot '{$lotReference}' not found — production issue skipped (fail-open).");
+
+            return false;
+        }
+
+        $available = (float) $lot->available_quantity;
+        $lotUnit = $this->resolveLotUnit($lot);
+
+        // Convert the movement quantity into the lot's own unit when they differ.
+        $consumeQuantity = $quantity;
+        if ($unit !== '' && $lotUnit !== null && strtolower($lotUnit) !== strtolower($unit)) {
+            $converted = $this->convertQuantity($quantity, $unit, $lotUnit, $tenantId);
+            if ($converted !== null) {
+                $consumeQuantity = $converted;
+            }
+        }
+
+        $issueQuantity = min($consumeQuantity, $available);
+        if ($issueQuantity <= 0) {
+            Log::info("TextileConsumption: lot '{$lotReference}' has no available stock — production issue skipped (fail-open).");
+
+            return false;
+        }
+
+        $this->movementService->createMovement([
+            'movement_type' => 'issue',
+            'reference_type' => $referenceType,
+            'reference_id' => $referenceId,
+            'lot_reference' => $lotReference,
+            'location_from' => $locationFrom,
+            'location_to' => $locationTo,
+            'quantity' => $consumeQuantity,
+            'unit' => $unit,
+            'status' => 'posted',
+            'notes' => $notes,
+        ]);
+
+        $lot->available_quantity = max(0, $available - $issueQuantity);
+        $lot->save();
+
+        return true;
+    }
+
+    /**
+     * Convert a quantity from one unit to another using the tenant's active
+     * conversion table (fail-open: null when no conversion is defined).
+     */
+    private function convertQuantity(float $quantity, string $fromUnit, string $toUnit, ?int $tenantId): ?float
+    {
+        if ($fromUnit === '' || $toUnit === '' || $fromUnit === $toUnit) {
+            return null;
+        }
+
+        $conversion = TextileUnitConversion::query()
+            ->where('from_unit', $fromUnit)
+            ->where('to_unit', $toUnit)
+            ->where('is_active', true)
+            ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId))
+            ->first();
+
+        if ($conversion !== null) {
+            return $quantity * (float) $conversion->factor;
+        }
+
+        // Reverse conversion (to_unit → from_unit) divides by the factor.
+        $reverse = TextileUnitConversion::query()
+            ->where('from_unit', $toUnit)
+            ->where('to_unit', $fromUnit)
+            ->where('is_active', true)
+            ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId))
+            ->first();
+
+        if ($reverse !== null && (float) $reverse->factor > 0) {
+            return $quantity / (float) $reverse->factor;
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve the unit a lot is recorded in from its source workflow document
+     * (lots don't carry a unit column). Fail-open: null when unknown.
+     */
+    private function resolveLotUnit(TextileLot $lot): ?string
+    {
+        $sourceType = (string) ($lot->source_document_type ?? '');
+        $sourceId = (int) ($lot->source_document_id ?? 0);
+
+        if ($sourceType === '' || $sourceId <= 0) {
+            return null;
+        }
+
+        if (! class_exists(\DigitalFuzed\TextileCore\Models\TextileWorkflowDocument::class)) {
+            return null;
+        }
+
+        $source = \DigitalFuzed\TextileCore\Models\TextileWorkflowDocument::query()
+            ->where('created_by', $lot->created_by)
+            ->where('document_type', $sourceType)
+            ->where('id', $sourceId)
+            ->first();
+
+        if ($source === null) {
+            return null;
+        }
+
+        $unit = (string) ($source->unit ?? '');
+
+        return $unit !== '' ? $unit : null;
     }
 
     /**

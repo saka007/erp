@@ -298,12 +298,24 @@ class TextileInventoryConsumptionTest extends TestCase
         $this->assertSame(TextileLot::TYPE_BEAM, $greyLot->parent_lot_type);
         $this->assertEquals(220, (float) $greyLot->available_quantity);
 
-        // Beam lot is untouched by the weaving output (still a beam).
+        // Beam lot is consumed by the weaving output (still a beam type, lower available).
         $beamLot->refresh();
         $this->assertSame(TextileLot::TYPE_BEAM, $beamLot->material_type);
-        $this->assertEquals(240, (float) $beamLot->available_quantity);
+        $this->assertEquals(20, (float) $beamLot->available_quantity);
 
-        // Takha entry creates a grey lot linked to the weaving-output grey lot.
+        // Issue movement posted for the beam consumption (weaving output).
+        $beamIssue = TextileMovement::query()
+            ->where('created_by', $companyA->id)
+            ->where('movement_type', 'issue')
+            ->where('lot_reference', 'BEAM-W1')
+            ->where('reference_type', 'weaving_output')
+            ->where('reference_id', $output->id)
+            ->first();
+
+        $this->assertNotNull($beamIssue);
+        $this->assertEquals(220, (float) $beamIssue->quantity);
+
+        // Takha entry consumes the weaving-output grey lot + creates a takha lot.
         $this->actingAs($companyA)
             ->post(route('textile.manufacturing.takha-entries.store'), [
                 'weaving_output_id' => $output->id,
@@ -323,6 +335,21 @@ class TextileInventoryConsumptionTest extends TestCase
         $this->assertSame($greyLot->lot_reference, $takhaLot->parent_lot_reference);
         $this->assertSame(TextileLot::TYPE_GREY_FABRIC, $takhaLot->parent_lot_type);
         $this->assertEquals(80, (float) $takhaLot->available_quantity);
+
+        // Parent grey lot is consumed by the takha cut (220 - 80 = 140).
+        $greyLot->refresh();
+        $this->assertEquals(140, (float) $greyLot->available_quantity);
+
+        // Issue movement posted for the grey consumption (takha entry).
+        $greyIssue = TextileMovement::query()
+            ->where('created_by', $companyA->id)
+            ->where('movement_type', 'issue')
+            ->where('lot_reference', $greyLot->lot_reference)
+            ->where('reference_type', 'takha_entry')
+            ->first();
+
+        $this->assertNotNull($greyIssue);
+        $this->assertEquals(80, (float) $greyIssue->quantity);
     }
 
     public function test_weaving_output_lot_creation_is_idempotent_for_same_document(): void

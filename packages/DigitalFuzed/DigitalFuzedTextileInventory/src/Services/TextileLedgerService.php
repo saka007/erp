@@ -58,15 +58,44 @@ class TextileLedgerService
 
     /**
      * Takha produced → post a receipt for the takha grey lot.
+     *
+     * Vendor-aware: when the takha's metadata carries production_mode
+     * 'powerloom_vendor', weaving was outsourced and the grey comes back from
+     * the powerloom vendor; otherwise it is in-house ('loom-floor').
      */
     public function postTakhaReceipt(TextileWorkflowDocument $takha, string $unit): ?TextileMovement
     {
+        $metadata = is_array($takha->metadata) ? $takha->metadata : [];
+        $outsourced = ($metadata['production_mode'] ?? null) === 'powerloom_vendor';
+
         return $this->post($takha, [
             'movement_type' => 'receipt',
-            'location_from' => 'loom-floor',
+            'location_from' => $outsourced ? 'powerloom-vendor' : 'loom-floor',
             'location_to' => 'warehouse',
             'unit' => $unit,
-            'notes' => 'Takha received from weaving output.',
+            'notes' => $outsourced
+                ? 'Takha received from powerloom vendor (outsourced weaving).'
+                : 'Takha received from in-house weaving output.',
+        ]);
+    }
+
+    /**
+     * Weaving output recorded → post a receipt for the grey fabric lot.
+     *
+     * Vendor-aware: when the batch's weaving is outsourced to a powerloom
+     * vendor the grey is received back from the vendor; otherwise it comes
+     * from in-house weaving.
+     */
+    public function postWeavingOutputReceipt(TextileWorkflowDocument $output, string $unit, bool $outsourced = false): ?TextileMovement
+    {
+        return $this->post($output, [
+            'movement_type' => 'receipt',
+            'location_from' => $outsourced ? 'powerloom-vendor' : 'weaving',
+            'location_to' => 'warehouse',
+            'unit' => $unit,
+            'notes' => $outsourced
+                ? 'Grey fabric received from powerloom vendor weaving.'
+                : 'Grey fabric received from in-house weaving.',
         ]);
     }
 

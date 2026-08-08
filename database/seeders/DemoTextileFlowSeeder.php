@@ -32,6 +32,7 @@ use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Models\TextileMovement;
 use DigitalFuzed\TextileInventory\Models\TextileReservation;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Workdo\Account\Models\Customer;
 use Workdo\Account\Models\Vendor;
@@ -78,6 +79,18 @@ class DemoTextileFlowSeeder extends Seeder
 
         $company = User::query()->where('type', 'company')->orderBy('id')->first();
         return $company ? (int) $company->id : null;
+    }
+
+    /**
+     * Resolve the tenant's first branch id (branches table uses branch_name, not name).
+     * Falls back to null if the tenant has no branches yet.
+     */
+    private function defaultBranchId(int $companyId): ?int
+    {
+        return DB::table('branches')
+            ->where('created_by', $companyId)
+            ->orderBy('id')
+            ->value('id');
     }
 
     private function seedVendors(int $companyId): void
@@ -253,6 +266,8 @@ class DemoTextileFlowSeeder extends Seeder
 
     private function seedInventory(int $companyId): void
     {
+        $branchId = $this->defaultBranchId($companyId);
+
         $locations = [
             ['name' => 'Grey Fabric Warehouse', 'code' => 'LOC-GREY', 'location_type' => 'warehouse'],
             ['name' => 'Dyeing Floor', 'code' => 'LOC-DYE', 'location_type' => 'process-house'],
@@ -267,6 +282,7 @@ class DemoTextileFlowSeeder extends Seeder
             );
         }
 
+        // Opening grey fabric stock.
         $lots = [
             ['lot_reference' => 'LOT-2401-A', 'received_quantity' => 1500, 'available_quantity' => 1120, 'status' => 'active'],
             ['lot_reference' => 'LOT-2401-B', 'received_quantity' => 980, 'available_quantity' => 700, 'status' => 'active'],
@@ -276,7 +292,12 @@ class DemoTextileFlowSeeder extends Seeder
         foreach ($lots as $row) {
             TextileLot::updateOrCreate(
                 ['created_by' => $companyId, 'lot_reference' => $row['lot_reference']],
-                array_merge($row, ['creator_id' => $companyId, 'is_active' => true])
+                array_merge($row, [
+                    'creator_id' => $companyId,
+                    'is_active' => true,
+                    'material_type' => TextileLot::TYPE_GREY_FABRIC,
+                    'production_stage' => TextileLot::STAGE_WEAVING,
+                ])
             );
         }
 
@@ -289,7 +310,13 @@ class DemoTextileFlowSeeder extends Seeder
         foreach ($movements as $index => $row) {
             TextileMovement::updateOrCreate(
                 ['created_by' => $companyId, 'movement_type' => $row['movement_type'], 'lot_reference' => $row['lot_reference'], 'notes' => $row['notes']],
-                array_merge($row, ['creator_id' => $companyId, 'is_active' => true, 'reference_type' => 'inventory_demo', 'reference_id' => $index + 1])
+                array_merge($row, [
+                    'creator_id' => $companyId,
+                    'is_active' => true,
+                    'reference_type' => 'inventory_demo',
+                    'reference_id' => $index + 1,
+                    'branch_id' => $branchId,
+                ])
             );
         }
 
@@ -308,6 +335,8 @@ class DemoTextileFlowSeeder extends Seeder
 
     private function seedWorkflow(int $companyId): void
     {
+        $branchId = $this->defaultBranchId($companyId);
+
         $documents = [
             ['document_type' => 'purchase_requisition', 'document_number' => 'TRQ-0001', 'party_name' => 'Shree Yarn Traders', 'lot_reference' => 'LOT-2403-RM', 'quantity' => 1200, 'unit' => 'kg', 'status' => 'approved'],
             ['document_type' => 'purchase_order', 'document_number' => 'TPO-0001', 'party_name' => 'Shree Yarn Traders', 'lot_reference' => 'LOT-2403-RM', 'quantity' => 1200, 'unit' => 'kg', 'status' => 'approved'],
@@ -343,6 +372,11 @@ class DemoTextileFlowSeeder extends Seeder
             ['document_type' => 'waste', 'document_number' => 'TWS-0001', 'party_name' => 'Unit-1 Weaving', 'lot_reference' => 'LOT-2401-A', 'quantity' => 12, 'unit' => 'kg', 'status' => 'approved', 'metadata' => ['waste_type' => 'selvedge_cut', 'waste_date' => $this->daysAgo(5), 'disposal' => 'recycle']],
             ['document_type' => 'rework', 'document_number' => 'TRW-0001', 'party_name' => 'Unit-1 Weaving', 'lot_reference' => 'LOT-2401-B', 'quantity' => 40, 'unit' => 'mtr', 'status' => 'approved', 'metadata' => ['rework_reason' => 'weft_streak', 'rework_date' => $this->daysAgo(3), 'completed' => true]],
 
+            // Takha entries cut from the weaving output grey fabric (saleable lots).
+            ['document_type' => 'takha_entry', 'document_number' => 'TAK-0001', 'party_name' => 'Unit-1 Weaving', 'lot_reference' => 'LOT-2401-A', 'quantity' => 120, 'unit' => 'mtr', 'status' => 'approved', 'metadata' => ['source_type' => 'weaving_output', 'source_reference' => 'TWO-0001', 'takha_number' => 'TK-0001', 'fabric_type' => 'grey_fabric', 'cut_on' => $this->daysAgo(5)]],
+            ['document_type' => 'takha_entry', 'document_number' => 'TAK-0002', 'party_name' => 'Unit-1 Weaving', 'lot_reference' => 'LOT-2401-A', 'quantity' => 100, 'unit' => 'mtr', 'status' => 'approved', 'metadata' => ['source_type' => 'weaving_output', 'source_reference' => 'TWO-0001', 'takha_number' => 'TK-0002', 'fabric_type' => 'grey_fabric', 'cut_on' => $this->daysAgo(5)]],
+            ['document_type' => 'takha_entry', 'document_number' => 'TAK-0003', 'party_name' => 'Unit-1 Weaving', 'lot_reference' => 'LOT-2401-A', 'quantity' => 200, 'unit' => 'mtr', 'status' => 'approved', 'metadata' => ['source_type' => 'weaving_output', 'source_reference' => 'TWO-0001', 'takha_number' => 'TK-0003', 'fabric_type' => 'grey_fabric', 'cut_on' => $this->daysAgo(4)]],
+
             // Processing + quality + packing + dispatch planning
             ['document_type' => 'processing_batch', 'document_number' => 'TPB-9001', 'party_name' => 'Apex Processing House', 'lot_reference' => 'LOT-2401-B', 'quantity' => 280, 'unit' => 'mtr', 'status' => 'released', 'metadata' => ['process_stage' => 'dyeing', 'batch_ref' => 'PB-DYE-07', 'issued_on' => $this->daysAgo(5)]],
             ['document_type' => 'dyeing', 'document_number' => 'TDYE-0001', 'party_name' => 'Apex Processing House', 'lot_reference' => 'LOT-2401-B', 'quantity' => 275, 'unit' => 'mtr', 'status' => 'approved', 'metadata' => ['process_stage' => 'dyeing', 'shade' => 'Reactive Navy', 'recipe' => 'RR-WOV-01', 'completed_on' => $this->daysAgo(4)]],
@@ -357,7 +391,62 @@ class DemoTextileFlowSeeder extends Seeder
         foreach ($documents as $row) {
             TextileWorkflowDocument::updateOrCreate(
                 ['created_by' => $companyId, 'document_number' => $row['document_number']],
-                array_merge($row, ['creator_id' => $companyId])
+                array_merge($row, ['creator_id' => $companyId, 'branch_id' => $branchId])
+            );
+        }
+
+        // Yarn lot that the procurement docs (TRQ/TPO/TGRN/TIQC) reference, material-typed so
+        // it shows up correctly in the Inventory table. Created after the docs so the GRN
+        // document id is available for traceability.
+        $grnDoc = TextileWorkflowDocument::query()
+            ->where('created_by', $companyId)
+            ->where('document_type', 'grn')
+            ->where('document_number', 'TGRN-0001')
+            ->value('id');
+
+        TextileLot::updateOrCreate(
+            ['created_by' => $companyId, 'lot_reference' => 'LOT-2403-RM'],
+            [
+                'received_quantity' => 1200,
+                'available_quantity' => 1200,
+                'status' => 'active',
+                'material_type' => TextileLot::TYPE_YARN,
+                'production_stage' => TextileLot::STAGE_PROCUREMENT,
+                'source_document_type' => 'grn',
+                'source_document_id' => $grnDoc,
+                'is_active' => true,
+                'creator_id' => $companyId,
+            ]
+        );
+
+        // Takha lots (grey fabric) linked to the takha_entry docs so the sales gate
+        // (source_document_type = takha_entry) accepts them for new sales orders.
+        $takhaLots = [
+            ['lot_reference' => 'TAK-LOT-0001', 'quantity' => 120, 'doc' => 'TAK-0001'],
+            ['lot_reference' => 'TAK-LOT-0002', 'quantity' => 100, 'doc' => 'TAK-0002'],
+            ['lot_reference' => 'TAK-LOT-0003', 'quantity' => 200, 'doc' => 'TAK-0003'],
+        ];
+
+        foreach ($takhaLots as $row) {
+            $takhaDocId = TextileWorkflowDocument::query()
+                ->where('created_by', $companyId)
+                ->where('document_type', 'takha_entry')
+                ->where('document_number', $row['doc'])
+                ->value('id');
+
+            TextileLot::updateOrCreate(
+                ['created_by' => $companyId, 'lot_reference' => $row['lot_reference']],
+                [
+                    'received_quantity' => $row['quantity'],
+                    'available_quantity' => $row['quantity'],
+                    'status' => 'active',
+                    'material_type' => TextileLot::TYPE_GREY_FABRIC,
+                    'production_stage' => TextileLot::STAGE_QUALITY_APPROVED,
+                    'source_document_type' => 'takha_entry',
+                    'source_document_id' => $takhaDocId,
+                    'is_active' => true,
+                    'creator_id' => $companyId,
+                ]
             );
         }
     }

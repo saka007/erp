@@ -980,6 +980,33 @@ class TextileManufacturingService
 
         $this->lotAutoCreationService->createFromWeavingOutput($takha, $parentReference, $parentType);
 
+        // Consume the parent lot that fed this takha (fail-open).
+        $outsourced = ($metadata['production_mode'] ?? null) === 'powerloom_vendor';
+        if ($parentReference !== null && $parentType === TextileLot::TYPE_GREY_FABRIC) {
+            $this->consumptionService->issueGreyForTakha(
+                $parentReference,
+                $quantity,
+                (string) ($takha->unit ?? 'kg'),
+                'takha_entry',
+                $takha->id,
+                $assignment->created_by,
+                $outsourced,
+            );
+        } elseif ($parentReference !== null && $parentType === TextileLot::TYPE_BEAM) {
+            $this->consumptionService->issueBeamForWeaving(
+                $parentReference,
+                $quantity,
+                (string) ($takha->unit ?? 'kg'),
+                'takha_entry',
+                $takha->id,
+                $assignment->created_by,
+                $outsourced,
+            );
+        }
+
+        // Ledger: takha received from weaving (vendor-aware).
+        $this->ledgerService->postTakhaReceipt($takha, (string) ($takha->unit ?? ''));
+
         return $takha;
     }
 
@@ -1021,6 +1048,24 @@ class TextileManufacturingService
             TextileLot::TYPE_BEAM,
         );
 
+        // Consume the beam lot that fed this weaving output (fail-open).
+        // Outsourced when the batch is assigned to a powerloom vendor.
+        if ($beamLotReference !== null) {
+            $outsourced = $this->isBatchWeavingOutsourced($batch);
+            $this->consumptionService->issueBeamForWeaving(
+                $beamLotReference,
+                (float) ($output->quantity ?? 0),
+                (string) ($output->unit ?? 'kg'),
+                'weaving_output',
+                $output->id,
+                $output->created_by,
+                $outsourced,
+            );
+
+            // Ledger: grey fabric received from weaving output.
+            $this->ledgerService->postWeavingOutputReceipt($output, (string) ($output->unit ?? ''), $outsourced);
+        }
+
         return $output;
     }
 
@@ -1045,6 +1090,30 @@ class TextileManufacturingService
         }
 
         return null;
+    }
+
+    /**
+     * Whether a batch's weaving is outsourced to a powerloom vendor.
+     * The production mode lives on the production assignment created for the
+     * batch (own_unit = in-house, powerloom_vendor = 3rd party).
+     */
+    private function isBatchWeavingOutsourced(TextileWorkflowDocument $batch): bool
+    {
+        $assignment = TextileWorkflowDocument::query()
+            ->where('created_by', $batch->created_by)
+            ->where('document_type', 'production_assignment')
+            ->where('source_reference_type', 'textile_workflow_document')
+            ->where('source_reference_id', $batch->id)
+            ->latest('id')
+            ->first();
+
+        if ($assignment === null) {
+            return false;
+        }
+
+        $metadata = is_array($assignment->metadata) ? $assignment->metadata : [];
+
+        return ($metadata['production_mode'] ?? null) === 'powerloom_vendor';
     }
 
     /**
@@ -1189,6 +1258,18 @@ class TextileManufacturingService
             $parentLot?->lot_reference,
             TextileLot::TYPE_GREY_FABRIC,
         );
+
+        // Consume the parent grey lot that fed this takha (fail-open).
+        if ($parentLot !== null) {
+            $this->consumptionService->issueGreyForTakha(
+                $parentLot->lot_reference,
+                $quantity,
+                (string) ($takha->unit ?? 'kg'),
+                'takha_entry',
+                $takha->id,
+                $output->created_by,
+            );
+        }
 
         // Ledger: takha received from weaving output.
         $this->ledgerService->postTakhaReceipt($takha, (string) ($takha->unit ?? ''));
