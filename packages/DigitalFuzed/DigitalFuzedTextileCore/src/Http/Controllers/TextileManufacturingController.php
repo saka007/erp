@@ -9,6 +9,7 @@ use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileCore\Services\TextileManufacturingService;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
+use DigitalFuzed\TextileCore\Services\TextilePartyBranchService;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use DigitalFuzed\TextileCore\Traits\ProvidesRecentActivity;
 use Illuminate\Http\Request;
@@ -1420,6 +1421,7 @@ class TextileManufacturingController extends Controller
             $customers = Customer::query()
                 ->where('created_by', creatorId())
                 ->whereNotNull('company_name')
+                ->pipe(fn ($query) => TextilePartyBranchService::applyPartyScope($query, TextilePartyBranchService::PARTY_CUSTOMER, 'customers'))
                 ->pluck('company_name');
         }
 
@@ -1478,6 +1480,7 @@ class TextileManufacturingController extends Controller
             ->where('supplier_type', 'sizing')
             ->whereNotNull('company_name')
             ->orderBy('company_name')
+            ->pipe(fn ($query) => TextilePartyBranchService::applyPartyScope($query, TextilePartyBranchService::PARTY_VENDOR, 'vendors'))
             ->get(['vendor_code', 'company_name'])
             ->map(fn (Vendor $vendor) => [
                 'value' => $vendor->company_name,
@@ -1498,6 +1501,7 @@ class TextileManufacturingController extends Controller
             ->where('supplier_type', 'powerloom')
             ->whereNotNull('company_name')
             ->orderBy('company_name')
+            ->pipe(fn ($query) => TextilePartyBranchService::applyPartyScope($query, TextilePartyBranchService::PARTY_VENDOR, 'vendors'))
             ->get(['id', 'vendor_code', 'company_name'])
             ->map(fn (Vendor $vendor) => [
                 'value' => (string) $vendor->id,

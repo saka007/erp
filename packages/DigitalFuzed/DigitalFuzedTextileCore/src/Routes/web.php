@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileSpecificationController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileMasterDataController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextilePartyBranchController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileProcurementController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileSalesController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileManufacturingController;
@@ -147,6 +148,10 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/master-setup/{domain}/dispatch-eway-bills', [TextileMasterDataController::class, 'storeDispatchEwayBillByDomain'])->name('textile.master-domains.dispatch-eway-bills.store');
     Route::post('/textile/master-setup/{domain}/dispatch-eway-bills/update', [TextileMasterDataController::class, 'updateDispatchEwayBillByDomain'])->name('textile.master-domains.dispatch-eway-bills.update');
     Route::post('/textile/master-setup/{domain}/dispatch-eway-bills/archive', [TextileMasterDataController::class, 'archiveDispatchEwayBillByDomain'])->name('textile.master-domains.dispatch-eway-bills.archive');
+
+    Route::get('/textile/party-branches', [TextilePartyBranchController::class, 'index'])->name('textile.party-branches.index');
+    Route::post('/textile/party-branches/assign', [TextilePartyBranchController::class, 'assign'])->name('textile.party-branches.assign');
+    Route::post('/textile/party-branches/remove', [TextilePartyBranchController::class, 'remove'])->name('textile.party-branches.remove');
 
     Route::get('/textile/procurement', [TextileProcurementController::class, 'index'])->name('textile.procurement.index');
     Route::post('/textile/procurement/requisitions', [TextileProcurementController::class, 'storeRequisition'])->name('textile.procurement.requisitions.store');

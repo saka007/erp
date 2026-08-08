@@ -9,6 +9,7 @@ use DigitalFuzed\TextileCore\Services\TextileApprovalService;
 use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
+use DigitalFuzed\TextileCore\Services\TextilePartyBranchService;
 use DigitalFuzed\TextileCore\Services\TextileProcurementService;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use DigitalFuzed\TextileCore\Traits\ProvidesRecentActivity;
@@ -484,6 +485,7 @@ class TextileProcurementController extends Controller
         return Vendor::query()
             ->where('created_by', creatorId())
             ->whereNotNull('company_name')
+            ->pipe(fn ($query) => TextilePartyBranchService::applyPartyScope($query, TextilePartyBranchService::PARTY_VENDOR, 'vendors'))
             ->get()
             ->map(function (Vendor $vendor) use ($stats) {
                 $vendorStats = $stats->get($vendor->company_name);
@@ -514,6 +516,7 @@ class TextileProcurementController extends Controller
             $vendors = Vendor::query()
                 ->where('created_by', creatorId())
                 ->whereNotNull('company_name')
+                ->pipe(fn ($query) => TextilePartyBranchService::applyPartyScope($query, TextilePartyBranchService::PARTY_VENDOR, 'vendors'))
                 ->pluck('company_name');
         }
 

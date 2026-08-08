@@ -407,6 +407,11 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                                 href: route('textile.operating-policy.index'),
                                 icon: ToggleLeft,
                             },
+                            {
+                                title: t('Party Branch Assignment'),
+                                href: route('textile.party-branches.index'),
+                                icon: Building2,
+                            },
                         ],
                     },
                     {

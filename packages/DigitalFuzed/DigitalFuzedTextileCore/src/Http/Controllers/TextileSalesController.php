@@ -7,6 +7,7 @@ use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
 use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
+use DigitalFuzed\TextileCore\Services\TextilePartyBranchService;
 use DigitalFuzed\TextileCore\Services\TextileSalesService;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use DigitalFuzed\TextileCore\Traits\ProvidesRecentActivity;
@@ -274,6 +275,7 @@ class TextileSalesController extends Controller
         return Customer::query()
             ->where('created_by', creatorId())
             ->orderBy('company_name')
+            ->pipe(fn ($query) => TextilePartyBranchService::applyPartyScope($query, TextilePartyBranchService::PARTY_CUSTOMER, 'customers'))
             ->get(['id', 'company_name', 'operating_model', 'material_ownership', 'billing_mode'])
             ->map(function (Customer $customer) {
                 return [
@@ -426,6 +428,7 @@ class TextileSalesController extends Controller
             $customers = Customer::query()
                 ->where('created_by', creatorId())
                 ->whereNotNull('company_name')
+                ->pipe(fn ($query) => TextilePartyBranchService::applyPartyScope($query, TextilePartyBranchService::PARTY_CUSTOMER, 'customers'))
                 ->pluck('company_name');
         }
 

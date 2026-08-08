@@ -7,6 +7,7 @@ use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
 use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
+use DigitalFuzed\TextileCore\Services\TextilePartyBranchService;
 use DigitalFuzed\TextileCore\Services\TextileProcessingService;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use Illuminate\Http\Request;
@@ -369,6 +370,7 @@ class TextileProcessingController extends Controller
             $vendors = Vendor::query()
                 ->where('created_by', creatorId())
                 ->whereNotNull('company_name')
+                ->pipe(fn ($query) => TextilePartyBranchService::applyPartyScope($query, TextilePartyBranchService::PARTY_VENDOR, 'vendors'))
                 ->pluck('company_name');
         }
 

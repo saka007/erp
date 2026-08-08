@@ -9,6 +9,7 @@ use DigitalFuzed\TextileCore\Models\TextileDispatchVehicle;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Services\TextileDispatchService;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
+use DigitalFuzed\TextileCore\Services\TextilePartyBranchService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -311,6 +312,7 @@ class TextileDispatchController extends Controller
             ->where('created_by', creatorId())
             ->where('supplier_type', 'transport')
             ->orderBy('company_name')
+            ->pipe(fn ($query) => TextilePartyBranchService::applyPartyScope($query, TextilePartyBranchService::PARTY_VENDOR, 'vendors'))
             ->get(['id', 'vendor_code', 'company_name'])
             ->map(fn (Vendor $vendor) => [
                 'id' => (int) $vendor->id,
@@ -329,6 +331,7 @@ class TextileDispatchController extends Controller
         return Vendor::query()
             ->where('created_by', creatorId())
             ->where('supplier_type', 'transport')
+            ->pipe(fn ($query) => TextilePartyBranchService::applyPartyScope($query, TextilePartyBranchService::PARTY_VENDOR, 'vendors'))
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->values()
