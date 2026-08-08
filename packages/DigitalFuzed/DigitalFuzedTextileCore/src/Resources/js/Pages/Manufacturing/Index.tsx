@@ -687,25 +687,6 @@ export default function Index({
                             />
                             <Button type="submit" disabled={yarnAllocationForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{allocateYarnButtonLabel}</Button>
                         </form>
-                        {useVendorSizingFlow && canDispatchYarnSource && (
-                            <div className="mt-3 border-t pt-3">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="w-full"
-                                    onClick={() => router.get(route('textile.dispatch.index', {
-                                        section: 'planning',
-                                        source_type: 'yarn_dispatch',
-                                        source_id: yarnAllocationForm.data.warp_plan_id || undefined,
-                                    }), {}, { preserveState: false })}
-                                >
-                                    <Truck className="mr-2 h-4 w-4" />{t('Create Dispatch for Yarn')}
-                                </Button>
-                                <p className="mt-2 text-xs text-muted-foreground">
-                                    {t('Hand over the approved yarn dispatch plan to Dispatch for transport planning and tracking.')}
-                                </p>
-                            </div>
-                        )}
                     </TextileFormCard>
                         ) },
                                 { id: 'warp-sheet', title: t('Create Warp Sheet from Yarn Allocation'), icon: Check, status: warpStatuses[2], count: warpSheets.length, form: (
@@ -963,7 +944,32 @@ export default function Index({
                                 <TextileDataTableSection
                                     title={t('Yarn Allocation Records')}
                                     data={yarnAllocations}
-                                    columns={createTextileWorkflowColumns(t)}
+                                    columns={createTextileWorkflowColumns(t, useVendorSizingFlow && canDispatchYarnSource ? {
+                                        actions: createTextileWorkflowActions([
+                                            {
+                                                statuses: ['approved', 'released', 'closed'] as const,
+                                                actions: [
+                                                    {
+                                                        label: t('Create Dispatch'),
+                                                        icon: Truck,
+                                                        onClick: (row) => {
+                                                            const warpPlanId = row.source_reference_id;
+
+                                                            if (!warpPlanId) {
+                                                                return;
+                                                            }
+
+                                                            router.get(route('textile.dispatch.index', {
+                                                                section: 'planning',
+                                                                source_type: 'yarn_dispatch',
+                                                                source_id: warpPlanId,
+                                                            }), {}, { preserveState: false });
+                                                        },
+                                                    },
+                                                ],
+                                            },
+                                        ]),
+                                    } : {})}
                                     emptyState={<NoRecordsFound icon={Factory} title={t('No yarn allocations found')} description={t('Allocate yarn from approved warp plans.')} />}
                                 />
                             );

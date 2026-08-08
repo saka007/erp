@@ -11,6 +11,8 @@ export interface TextileWorkflowRow {
     unit?: string | null;
     status: string;
     purchase_invoice_id?: number | null;
+    source_reference_id?: number | null;
+    source_action?: string | null;
 }
 
 export interface TextileSelectOption {
