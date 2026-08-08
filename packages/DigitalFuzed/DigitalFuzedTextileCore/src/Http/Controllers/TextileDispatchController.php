@@ -69,8 +69,8 @@ class TextileDispatchController extends Controller
             'vehicle_id' => ['nullable', 'integer', Rule::in($this->vehicleIds())],
             'route_id' => ['nullable', 'integer', Rule::in($this->routeIds())],
             'transport_vendor_id' => ['nullable', 'integer', Rule::in($this->transportVendorIds())],
-            'lr_number' => ['nullable', 'string', Rule::in($this->lrNumberOptions())],
-            'eway_bill_number' => ['nullable', 'string', Rule::in($this->ewayBillOptions())],
+            'lr_number' => ['nullable', 'string', 'max:100'],
+            'eway_bill_number' => ['nullable', 'string', 'max:100'],
             'freight_amount' => ['nullable', 'numeric', 'gte:0'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -138,8 +138,8 @@ class TextileDispatchController extends Controller
             'driver_id' => ['nullable', 'integer', Rule::in($this->driverIds())],
             'route_id' => ['nullable', 'integer', Rule::in($this->routeIds())],
             'transport_vendor_id' => ['nullable', 'integer', Rule::in($this->transportVendorIds())],
-            'lr_number' => ['nullable', 'string', Rule::in($this->lrNumberOptions())],
-            'eway_bill_number' => ['nullable', 'string', Rule::in($this->ewayBillOptions())],
+            'lr_number' => ['nullable', 'string', 'max:100'],
+            'eway_bill_number' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 

@@ -133,8 +133,6 @@ export default function Index({
     const resolvedDriverOptions = driverOptions.map((value) => ({ value: String(value.id), label: value.label }));
     const resolvedRouteOptions = routeOptions.map((value) => ({ value: String(value.id), label: value.label }));
     const resolvedTransportVendorOptions = transportVendorOptions.map((value) => ({ value: String(value.id), label: value.label }));
-    const resolvedLrNumberOptions = lrNumberOptions.map((value) => ({ value, label: value }));
-    const resolvedEwayBillOptions = ewayBillOptions.map((value) => ({ value, label: value }));
 
     const challanOptions = createTextileWorkflowSelectOptions(challans);
     const jobWorkOutwardOptions = createTextileWorkflowSelectOptions(jobWorkOutwards);
@@ -285,16 +283,10 @@ export default function Index({
                                     {resolvedTransportVendorOptions.length > 0 && (
                                         <SelectField label={t('Transport Vendor')} value={planningForm.data.transport_vendor_id} onChange={(value: string) => planningForm.setData('transport_vendor_id', value)} options={resolvedTransportVendorOptions} includeEmpty emptyLabel={t('Select transport vendor')} helperText={t('Use Account > Vendors with supplier type Transport Vendor.')} />
                                     )}
-                                    {(resolvedLrNumberOptions.length > 0 || resolvedEwayBillOptions.length > 0) && (
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {resolvedLrNumberOptions.length > 0 && (
-                                                <SelectField label={t('LR Number')} value={planningForm.data.lr_number} onChange={(value: string) => planningForm.setData('lr_number', value)} options={resolvedLrNumberOptions} includeEmpty emptyLabel={t('Select LR number')} helperText={t('Managed from Master Setup > Dispatch Setup > LR Numbers.')} />
-                                            )}
-                                            {resolvedEwayBillOptions.length > 0 && (
-                                                <SelectField label={t('E-Way Bill')} value={planningForm.data.eway_bill_number} onChange={(value: string) => planningForm.setData('eway_bill_number', value)} options={resolvedEwayBillOptions} includeEmpty emptyLabel={t('Select E-Way bill')} helperText={t('Managed from Master Setup > Dispatch Setup > E-Way Bills.')} />
-                                            )}
-                                        </div>
-                                    )}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <Field label={t('LR Number')} value={planningForm.data.lr_number} onChange={(value: string) => planningForm.setData('lr_number', value)} placeholder={t('e.g. LR-1001')} />
+                                        <Field label={t('E-Way Bill')} value={planningForm.data.eway_bill_number} onChange={(value: string) => planningForm.setData('eway_bill_number', value)} placeholder={t('e.g. EWB-9001')} />
+                                    </div>
                                     <Field label={t('Freight Amount')} type="number" value={planningForm.data.freight_amount} onChange={(value: string) => planningForm.setData('freight_amount', value)} />
                                     <Field label={t('Notes')} value={planningForm.data.notes} onChange={(value: string) => planningForm.setData('notes', value)} />
                                     <Button type="submit" disabled={planningForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Dispatch Plan')}</Button>
@@ -357,16 +349,10 @@ export default function Index({
                                     {resolvedTransportVendorOptions.length > 0 && (
                                         <SelectField label={t('Transport Vendor')} value={trackingForm.data.transport_vendor_id} onChange={(value: string) => trackingForm.setData('transport_vendor_id', value)} options={resolvedTransportVendorOptions} includeEmpty emptyLabel={t('Select transport vendor')} helperText={t('Use Account > Vendors with supplier type Transport Vendor.')} />
                                     )}
-                                    {(resolvedLrNumberOptions.length > 0 || resolvedEwayBillOptions.length > 0) && (
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {resolvedLrNumberOptions.length > 0 && (
-                                                <SelectField label={t('LR Number')} value={trackingForm.data.lr_number} onChange={(value: string) => trackingForm.setData('lr_number', value)} options={resolvedLrNumberOptions} includeEmpty emptyLabel={t('Select LR number')} helperText={t('Managed from Master Setup > Dispatch Setup > LR Numbers.')} />
-                                            )}
-                                            {resolvedEwayBillOptions.length > 0 && (
-                                                <SelectField label={t('E-Way Bill')} value={trackingForm.data.eway_bill_number} onChange={(value: string) => trackingForm.setData('eway_bill_number', value)} options={resolvedEwayBillOptions} includeEmpty emptyLabel={t('Select E-Way bill')} helperText={t('Managed from Master Setup > Dispatch Setup > E-Way Bills.')} />
-                                            )}
-                                        </div>
-                                    )}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <Field label={t('LR Number')} value={trackingForm.data.lr_number} onChange={(value: string) => trackingForm.setData('lr_number', value)} placeholder={t('e.g. LR-1001')} />
+                                        <Field label={t('E-Way Bill')} value={trackingForm.data.eway_bill_number} onChange={(value: string) => trackingForm.setData('eway_bill_number', value)} placeholder={t('e.g. EWB-9001')} />
+                                    </div>
                                     <Field label={t('Notes')} value={trackingForm.data.notes} onChange={(value: string) => trackingForm.setData('notes', value)} />
                                     <Button type="submit" disabled={trackingForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Post Tracking Update')}</Button>
                                 </form>
