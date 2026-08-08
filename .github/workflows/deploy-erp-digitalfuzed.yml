@@ -32,14 +32,11 @@ jobs:
       - name: Build assets
         run: npm run build
 
-      - name: Validate secrets
-        if: secrets.SERVER_HOST == '' || secrets.SERVER_USER == '' || secrets.SERVER_SSH_KEY == ''
-        run: |
-          echo "::error::Missing deployment secrets. Set SERVER_HOST, SERVER_USER (the app user 'digitalfuzed-erp-cp', NOT root) and SERVER_SSH_KEY in GitHub repo Settings -> Secrets and variables -> Actions." >&2
-          exit 1
-
       - name: Prepare SSH key
         run: |
+          test -n "${{ secrets.SERVER_HOST }}" || { echo "::error::Missing SERVER_HOST secret (repo Settings -> Secrets and variables -> Actions)." >&2; exit 1; }
+          test -n "${{ secrets.SERVER_USER }}" || { echo "::error::Missing SERVER_USER secret." >&2; exit 1; }
+          test -n "${{ secrets.SERVER_SSH_KEY }}" || { echo "::error::Missing SERVER_SSH_KEY secret." >&2; exit 1; }
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
