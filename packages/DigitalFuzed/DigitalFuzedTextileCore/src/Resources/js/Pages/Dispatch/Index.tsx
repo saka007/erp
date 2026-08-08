@@ -264,19 +264,37 @@ export default function Index({
                                     )}
                                     <SelectField label={t('Dispatch Mode')} value={planningForm.data.dispatch_mode} onChange={(value: string) => planningForm.setData('dispatch_mode', value)} options={resolvedDispatchModeOptions} includeEmpty emptyLabel={t('Select mode')} helperText={t('Truck and container dispatch are both supported.')} required />
                                     <div className="grid grid-cols-2 gap-3">
-                                        <SelectField label={t('Truck Number')} value={planningForm.data.truck_number} onChange={(value: string) => planningForm.setData('truck_number', value)} options={resolvedTruckNumberOptions} includeEmpty emptyLabel={t('Select truck number')} helperText={t('Managed from Master Setup > Dispatch Setup > Truck Numbers.')} disabled={resolvedTruckNumberOptions.length === 0} disabledReason={t('No truck number master found. Create dispatch truck numbers first.')} />
-                                        <SelectField label={t('Container Number')} value={planningForm.data.container_number} onChange={(value: string) => planningForm.setData('container_number', value)} options={resolvedContainerNumberOptions} includeEmpty emptyLabel={t('Select container number')} helperText={t('Managed from Master Setup > Dispatch Setup > Container Numbers.')} disabled={resolvedContainerNumberOptions.length === 0} disabledReason={t('No container number master found. Create dispatch container numbers first.')} />
+                                        {resolvedTruckNumberOptions.length > 0 && (
+                                            <SelectField label={t('Truck Number')} value={planningForm.data.truck_number} onChange={(value: string) => planningForm.setData('truck_number', value)} options={resolvedTruckNumberOptions} includeEmpty emptyLabel={t('Select truck number')} helperText={t('Managed from Master Setup > Dispatch Setup > Truck Numbers.')} />
+                                        )}
+                                        {resolvedContainerNumberOptions.length > 0 && (
+                                            <SelectField label={t('Container Number')} value={planningForm.data.container_number} onChange={(value: string) => planningForm.setData('container_number', value)} options={resolvedContainerNumberOptions} includeEmpty emptyLabel={t('Select container number')} helperText={t('Managed from Master Setup > Dispatch Setup > Container Numbers.')} />
+                                        )}
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <SelectField label={t('Driver')} value={planningForm.data.driver_id} onChange={(value: string) => planningForm.setData('driver_id', value)} options={resolvedDriverOptions} includeEmpty emptyLabel={t('Select driver')} helperText={t('Managed from Master Setup > Dispatch Setup > Drivers.')} disabled={resolvedDriverOptions.length === 0} disabledReason={t('No driver record found. Create dispatch drivers first.')} />
-                                        <SelectField label={t('Vehicle')} value={planningForm.data.vehicle_id} onChange={(value: string) => planningForm.setData('vehicle_id', value)} options={resolvedVehicleOptions} includeEmpty emptyLabel={t('Select vehicle')} helperText={t('Managed from Master Setup > Dispatch Setup > Vehicles.')} disabled={resolvedVehicleOptions.length === 0} disabledReason={t('No vehicle record found. Create dispatch vehicles first.')} />
+                                        {resolvedDriverOptions.length > 0 && (
+                                            <SelectField label={t('Driver')} value={planningForm.data.driver_id} onChange={(value: string) => planningForm.setData('driver_id', value)} options={resolvedDriverOptions} includeEmpty emptyLabel={t('Select driver')} helperText={t('Managed from Master Setup > Dispatch Setup > Drivers.')} />
+                                        )}
+                                        {resolvedVehicleOptions.length > 0 && (
+                                            <SelectField label={t('Vehicle')} value={planningForm.data.vehicle_id} onChange={(value: string) => planningForm.setData('vehicle_id', value)} options={resolvedVehicleOptions} includeEmpty emptyLabel={t('Select vehicle')} helperText={t('Managed from Master Setup > Dispatch Setup > Vehicles.')} />
+                                        )}
                                     </div>
-                                    <SelectField label={t('Route')} value={planningForm.data.route_id} onChange={(value: string) => planningForm.setData('route_id', value)} options={resolvedRouteOptions} includeEmpty emptyLabel={t('Select route')} helperText={t('Managed from Master Setup > Dispatch Setup > Routes.')} disabled={resolvedRouteOptions.length === 0} disabledReason={t('No route record found. Create dispatch routes first.')} />
-                                    <SelectField label={t('Transport Vendor')} value={planningForm.data.transport_vendor_id} onChange={(value: string) => planningForm.setData('transport_vendor_id', value)} options={resolvedTransportVendorOptions} includeEmpty emptyLabel={t('Select transport vendor')} helperText={t('Use Account > Vendors with supplier type Transport Vendor.')} disabled={resolvedTransportVendorOptions.length === 0} disabledReason={t('No transport vendor found. Create one under Supplier Setup first.')} />
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <SelectField label={t('LR Number')} value={planningForm.data.lr_number} onChange={(value: string) => planningForm.setData('lr_number', value)} options={resolvedLrNumberOptions} includeEmpty emptyLabel={t('Select LR number')} helperText={t('Managed from Master Setup > Dispatch Setup > LR Numbers.')} disabled={resolvedLrNumberOptions.length === 0} disabledReason={t('No LR master found. Create dispatch LR numbers first.')} />
-                                        <SelectField label={t('E-Way Bill')} value={planningForm.data.eway_bill_number} onChange={(value: string) => planningForm.setData('eway_bill_number', value)} options={resolvedEwayBillOptions} includeEmpty emptyLabel={t('Select E-Way bill')} helperText={t('Managed from Master Setup > Dispatch Setup > E-Way Bills.')} disabled={resolvedEwayBillOptions.length === 0} disabledReason={t('No E-Way master found. Create dispatch E-Way bills first.')} />
-                                    </div>
+                                    {resolvedRouteOptions.length > 0 && (
+                                        <SelectField label={t('Route')} value={planningForm.data.route_id} onChange={(value: string) => planningForm.setData('route_id', value)} options={resolvedRouteOptions} includeEmpty emptyLabel={t('Select route')} helperText={t('Managed from Master Setup > Dispatch Setup > Routes.')} />
+                                    )}
+                                    {resolvedTransportVendorOptions.length > 0 && (
+                                        <SelectField label={t('Transport Vendor')} value={planningForm.data.transport_vendor_id} onChange={(value: string) => planningForm.setData('transport_vendor_id', value)} options={resolvedTransportVendorOptions} includeEmpty emptyLabel={t('Select transport vendor')} helperText={t('Use Account > Vendors with supplier type Transport Vendor.')} />
+                                    )}
+                                    {(resolvedLrNumberOptions.length > 0 || resolvedEwayBillOptions.length > 0) && (
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {resolvedLrNumberOptions.length > 0 && (
+                                                <SelectField label={t('LR Number')} value={planningForm.data.lr_number} onChange={(value: string) => planningForm.setData('lr_number', value)} options={resolvedLrNumberOptions} includeEmpty emptyLabel={t('Select LR number')} helperText={t('Managed from Master Setup > Dispatch Setup > LR Numbers.')} />
+                                            )}
+                                            {resolvedEwayBillOptions.length > 0 && (
+                                                <SelectField label={t('E-Way Bill')} value={planningForm.data.eway_bill_number} onChange={(value: string) => planningForm.setData('eway_bill_number', value)} options={resolvedEwayBillOptions} includeEmpty emptyLabel={t('Select E-Way bill')} helperText={t('Managed from Master Setup > Dispatch Setup > E-Way Bills.')} />
+                                            )}
+                                        </div>
+                                    )}
                                     <Field label={t('Freight Amount')} type="number" value={planningForm.data.freight_amount} onChange={(value: string) => planningForm.setData('freight_amount', value)} />
                                     <Field label={t('Notes')} value={planningForm.data.notes} onChange={(value: string) => planningForm.setData('notes', value)} />
                                     <Button type="submit" disabled={planningForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Dispatch Plan')}</Button>
@@ -327,14 +345,28 @@ export default function Index({
                                     <SelectField label={t('Source Action')} value={trackingForm.data.source_action} onChange={(value: string) => trackingForm.setData('source_action', value)} options={resolvedSourceActionOptions} includeEmpty emptyLabel={t('Select source action')} helperText={t('Source actions are managed from Master Setup > Dispatch Setup > Source Actions.')} required />
                                     <SelectField label={t('Tracking Status')} value={trackingForm.data.tracking_status} onChange={(value: string) => trackingForm.setData('tracking_status', value)} options={resolvedTrackingStatusOptions} includeEmpty emptyLabel={t('Select tracking status')} required />
                                     <Field label={t('Current Location')} value={trackingForm.data.current_location} onChange={(value: string) => trackingForm.setData('current_location', value)} />
-                                    <SelectField label={t('Vehicle')} value={trackingForm.data.vehicle_id} onChange={(value: string) => trackingForm.setData('vehicle_id', value)} options={resolvedVehicleOptions} includeEmpty emptyLabel={t('Select vehicle')} helperText={t('Managed from Master Setup > Dispatch Setup > Vehicles.')} disabled={resolvedVehicleOptions.length === 0} disabledReason={t('No vehicle record found. Create dispatch vehicles first.')} />
-                                    <SelectField label={t('Driver')} value={trackingForm.data.driver_id} onChange={(value: string) => trackingForm.setData('driver_id', value)} options={resolvedDriverOptions} includeEmpty emptyLabel={t('Select driver')} helperText={t('Managed from Master Setup > Dispatch Setup > Drivers.')} disabled={resolvedDriverOptions.length === 0} disabledReason={t('No driver record found. Create dispatch drivers first.')} />
-                                    <SelectField label={t('Route')} value={trackingForm.data.route_id} onChange={(value: string) => trackingForm.setData('route_id', value)} options={resolvedRouteOptions} includeEmpty emptyLabel={t('Select route')} helperText={t('Managed from Master Setup > Dispatch Setup > Routes.')} disabled={resolvedRouteOptions.length === 0} disabledReason={t('No route record found. Create dispatch routes first.')} />
-                                    <SelectField label={t('Transport Vendor')} value={trackingForm.data.transport_vendor_id} onChange={(value: string) => trackingForm.setData('transport_vendor_id', value)} options={resolvedTransportVendorOptions} includeEmpty emptyLabel={t('Select transport vendor')} helperText={t('Use Account > Vendors with supplier type Transport Vendor.')} disabled={resolvedTransportVendorOptions.length === 0} disabledReason={t('No transport vendor found. Create one under Supplier Setup first.')} />
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <SelectField label={t('LR Number')} value={trackingForm.data.lr_number} onChange={(value: string) => trackingForm.setData('lr_number', value)} options={resolvedLrNumberOptions} includeEmpty emptyLabel={t('Select LR number')} helperText={t('Managed from Master Setup > Dispatch Setup > LR Numbers.')} disabled={resolvedLrNumberOptions.length === 0} disabledReason={t('No LR master found. Create dispatch LR numbers first.')} />
-                                        <SelectField label={t('E-Way Bill')} value={trackingForm.data.eway_bill_number} onChange={(value: string) => trackingForm.setData('eway_bill_number', value)} options={resolvedEwayBillOptions} includeEmpty emptyLabel={t('Select E-Way bill')} helperText={t('Managed from Master Setup > Dispatch Setup > E-Way Bills.')} disabled={resolvedEwayBillOptions.length === 0} disabledReason={t('No E-Way master found. Create dispatch E-Way bills first.')} />
-                                    </div>
+                                    {resolvedVehicleOptions.length > 0 && (
+                                        <SelectField label={t('Vehicle')} value={trackingForm.data.vehicle_id} onChange={(value: string) => trackingForm.setData('vehicle_id', value)} options={resolvedVehicleOptions} includeEmpty emptyLabel={t('Select vehicle')} helperText={t('Managed from Master Setup > Dispatch Setup > Vehicles.')} />
+                                    )}
+                                    {resolvedDriverOptions.length > 0 && (
+                                        <SelectField label={t('Driver')} value={trackingForm.data.driver_id} onChange={(value: string) => trackingForm.setData('driver_id', value)} options={resolvedDriverOptions} includeEmpty emptyLabel={t('Select driver')} helperText={t('Managed from Master Setup > Dispatch Setup > Drivers.')} />
+                                    )}
+                                    {resolvedRouteOptions.length > 0 && (
+                                        <SelectField label={t('Route')} value={trackingForm.data.route_id} onChange={(value: string) => trackingForm.setData('route_id', value)} options={resolvedRouteOptions} includeEmpty emptyLabel={t('Select route')} helperText={t('Managed from Master Setup > Dispatch Setup > Routes.')} />
+                                    )}
+                                    {resolvedTransportVendorOptions.length > 0 && (
+                                        <SelectField label={t('Transport Vendor')} value={trackingForm.data.transport_vendor_id} onChange={(value: string) => trackingForm.setData('transport_vendor_id', value)} options={resolvedTransportVendorOptions} includeEmpty emptyLabel={t('Select transport vendor')} helperText={t('Use Account > Vendors with supplier type Transport Vendor.')} />
+                                    )}
+                                    {(resolvedLrNumberOptions.length > 0 || resolvedEwayBillOptions.length > 0) && (
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {resolvedLrNumberOptions.length > 0 && (
+                                                <SelectField label={t('LR Number')} value={trackingForm.data.lr_number} onChange={(value: string) => trackingForm.setData('lr_number', value)} options={resolvedLrNumberOptions} includeEmpty emptyLabel={t('Select LR number')} helperText={t('Managed from Master Setup > Dispatch Setup > LR Numbers.')} />
+                                            )}
+                                            {resolvedEwayBillOptions.length > 0 && (
+                                                <SelectField label={t('E-Way Bill')} value={trackingForm.data.eway_bill_number} onChange={(value: string) => trackingForm.setData('eway_bill_number', value)} options={resolvedEwayBillOptions} includeEmpty emptyLabel={t('Select E-Way bill')} helperText={t('Managed from Master Setup > Dispatch Setup > E-Way Bills.')} />
+                                            )}
+                                        </div>
+                                    )}
                                     <Field label={t('Notes')} value={trackingForm.data.notes} onChange={(value: string) => trackingForm.setData('notes', value)} />
                                     <Button type="submit" disabled={trackingForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Post Tracking Update')}</Button>
                                 </form>
