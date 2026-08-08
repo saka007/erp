@@ -9,6 +9,7 @@ import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import NoRecordsFound from '@/components/no-records-found';
 import { TextileField as Field } from '@/components/textile/textile-field';
 import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
+import { TextileFormErrors } from '@/components/textile/textile-form-errors';
 import { TextileDataTableCard } from '@/components/textile/textile-data-table-card';
 import { TextileSection } from '@/components/textile/textile-section';
 import { TextileWorkspace, countSectionStatuses } from '@/components/textile/textile-workspace';
@@ -99,7 +100,7 @@ export default function Index({
     });
 
     const rfqForm = useForm({ requisition_id: '' });
-    const purchaseOrderForm = useForm({ source_id: '' });
+    const purchaseOrderForm = useForm({ source_type: 'requisition', source_id: '' });
     const grnForm = useForm({ purchase_order_id: '' });
     const incomingQcForm = useForm({ grn_id: '' });
     const supplierClaimForm = useForm({
@@ -110,6 +111,7 @@ export default function Index({
         claim_note: '',
     });
     const approvedRequisitions = requisitions.filter((row) => row.status === 'approved');
+    const approvedRfqs = rfqs.filter((row) => row.status === 'approved' || row.status === 'released');
     const approvedPurchaseOrders = purchaseOrders.filter((row) => row.status === 'approved');
     const releasedGrns = grns.filter((row) => row.status === 'released');
     const accessibleInvoiceIds = new Set(purchaseInvoices.map((invoice) => invoice.id));
@@ -258,13 +260,7 @@ export default function Index({
                                         onSuccess: () => requisitionForm.reset('party_name', 'lot_reference', 'quantity', 'required_for', 'expected_date', 'remarks', 'warehouse'),
                                     });
                                 }}>
-                                    {Object.keys(requisitionForm.errors).length > 0 && (
-                                        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                                            {Object.values(requisitionForm.errors).map((message) => (
-                                                <p key={message}>{message}</p>
-                                            ))}
-                                        </div>
-                                    )}
+                                    <TextileFormErrors errors={requisitionForm.errors} />
                                     <div className="grid gap-4 md:grid-cols-3">
                                         <div className="space-y-3">
                                             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Supplier Information')}</p>
@@ -398,6 +394,7 @@ export default function Index({
                                     onSuccess: () => rfqForm.reset('requisition_id'),
                                 });
                             }}>
+                                <div className="col-span-2"><TextileFormErrors errors={rfqForm.errors} /></div>
                                 <SelectField
                                     label={t('From Approved Requisition')}
                                     value={rfqForm.data.requisition_id}
@@ -449,21 +446,55 @@ export default function Index({
                                 <form className="space-y-3" onSubmit={(e) => {
                                     e.preventDefault();
                                     purchaseOrderForm.post(route('textile.procurement.purchase-orders.store'), {
-                                        onSuccess: () => purchaseOrderForm.reset('source_id'),
+                                        onSuccess: () => purchaseOrderForm.reset('source_type', 'source_id'),
                                     });
                                 }}>
-                                    <SelectField
-                                        label={t('From Approved Requisition')}
-                                        value={purchaseOrderForm.data.source_id}
-                                        onChange={(v) => purchaseOrderForm.setData('source_id', v)}
-                                        options={createTextileWorkflowSelectOptions(approvedRequisitions)}
-                                        includeEmpty
-                                        emptyLabel={t('Select approved requisition')}
-                                        helperText={t('Single flow enabled: purchase order is created from approved requisition.')}
-                                        disabled={approvedRequisitions.length === 0}
-                                        disabledReason={t('No approved requisition found. Approve a requisition first.')}
-                                        required
-                                    />
+                                    <TextileFormErrors errors={purchaseOrderForm.errors} />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Button
+                                            type="button"
+                                            variant={purchaseOrderForm.data.source_type === 'requisition' ? 'default' : 'outline'}
+                                            className="h-8 text-xs"
+                                            onClick={() => purchaseOrderForm.setData('source_type', 'requisition')}
+                                        >
+                                            {t('From Requisition')}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant={purchaseOrderForm.data.source_type === 'rfq' ? 'default' : 'outline'}
+                                            className="h-8 text-xs"
+                                            onClick={() => purchaseOrderForm.setData('source_type', 'rfq')}
+                                        >
+                                            {t('From RFQ')}
+                                        </Button>
+                                    </div>
+                                    {purchaseOrderForm.data.source_type === 'rfq' ? (
+                                        <SelectField
+                                            label={t('From Approved RFQ')}
+                                            value={purchaseOrderForm.data.source_id}
+                                            onChange={(v) => purchaseOrderForm.setData('source_id', v)}
+                                            options={createTextileWorkflowSelectOptions(approvedRfqs)}
+                                            includeEmpty
+                                            emptyLabel={t('Select approved RFQ')}
+                                            helperText={t('Purchase order is created from an approved or closed RFQ.')}
+                                            disabled={approvedRfqs.length === 0}
+                                            disabledReason={t('No approved RFQ found. Send an RFQ first.')}
+                                            required
+                                        />
+                                    ) : (
+                                        <SelectField
+                                            label={t('From Approved Requisition')}
+                                            value={purchaseOrderForm.data.source_id}
+                                            onChange={(v) => purchaseOrderForm.setData('source_id', v)}
+                                            options={createTextileWorkflowSelectOptions(approvedRequisitions)}
+                                            includeEmpty
+                                            emptyLabel={t('Select approved requisition')}
+                                            helperText={t('Single flow enabled: purchase order is created from approved requisition.')}
+                                            disabled={approvedRequisitions.length === 0}
+                                            disabledReason={t('No approved requisition found. Approve a requisition first.')}
+                                            required
+                                        />
+                                    )}
                                     <Button type="submit" disabled={purchaseOrderForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create PO')}</Button>
                                 </form>
                                 }
@@ -499,6 +530,7 @@ export default function Index({
                                         onSuccess: () => grnForm.reset('purchase_order_id'),
                                     });
                                 }}>
+                                    <div className="col-span-2"><TextileFormErrors errors={grnForm.errors} /></div>
                                     <SelectField
                                         label={t('From Approved PO')}
                                         value={grnForm.data.purchase_order_id}
@@ -561,6 +593,7 @@ export default function Index({
                                         onSuccess: () => incomingQcForm.reset('grn_id'),
                                     });
                                 }}>
+                                    <div className="col-span-2"><TextileFormErrors errors={incomingQcForm.errors} /></div>
                                     <SelectField
                                         label={t('From Released GRN')}
                                         value={incomingQcForm.data.grn_id}
@@ -611,6 +644,7 @@ export default function Index({
                                     onSuccess: () => supplierClaimForm.reset('grn_id', 'claim_amount', 'claim_note'),
                                 });
                             }}>
+                                <TextileFormErrors errors={supplierClaimForm.errors} />
                                 <SelectField
                                     label={t('From Released GRN')}
                                     value={supplierClaimForm.data.grn_id}
