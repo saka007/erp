@@ -69,16 +69,20 @@ class TextileProcurementController extends Controller
             'warehouse' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $service->createRequisition(array_merge($validated, [
-            'metadata' => [
-                'requisition_type' => $validated['requisition_type'] ?? 'general',
-                'priority' => $validated['priority'] ?? null,
-                'required_for' => $validated['required_for'] ?? null,
-                'expected_date' => $validated['expected_date'] ?? null,
-                'remarks' => $validated['remarks'] ?? null,
-                'warehouse' => $validated['warehouse'] ?? null,
-            ],
-        ]));
+        try {
+            $service->createRequisition(array_merge($validated, [
+                'metadata' => [
+                    'requisition_type' => $validated['requisition_type'] ?? 'general',
+                    'priority' => $validated['priority'] ?? null,
+                    'required_for' => $validated['required_for'] ?? null,
+                    'expected_date' => $validated['expected_date'] ?? null,
+                    'remarks' => $validated['remarks'] ?? null,
+                    'warehouse' => $validated['warehouse'] ?? null,
+                ],
+            ]));
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['party_name' => __($exception->getMessage())]);
+        }
 
         return back()->with('success', __('Purchase requisition created successfully.'));
     }

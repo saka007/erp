@@ -11,6 +11,7 @@ use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
+use Workdo\Hrm\Models\Branch;
 
 class TextileProcurementAdminTest extends TestCase
 {
@@ -239,6 +240,46 @@ class TextileProcurementAdminTest extends TestCase
             ->assertOk()
             ->assertSee('LOT-A-1')
             ->assertSee('Alpha Fibers');
+    }
+
+    public function test_requisition_create_without_active_branch_returns_friendly_error_not_500(): void
+    {
+        AddOn::create([
+            'module' => 'TextileCore',
+            'name' => 'Textile Core',
+            'package_name' => 'textile-core',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        $companyA = $this->company();
+
+        // Tenant has branches but no active branch is selected in session.
+        Branch::create([
+            'branch_name' => 'Main Office',
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+
+        $response = $this->actingAs($companyA)
+            ->post(route('textile.procurement.requisitions.store'), [
+                'party_name' => 'Alpha Fibers',
+                'lot_reference' => 'LOT-NOBRANCH',
+                'quantity' => 100,
+                'unit' => 'kg',
+            ]);
+
+        $response->assertSessionHasErrors('party_name');
+        $response->assertSessionHas('errors');
+
+        $this->assertSame(
+            0,
+            TextileWorkflowDocument::query()
+                ->where('created_by', $companyA->id)
+                ->where('document_type', 'purchase_requisition')
+                ->count()
+        );
     }
 
     private function company(): User
