@@ -17,9 +17,21 @@ class TextileSalesService
 {
     public function __construct(
         protected TextileWorkflowService $workflowService,
-        protected TextileAvailabilityService $availabilityService
+        protected TextileAvailabilityService $availabilityService,
+        protected TextileOperatingPolicyService $policyService
     )
     {
+    }
+
+    private function tenantHasCapability(string $capability): bool
+    {
+        try {
+            $this->policyService->assertCapability($capability);
+
+            return true;
+        } catch (RuntimeException) {
+            return false;
+        }
     }
 
     public function createSalesOrder(array $payload): TextileWorkflowDocument
@@ -59,6 +71,23 @@ class TextileSalesService
                 $source = $sourceQuery->first();
                 if (! $source) {
                     throw new RuntimeException('Selected Takha lot belongs to another branch.');
+                }
+
+                if ($lot->status === 'hold') {
+                    throw new RuntimeException('Selected Takha lot is on quality hold. Release it before creating a sales order.');
+                }
+
+                // Gate: fabric lots must pass inspection before sale (only when the tenant operates QC).
+                if ($this->tenantHasCapability('quality_inspection')) {
+                    $inspectionQuery = TextileWorkflowDocument::query()
+                        ->where('created_by', $tenantId)
+                        ->where('document_type', 'inspection')
+                        ->where('lot_reference', $lot->lot_reference)
+                        ->whereIn('status', ['approved', 'released']);
+                    TextileBranchScope::applyWorkflowScope($inspectionQuery);
+                    if (! $inspectionQuery->exists()) {
+                        throw new RuntimeException('Takha lot must pass inspection before it can be sold.');
+                    }
                 }
 
                 $quantity = (float) ($line['quantity'] ?? 0);

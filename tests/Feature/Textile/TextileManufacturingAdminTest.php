@@ -999,4 +999,89 @@ class TextileManufacturingAdminTest extends TestCase
 
         return $company;
     }
+
+    public function test_warp_plan_requires_yarn_lot_to_have_passed_incoming_qc(): void
+    {
+        AddOn::create([
+            'module' => 'TextileCore',
+            'name' => 'Textile Core',
+            'package_name' => 'textile-core',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        $companyA = $this->company();
+        $branchA = Branch::create([
+            'branch_name' => 'Warp Branch',
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+        $this->withSession(['active_branch_id' => $branchA->id]);
+
+        // Yarn lot born without incoming QC (e.g. manual entry) must be rejected.
+        TextileLot::create([
+            'lot_reference' => 'YARN-NO-QC',
+            'received_quantity' => 500,
+            'available_quantity' => 500,
+            'status' => 'active',
+            'is_active' => true,
+            'material_type' => TextileLot::TYPE_YARN,
+            'production_stage' => TextileLot::STAGE_PROCUREMENT,
+            'source_document_type' => 'manual',
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.warp-plans.store'), [
+                'source_reference_type' => 'textile_lot',
+                'source_reference_id' => 7001,
+                'source_action' => 'warp_plan',
+                'party_name' => 'Warp Unit A',
+                'lot_reference' => 'YARN-NO-QC',
+                'quantity' => 120,
+                'unit' => 'kg',
+            ])
+            ->assertSessionHasErrors('source_reference_id');
+
+        // Yarn lot that passed incoming QC is accepted.
+        $incomingQc = TextileWorkflowDocument::create([
+            'document_type' => 'incoming_qc',
+            'document_number' => 'IQC-WARP-001',
+            'lot_reference' => 'YARN-QC-OK',
+            'quantity' => 500,
+            'unit' => 'kg',
+            'status' => 'approved',
+            'metadata' => ['inspection_result' => 'pass', 'final_decision' => 'pass'],
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+            'branch_id' => $branchA->id,
+        ]);
+        TextileLot::create([
+            'lot_reference' => 'YARN-QC-OK',
+            'received_quantity' => 500,
+            'available_quantity' => 500,
+            'status' => 'active',
+            'is_active' => true,
+            'material_type' => TextileLot::TYPE_YARN,
+            'production_stage' => TextileLot::STAGE_PROCUREMENT,
+            'source_document_type' => 'incoming_qc',
+            'source_document_id' => $incomingQc->id,
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.warp-plans.store'), [
+                'source_reference_type' => 'textile_lot',
+                'source_reference_id' => 7002,
+                'source_action' => 'warp_plan',
+                'party_name' => 'Warp Unit A',
+                'lot_reference' => 'YARN-QC-OK',
+                'quantity' => 120,
+                'unit' => 'kg',
+            ])
+            ->assertSessionHasNoErrors();
+    }
 }

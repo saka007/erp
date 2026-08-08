@@ -70,6 +70,18 @@ class TextileSalesAdminTest extends TestCase
             'creator_id' => $companyA->id,
             'created_by' => $companyA->id,
         ]);
+        TextileWorkflowDocument::create([
+            'document_type' => 'inspection',
+            'document_number' => 'INSP-SALES-001',
+            'lot_reference' => 'TAKHA-LOT-S-1',
+            'quantity' => 150,
+            'unit' => 'mtr',
+            'status' => 'approved',
+            'metadata' => ['qc_stage' => 'final_qc', 'inspection_result' => 'pass', 'final_decision' => 'pass'],
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+            'branch_id' => $branchA->id,
+        ]);
 
         $this->actingAs($companyA)
             ->post(route('textile.sales.orders.store'), [

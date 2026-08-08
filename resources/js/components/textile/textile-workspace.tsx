@@ -39,8 +39,11 @@ export function TextileWorkspace({ workspace, capabilities, kpis, aside, childre
     const { visibleSections, activeSection } = useTextileSection(workspace, capabilities);
 
     const navigate = useCallback(
-        (sectionId: string) => {
-            router.get(route(workspace.routeName, { section: sectionId }), {}, { preserveState: true, replace: true });
+        (section: TextileSection) => {
+            const url = section.routeName
+                ? route(section.routeName, { section: section.targetSection ?? section.id })
+                : route(workspace.routeName, { section: section.id });
+            router.get(url, {}, { preserveState: true, replace: true });
         },
         [workspace.routeName]
     );
@@ -51,7 +54,10 @@ export function TextileWorkspace({ workspace, capabilities, kpis, aside, childre
             <select
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm lg:hidden"
                 value={activeSection.id}
-                onChange={(e) => navigate(e.target.value)}
+                onChange={(e) => {
+                    const selected = visibleSections.find((section) => section.id === e.target.value) ?? visibleSections[0];
+                    if (selected) navigate(selected);
+                }}
                 aria-label={workspace.title}
             >
                 {visibleSections.map((section) => (
@@ -73,7 +79,7 @@ export function TextileWorkspace({ workspace, capabilities, kpis, aside, childre
                         <button
                             key={section.id}
                             type="button"
-                            onClick={() => navigate(section.id)}
+                            onClick={() => navigate(section)}
                             aria-current={isActive ? 'page' : undefined}
                             className={cn(
                                 'flex w-full items-center gap-2.5 rounded-lg border-l-[3px] px-3 py-2 text-sm font-medium transition-colors',

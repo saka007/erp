@@ -44,6 +44,10 @@ export interface TextileSection {
     icon: LucideIcon;
     /** Fine-grained capability key (e.g. procurement_grn). Absent = visible (fail-open). */
     capability?: string;
+    /** Cross-workspace link: when set, the rail routes to this page instead of the workspace route. */
+    routeName?: string;
+    /** Section id to open on the target workspace page (requires routeName). */
+    targetSection?: string;
 }
 
 export interface TextileWorkspace {
@@ -116,6 +120,7 @@ export const textileWorkspaces: TextileWorkspace[] = [
             { id: 'loom-management', label: 'Loom Management', icon: Settings },
             { id: 'machine-planning', label: 'Production Planning', icon: Gauge },
             { id: 'weaving-output', label: 'Weaving Production', icon: Factory },
+            { id: 'fabric-qc', label: 'Fabric QC', icon: ClipboardCheck, capability: 'quality_inspection', routeName: 'textile.quality.index', targetSection: 'inspection' },
             { id: 'waste', label: 'Waste', icon: Scissors },
             { id: 'rework', label: 'Rework', icon: RotateCcw },
         ],

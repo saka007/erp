@@ -70,6 +70,7 @@ class TextileManufacturingController extends Controller
             'greyRollHistories' => $this->documents('grey_roll_history'),
             'wastes' => $this->documents('waste'),
             'reworks' => $this->documents('rework'),
+            'inspections' => $this->documents('inspection'),
             'sourceTypeOptions' => $this->sourceTypeOptions(),
             'sourceActionOptions' => $this->sourceActionOptions(),
             'machineTypeOptions' => $this->machineTypeOptions(),

@@ -1,7 +1,7 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Check, CheckCircle2, Factory, FileEdit, Gauge, LayoutDashboard, ListChecks, Plus, RotateCcw, Send, Trash2, Wrench, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ClipboardCheck, Factory, FileEdit, Gauge, LayoutDashboard, ListChecks, Plus, RotateCcw, Send, Trash2, Wrench, type LucideIcon } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -71,6 +71,7 @@ export default function Index({
     greyRollHistories,
     wastes,
     reworks,
+    inspections,
     sourceTypeOptions,
     sourceActionOptions,
     machineTypeOptions,
@@ -129,6 +130,7 @@ export default function Index({
     greyRollHistories: WorkflowDocument[];
     wastes: WorkflowDocument[];
     reworks: WorkflowDocument[];
+    inspections: WorkflowDocument[];
     sourceTypeOptions: string[];
     sourceActionOptions: string[];
     machineTypeOptions: string[];
@@ -368,6 +370,7 @@ export default function Index({
         'loom-management': [...loomMasters, ...loomBreakdowns, ...loomMaintenances],
         'machine-planning': productionAssignments,
         'weaving-output': takhaEntries.filter((row) => productionAssignments.some((assignment) => assignment.id === Number(row.source_reference_id))),
+        'fabric-qc': inspections,
         waste: wastes,
         rework: reworks,
     };
@@ -483,6 +486,7 @@ export default function Index({
                                 { id: 'loom-management', label: t('Loom'), count: loomMasters.length, active: section.id === 'loom-management' },
                                 { id: 'machine-planning', label: t('Planning'), count: machinePlans.length, active: section.id === 'machine-planning' },
                                 { id: 'weaving-output', label: t('Weaving'), count: weavingOutputs.length, active: section.id === 'weaving-output' },
+                                { id: 'fabric-qc', label: t('Fabric QC'), count: inspections.length, active: section.id === 'fabric-qc' },
                                 { id: 'waste', label: t('Waste'), count: wastes.length, active: section.id === 'waste' },
                                 { id: 'rework', label: t('Rework'), count: reworks.length, active: section.id === 'rework' },
                             ]}
@@ -495,6 +499,7 @@ export default function Index({
                                 { label: t('Beams'), value: beams.length },
                                 { label: t('Looms'), value: loomMasters.length },
                                 { label: t('Outputs'), value: weavingOutputs.length },
+                                { label: t('Inspections'), value: inspections.length },
                                 { label: t('Shift Production'), value: shiftProductions.length },
                                 { label: t('Downtimes'), value: machineDowntimes.length },
                                 { label: t('Waste Entries'), value: wastes.length },
@@ -2459,6 +2464,74 @@ export default function Index({
                         } />
                     </div>
                 );
+                }
+
+                case 'fabric-qc': {
+                    const inspectionDecision = (row: WorkflowDocument): string => {
+                        const decision = String(row.metadata?.final_decision ?? '');
+                        if (decision !== '') return decision;
+                        if (row.status === 'approved' || row.status === 'released') return 'pass';
+                        if (row.status === 'rejected') return 'fail';
+                        return 'pending';
+                    };
+                    const decisionLabel = (decision: string): string => {
+                        if (decision === 'pass' || decision === 'approved' || decision === 'released') return t('Passed');
+                        if (decision === 'fail' || decision === 'rejected') return t('Rejected');
+                        if (decision === 'rework') return t('Rework');
+                        return t('Pending');
+                    };
+                    const approvedInspectionLotRefs = new Set(
+                        inspections
+                            .filter((row) => row.status === 'approved' || row.status === 'released')
+                            .map((row) => String(row.lot_reference ?? ''))
+                            .filter(Boolean)
+                    );
+                    const pendingQcTakhas = takhaEntries.filter((row) => {
+                        const lotRef = String(row.lot_reference ?? '');
+                        return lotRef !== '' && !approvedInspectionLotRefs.has(lotRef);
+                    });
+
+                    return (
+                        <div className="space-y-6">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <p className="text-sm text-muted-foreground">
+                                    {t('Fabric inspections are recorded in the Quality workspace. Takha lots must pass inspection and be released from hold before they can be sold.')}
+                                </p>
+                                <Button type="button" variant="outline" onClick={() => router.get(route('textile.quality.index', { section: 'inspection' }), {}, { preserveState: true })}>
+                                    <ClipboardCheck className="mr-2 h-4 w-4" />
+                                    {t('Open Fabric Inspection')}
+                                </Button>
+                            </div>
+                            <TextileDataTableSection
+                                title={t('Takha Lots Pending Inspection')}
+                                data={pendingQcTakhas}
+                                columns={[
+                                    { key: 'document_number', header: t('Number') },
+                                    { key: 'takha_number', header: t('Takha'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.takha_number ?? row.lot_reference ?? '-') },
+                                    { key: 'lot_reference', header: t('Lot') },
+                                    { key: 'quantity', header: t('Qty') },
+                                    { key: 'unit', header: t('Unit') },
+                                    { key: 'status', header: t('Status'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(row.status) },
+                                ]}
+                                emptyState={<NoRecordsFound icon={ClipboardCheck} title={t('All Takha lots inspected')} description={t('New takha entries from weaving production will appear here until they pass inspection.')} />}
+                            />
+                            <TextileDataTableSection
+                                title={t('Inspection Records')}
+                                data={inspections}
+                                columns={[
+                                    { key: 'document_number', header: t('Number') },
+                                    { key: 'lot_reference', header: t('Lot') },
+                                    { key: 'qc_stage', header: t('QC Stage'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.qc_stage ?? '')) },
+                                    { key: 'inspection_result', header: t('Result'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.inspection_result ?? '')) },
+                                    { key: 'decision', header: t('Decision'), render: (_value: unknown, row: WorkflowDocument) => decisionLabel(inspectionDecision(row)) },
+                                    { key: 'quantity', header: t('Qty') },
+                                    { key: 'unit', header: t('Unit') },
+                                    { key: 'status', header: t('Status'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(row.status) },
+                                ]}
+                                emptyState={<NoRecordsFound icon={ClipboardCheck} title={t('No inspections yet')} description={t('Open Fabric Inspection in the Quality workspace to inspect woven takha lots.')} />}
+                            />
+                        </div>
+                    );
                 }
 
                 case 'waste': {

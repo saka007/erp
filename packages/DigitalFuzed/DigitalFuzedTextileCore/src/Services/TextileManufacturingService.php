@@ -4,6 +4,7 @@ namespace DigitalFuzed\TextileCore\Services;
 
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
+use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Services\TextileLotAutoCreationService;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -12,8 +13,20 @@ class TextileManufacturingService
 {
     public function __construct(
         protected TextileWorkflowService $workflowService,
-        protected TextileLotAutoCreationService $lotAutoCreationService
+        protected TextileLotAutoCreationService $lotAutoCreationService,
+        protected TextileOperatingPolicyService $policyService
     ) {
+    }
+
+    private function tenantHasCapability(string $capability): bool
+    {
+        try {
+            $this->policyService->assertCapability($capability);
+
+            return true;
+        } catch (RuntimeException) {
+            return false;
+        }
     }
 
     public function createBeam(array $payload): TextileWorkflowDocument
@@ -95,6 +108,8 @@ class TextileManufacturingService
             throw new RuntimeException('Warp plan requires an upstream source reference.');
         }
 
+        $this->assertYarnLotPassedIncomingQc($payload);
+
         return $this->workflowService->createDocument([
             'document_type' => 'warp_plan',
             'source_reference_type' => $payload['source_reference_type'],
@@ -108,6 +123,50 @@ class TextileManufacturingService
             'metadata' => $payload['metadata'] ?? null,
             'idempotency_key' => $payload['idempotency_key'] ?? null,
         ]);
+    }
+
+    /**
+     * Gate: yarn lots must pass incoming QC before being consumed in warp planning.
+     * Skipped when the source is not a resolvable yarn lot or the tenant does not
+     * operate incoming QC (fail-open for tenants without that capability).
+     */
+    private function assertYarnLotPassedIncomingQc(array $payload): void
+    {
+        $sourceType = $payload['source_reference_type'] ?? null;
+        if (! in_array($sourceType, ['textile_lot', 'inventory_lot'], true)) {
+            return;
+        }
+
+        $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
+        $lot = TextileLot::query()
+            ->where('created_by', $tenantId)
+            ->where('lot_reference', $payload['lot_reference'] ?? null)
+            ->where('material_type', TextileLot::TYPE_YARN)
+            ->first();
+
+        // Source lot is not a resolvable yarn lot (e.g. external reference) — nothing to gate against.
+        if (! $lot) {
+            return;
+        }
+
+        if (! ($this->tenantHasCapability('procurement_incoming_qc'))) {
+            return;
+        }
+
+        if ($lot->source_document_type !== 'incoming_qc' || ! $lot->source_document_id) {
+            throw new RuntimeException('Yarn lot must pass incoming QC before warp planning.');
+        }
+
+        $sourceQuery = TextileWorkflowDocument::query()
+            ->where('id', $lot->source_document_id)
+            ->where('created_by', $tenantId)
+            ->where('document_type', 'incoming_qc');
+        TextileBranchScope::applyWorkflowScope($sourceQuery);
+        $source = $sourceQuery->first();
+
+        if (! $source || ! in_array($source->status, ['approved', 'released'], true)) {
+            throw new RuntimeException('Yarn lot must pass incoming QC before warp planning.');
+        }
     }
 
     public function approveWarpPlan(int $warpPlanId): TextileWorkflowDocument
