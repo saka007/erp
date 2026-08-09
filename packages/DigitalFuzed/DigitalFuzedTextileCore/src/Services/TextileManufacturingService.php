@@ -827,13 +827,15 @@ class TextileManufacturingService
             ->where('source_reference_id', $batch->id);
         TextileBranchScope::applyWorkflowScope($existingQuery);
 
-        if ($existingQuery->exists()) {
-            throw new RuntimeException('This production batch is already assigned.');
-        }
+        // Partial allotment: a batch (beam) can be assigned across multiple
+        // production runs. Each assignment must stay within the remaining
+        // unassigned quantity so part of the beam can be kept in stock.
+        $alreadyAssigned = (float) $existingQuery->sum('quantity');
+        $remaining = (float) $batch->quantity - $alreadyAssigned;
 
-        $quantity = (float) ($payload['assigned_quantity'] ?? $batch->quantity);
-        if ($quantity <= 0 || $quantity > (float) $batch->quantity) {
-            throw new RuntimeException('Assigned quantity must not exceed the production batch quantity.');
+        $quantity = (float) ($payload['assigned_quantity'] ?? $remaining);
+        if ($quantity <= 0 || $quantity > $remaining + 0.0001) {
+            throw new RuntimeException('Assigned quantity must not exceed the remaining production batch quantity.');
         }
 
         $productionMode = $payload['production_mode'] ?? null;
@@ -861,11 +863,13 @@ class TextileManufacturingService
                 : sprintf('%d branch looms', count($loomAllocations));
         }
 
-        return $this->workflowService->createDocument([
+        // Omit source_action (NULL) so multiple partial assignments are allowed
+        // for the same batch — the workflow dedup + DB unique index only apply
+        // when source_action is set. Remaining-quantity is enforced above.
+        $assignment = $this->workflowService->createDocument([
             'document_type' => 'production_assignment',
             'source_reference_type' => 'textile_workflow_document',
             'source_reference_id' => $batch->id,
-            'source_action' => 'assign_for_production',
             'party_name' => $partyName,
             'lot_reference' => $batch->lot_reference,
             'quantity' => $quantity,
@@ -884,6 +888,22 @@ class TextileManufacturingService
                 'notes' => $payload['notes'] ?? null,
             ],
         ]);
+
+        // Commit the assigned beam quantity from inventory: reserve it from the
+        // source beam lot so the remaining (unassigned) beam stays in stock and
+        // is visible in inventory. Fail-open when no beam lot is present.
+        $beamLotReference = $this->resolveBatchBeamLotReference($batch);
+        if ($beamLotReference !== null) {
+            $this->consumptionService->reserveBeamForAssignment(
+                $beamLotReference,
+                $quantity,
+                'production_assignment',
+                $assignment->id,
+                $batch->created_by,
+            );
+        }
+
+        return $assignment;
     }
 
     public function createTakhaFromAssignment(int $assignmentId, array $payload): TextileWorkflowDocument
@@ -993,6 +1013,8 @@ class TextileManufacturingService
                 $outsourced,
             );
         } elseif ($parentReference !== null && $parentType === TextileLot::TYPE_BEAM) {
+            // Fulfill this assignment's beam reservation (the assigned quantity
+            // was already reserved at assignment time) to avoid double consumption.
             $this->consumptionService->issueBeamForWeaving(
                 $parentReference,
                 $quantity,
@@ -1001,6 +1023,7 @@ class TextileManufacturingService
                 $takha->id,
                 $assignment->created_by,
                 $outsourced,
+                [$assignment->id],
             );
         }
 
@@ -1050,6 +1073,8 @@ class TextileManufacturingService
 
         // Consume the beam lot that fed this weaving output (fail-open).
         // Outsourced when the batch is assigned to a powerloom vendor.
+        // The batch's production-assignment reservations are fulfilled so the
+        // beam is not double-consumed (assigned quantity was already reserved).
         if ($beamLotReference !== null) {
             $outsourced = $this->isBatchWeavingOutsourced($batch);
             $this->consumptionService->issueBeamForWeaving(
@@ -1060,6 +1085,7 @@ class TextileManufacturingService
                 $output->id,
                 $output->created_by,
                 $outsourced,
+                $this->batchAssignmentIds($batch),
             );
 
             // Ledger: grey fabric received from weaving output.
@@ -1067,6 +1093,22 @@ class TextileManufacturingService
         }
 
         return $output;
+    }
+
+    /**
+     * Ids of all production assignments created for a batch.
+     */
+    private function batchAssignmentIds(TextileWorkflowDocument $batch): array
+    {
+        $query = TextileWorkflowDocument::query()
+            ->where('created_by', $batch->created_by)
+            ->where('document_type', 'production_assignment')
+            ->where('source_reference_type', 'textile_workflow_document')
+            ->where('source_reference_id', $batch->id);
+
+        TextileBranchScope::applyWorkflowScope($query);
+
+        return $query->pluck('id')->all();
     }
 
     /**

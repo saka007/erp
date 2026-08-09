@@ -316,8 +316,20 @@ export default function Index({
     const beamBatchApprovedBeams = beamBatchBeams.filter((row) => row.status === 'approved');
     const actionableBeamIssues = beamIssues.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
     const releasedBatches = productionBatches.filter((row) => row.status === 'released');
-    const assignedBatchIds = new Set(productionAssignments.map((row) => Number(row.source_reference_id)));
-    const assignableBatches = releasedBatches.filter((row) => !assignedBatchIds.has(row.id));
+    // Partial beam allotment: a batch (beam) can be assigned across multiple
+    // production runs. Sum assigned quantities per batch so the remaining
+    // unassigned beam quantity drives assignability.
+    const assignedQuantityByBatch = productionAssignments.reduce((totals, row) => {
+        const batchId = Number(row.source_reference_id ?? 0);
+        totals.set(batchId, (totals.get(batchId) ?? 0) + (Number(row.quantity) || 0));
+        return totals;
+    }, new Map<number, number>());
+    const assignableBatches = releasedBatches
+        .map((row) => ({
+            ...row,
+            remaining_quantity: Math.max(0, (Number(row.quantity) || 0) - (assignedQuantityByBatch.get(row.id) ?? 0)),
+        }))
+        .filter((row) => row.remaining_quantity > 0.0001);
     const activeProductionAssignments = productionAssignments.filter((row) => ['approved', 'released'].includes(row.status));
     const takhaQuantityByAssignment = takhaEntries.reduce((totals, row) => {
         const assignmentId = Number(row.source_reference_id ?? 0);
@@ -1696,14 +1708,17 @@ export default function Index({
                                     value={productionAssignmentForm.data.batch_id}
                                     onChange={(value) => {
                                         const batch = assignableBatches.find((row) => String(row.id) === value);
-                                        productionAssignmentForm.setData((data) => ({ ...data, batch_id: value, assigned_quantity: batch?.quantity ?? '' }));
+                                        productionAssignmentForm.setData((data) => ({ ...data, batch_id: value, assigned_quantity: batch?.remaining_quantity !== undefined ? String(batch.remaining_quantity) : '' }));
                                     }}
-                                    options={createTextileWorkflowSelectOptions(assignableBatches)}
+                                    options={assignableBatches.map((row) => ({
+                                        value: String(row.id),
+                                        label: `${row.document_number} | ${row.party_name ?? '-'} | Lot ${row.lot_reference ?? '-'} | ${Number(row.remaining_quantity || 0).toFixed(2)} ${row.unit || '-'} remaining`,
+                                    }))}
                                     includeEmpty
                                     emptyLabel={t('Select released production batch')}
-                                    helperText={t('Uses Production Batch Records released from Beam and Batch.')}
+                                    helperText={t('Assign a part of the beam and keep the rest in stock. Remaining beam quantity can be assigned to the next production run.')}
                                     disabled={assignableBatches.length === 0}
-                                    disabledReason={t('No unassigned released production batch found.')}
+                                    disabledReason={t('No released production batch with unassigned beam quantity found.')}
                                     required
                                 />
                                 <SelectField

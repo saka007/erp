@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\UserActiveModule;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
+use DigitalFuzed\TextileInventory\Models\TextileReservation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -1166,5 +1167,195 @@ class TextileManufacturingAdminTest extends TestCase
                 'unit' => 'kg',
             ])
             ->assertSessionHasNoErrors();
+    }
+
+    public function test_production_batch_supports_partial_beam_allotment_and_reserves_beam_stock(): void
+    {
+        AddOn::create([
+            'module' => 'TextileCore',
+            'name' => 'Textile Core',
+            'package_name' => 'textile-core',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        $companyA = $this->company();
+        $branchA = Branch::create([
+            'branch_name' => 'Partial Allotment Branch',
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+        $this->withSession(['active_branch_id' => $branchA->id]);
+
+        // Beam (250 mtr) → beam lot with full available quantity.
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.beams.store'), [
+                'source_reference_type' => 'sales_order',
+                'source_reference_id' => 8002,
+                'source_action' => 'beam_prepare',
+                'party_name' => 'Mill Unit B',
+                'lot_reference' => 'LOT-PARTIAL-1',
+                'quantity' => 250,
+                'unit' => 'mtr',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $beam = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'beam')
+            ->where('source_reference_id', 8002)
+            ->firstOrFail();
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.beams.approve'), ['beam_id' => $beam->id])
+            ->assertSessionHasNoErrors();
+
+        // Beam lot exists with full stock.
+        $this->assertDatabaseHas('textile_lots', [
+            'created_by' => $companyA->id,
+            'lot_reference' => 'LOT-PARTIAL-1',
+            'material_type' => TextileLot::TYPE_BEAM,
+            'received_quantity' => 250,
+            'available_quantity' => 250,
+        ]);
+
+        // Batch from beam (250) → release.
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.batches.store'), ['beam_id' => $beam->id])
+            ->assertSessionHasNoErrors();
+
+        $batch = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'production_batch')
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.batches.release'), ['batch_id' => $batch->id])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.loom-masters.store'), [
+                'source_reference_type' => 'factory',
+                'source_reference_id' => 9101,
+                'source_action' => 'loom_register',
+                'party_name' => 'Loom-P1',
+                'lot_reference' => 'Rapier',
+                'quantity' => 540,
+                'unit' => 'rpm',
+                'shed_type' => 'dobby',
+                'width' => 110,
+                'loom_status' => 'running',
+                'running_hours' => 7,
+                'idle_hours' => 1,
+                'operator_name' => 'Operator P',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $loom = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'loom_master')
+            ->where('source_reference_id', 9101)
+            ->firstOrFail();
+
+        // Partial allotment 1: assign 100 of the 250 mtr beam, keep 150 in stock.
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.production-assignments.store'), [
+                'batch_id' => $batch->id,
+                'production_mode' => 'own_unit',
+                'assigned_quantity' => 100,
+                'assignment_date' => now()->toDateString(),
+                'loom_allocations' => [
+                    ['loom_master_id' => $loom->id, 'quantity' => 100],
+                ],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $firstAssignment = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'production_assignment')
+            ->where('source_reference_id', $batch->id)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame(100.0, (float) $firstAssignment->quantity);
+
+        // Beam stock adjusted: 100 reserved for production, 150 remain available.
+        $reservation = TextileReservation::query()
+            ->where('created_by', $companyA->id)
+            ->where('lot_reference', 'LOT-PARTIAL-1')
+            ->where('reference_type', 'production_assignment')
+            ->where('reference_id', $firstAssignment->id)
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $this->assertSame(100.0, (float) $reservation->reserved_quantity);
+
+        $this->assertDatabaseHas('textile_lots', [
+            'created_by' => $companyA->id,
+            'lot_reference' => 'LOT-PARTIAL-1',
+            'available_quantity' => 150,
+        ]);
+
+        // Partial allotment 2: assign 100 more — the batch remains assignable.
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.production-assignments.store'), [
+                'batch_id' => $batch->id,
+                'production_mode' => 'own_unit',
+                'assigned_quantity' => 100,
+                'assignment_date' => now()->toDateString(),
+                'loom_allocations' => [
+                    ['loom_master_id' => $loom->id, 'quantity' => 100],
+                ],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(
+            200,
+            TextileWorkflowDocument::query()
+                ->where('created_by', $companyA->id)
+                ->where('document_type', 'production_assignment')
+                ->where('source_reference_id', $batch->id)
+                ->sum('quantity')
+        );
+
+        $this->assertDatabaseHas('textile_lots', [
+            'created_by' => $companyA->id,
+            'lot_reference' => 'LOT-PARTIAL-1',
+            'available_quantity' => 50,
+        ]);
+
+        // Partial allotment 3: exceeding remaining (250 - 200 = 50) is rejected.
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.production-assignments.store'), [
+                'batch_id' => $batch->id,
+                'production_mode' => 'own_unit',
+                'assigned_quantity' => 60,
+                'assignment_date' => now()->toDateString(),
+                'loom_allocations' => [
+                    ['loom_master_id' => $loom->id, 'quantity' => 60],
+                ],
+            ])
+            ->assertSessionHasErrors('batch_id');
+
+        // Remaining 50 can still be assigned (fills the beam completely).
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.production-assignments.store'), [
+                'batch_id' => $batch->id,
+                'production_mode' => 'own_unit',
+                'assigned_quantity' => 50,
+                'assignment_date' => now()->toDateString(),
+                'loom_allocations' => [
+                    ['loom_master_id' => $loom->id, 'quantity' => 50],
+                ],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('textile_lots', [
+            'created_by' => $companyA->id,
+            'lot_reference' => 'LOT-PARTIAL-1',
+            'available_quantity' => 0,
+        ]);
     }
 }

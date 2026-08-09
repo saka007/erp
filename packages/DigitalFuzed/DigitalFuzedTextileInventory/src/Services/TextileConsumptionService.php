@@ -156,7 +156,65 @@ class TextileConsumptionService
     }
 
     /**
+     * Reserve beam stock when part of a beam is assigned for production.
+     *
+     * A production assignment commits a portion of the beam to manufacturing:
+     * the committed quantity is reserved from the beam lot, so inventory shows
+     * the remaining (uncommitted) beam quantity as available. This mirrors
+     * reserveYarnForAllocation. Fail-open: no-op when the beam lot is missing
+     * or has nothing available.
+     *
+     * @return TextileReservation|null
+     */
+    public function reserveBeamForAssignment(
+        string $beamLotReference,
+        float $quantity,
+        string $referenceType = 'production_assignment',
+        ?int $referenceId = null,
+        ?int $tenantId = null,
+    ): ?TextileReservation {
+        if ($beamLotReference === '' || $quantity <= 0) {
+            return null;
+        }
+
+        $lot = $this->findLot($beamLotReference, $tenantId);
+        if ($lot === null) {
+            Log::info("TextileConsumption: beam lot '{$beamLotReference}' not found — assignment reservation skipped (fail-open).");
+
+            return null;
+        }
+
+        $available = (float) $lot->available_quantity;
+        if ($available <= 0) {
+            Log::info("TextileConsumption: beam lot '{$beamLotReference}' has no available stock — assignment reservation skipped (fail-open).");
+
+            return null;
+        }
+
+        // Reserve only what is actually available; never over-commit.
+        $reserveQuantity = min($quantity, $available);
+
+        try {
+            return $this->availabilityService->reserve(
+                $beamLotReference,
+                $reserveQuantity,
+                $referenceType,
+                $referenceId,
+            );
+        } catch (\RuntimeException $e) {
+            Log::warning("TextileConsumption: beam reservation failed for '{$beamLotReference}': {$e->getMessage()}");
+
+            return null;
+        }
+    }
+
+    /**
      * Consume a beam lot when weaving output (grey fabric) is recorded.
+     *
+     * When production assignments for the batch already reserved beam stock,
+     * those reservations are fulfilled instead of decrementing the lot again
+     * (avoids double consumption) — the reservation already reduced
+     * available_quantity at assignment time.
      *
      * In-house weaving issues the beam warehouse → weaving. Outsourced weaving
      * (powerloom vendor) issues the beam warehouse → powerloom-vendor.
@@ -170,20 +228,113 @@ class TextileConsumptionService
         ?int $referenceId = null,
         ?int $tenantId = null,
         bool $outsourced = false,
+        array $reservationReferenceIds = [],
     ): bool {
-        return $this->issueForProduction(
+        return $this->consumeBeamForWeaving(
             $beamLotReference,
             $quantity,
             $unit,
             $referenceType,
             $referenceId,
             $tenantId,
-            'warehouse',
-            $outsourced ? 'powerloom-vendor' : 'weaving',
-            $outsourced
+            $outsourced,
+            $reservationReferenceIds,
+        );
+    }
+
+    /**
+     * Consume a beam lot for weaving, fulfilling the production-assignment
+     * reservations that committed the beam to production.
+     *
+     * Reservations already reduced available_quantity at assignment time, so
+     * the consumed quantity is drawn from the active reservations (marked
+     * consumed / reduced) rather than decrementing the lot again. Any quantity
+     * beyond the reserved amount (legacy data without reservations, or weaving
+     * more than was assigned) is consumed directly from the lot's available
+     * stock. Fail-open.
+     */
+    public function consumeBeamForWeaving(
+        string $beamLotReference,
+        float $quantity,
+        string $unit,
+        string $referenceType = 'weaving_output',
+        ?int $referenceId = null,
+        ?int $tenantId = null,
+        bool $outsourced = false,
+        array $reservationReferenceIds = [],
+    ): bool {
+        if ($beamLotReference === '' || $quantity <= 0) {
+            return false;
+        }
+
+        $lot = $this->findLot($beamLotReference, $tenantId);
+        if ($lot === null) {
+            Log::info("TextileConsumption: beam lot '{$beamLotReference}' not found — weaving issue skipped (fail-open).");
+
+            return false;
+        }
+
+        // Fulfill active production-assignment reservations first (fail-open).
+        $consumedFromReservations = 0.0;
+        $remaining = $quantity;
+
+        if ($reservationReferenceIds !== []) {
+            $reservations = TextileReservation::query()
+                ->where('lot_reference', $beamLotReference)
+                ->where('reference_type', 'production_assignment')
+                ->whereIn('reference_id', $reservationReferenceIds)
+                ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId))
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->get();
+
+            foreach ($reservations as $reservation) {
+                if ($remaining <= 0) {
+                    break;
+                }
+
+                $take = min((float) $reservation->reserved_quantity, $remaining);
+                $reservation->reserved_quantity = max(0, (float) $reservation->reserved_quantity - $take);
+                if ((float) $reservation->reserved_quantity <= 0) {
+                    $reservation->status = 'consumed';
+                    $reservation->is_active = false;
+                }
+                $reservation->save();
+                $consumedFromReservations += $take;
+                $remaining -= $take;
+            }
+        }
+
+        $available = (float) $lot->available_quantity;
+        $lotConsume = min($remaining, $available);
+
+        if ($consumedFromReservations <= 0 && $lotConsume <= 0) {
+            Log::info("TextileConsumption: beam lot '{$beamLotReference}' has no available stock or reservations — weaving issue skipped (fail-open).");
+
+            return false;
+        }
+
+        $this->movementService->createMovement([
+            'movement_type' => 'issue',
+            'reference_type' => $referenceType,
+            'reference_id' => $referenceId,
+            'lot_reference' => $beamLotReference,
+            'location_from' => 'warehouse',
+            'location_to' => $outsourced ? 'powerloom-vendor' : 'weaving',
+            'quantity' => $quantity,
+            'unit' => $unit,
+            'status' => 'posted',
+            'notes' => $outsourced
                 ? 'Beam issued to powerloom vendor for outsourced weaving.'
                 : 'Beam issued for in-house weaving.',
-        );
+        ]);
+
+        if ($lotConsume > 0) {
+            $lot->available_quantity = max(0, $available - $lotConsume);
+            $lot->save();
+        }
+
+        return true;
     }
 
     /**
