@@ -1243,6 +1243,16 @@ Progress note (2026-08-04):
 - Textile dashboard admin: `./vendor/bin/phpunit tests/Feature/Textile/TextileDashboardAdminTest.php --colors=never` passed: `OK (1 test, 10 assertions)`.
 - Users-page frontend build: `npm run build` passed. The existing Vite chunk-size warning remains non-blocking.
 
+## Quotation + user branch assignment (deployed 2026-08-10, commits ba1f7dbab + 7de9f5b46)
+
+- **Create Quotation fixes**: (a) customer dropdown now loads real customers from Account `customers` table (`customersForSelect()` in `QuotationController` — auto-creates linked `type='client'` users via `firstOrCreate` when `user_id` missing, email fallback `contact_person_email` else `customer{id}@<host>`); (b) warehouse chooser removed for branch-scoped users — warehouse is auto-derived from the active branch via `scopedWarehouseQuery`; when exactly one warehouse exists in scope it renders as a read-only auto-selected field with "Auto-selected from your active branch" hint.
+- **User branch assignment (embedded in existing users create/edit form)**: new pivot table `textile_user_branch_assignments` (unique `uba_user_branch_unique`, tenant index), `TextileUserBranchAssignment` model, `TextileUserBranchService` (`branchIdsForUser`, `hasMultipleBranchAccess`, `syncBranches`, `validTenantBranchIds`).
+  - `UserController` index/store/update now share `branches` prop (tenant-owned branch options) and persist `branch_ids` via `syncBranches` (only when company has branches). MultiSelectEnhanced branch picker renders in the users create/edit form; hidden when company has no branches.
+  - Branch context now honors assignments for ALL non-tenant-root users (single assigned branch → auto-scoped, no header branch dropdown; multiple assigned branches → header dropdown limited to assigned branches; tenant root company/superadmin → all branches).
+  - Applies in 4 places: `HandleInertiaRequests` (share + `resolveActiveBranchIdForUser`), `BranchContextController::update`, `HasBranchWarehouseScope::currentUserBranchId`, `TextileBranchScope::currentBranchId`. Assignments take precedence over the `manage-any-branches` permission for staff (fix commit 7de9f5b46).
+- **Deploy**: GH Actions runs on saka007/erp master. First deploy ba1f7dbab succeeded (run 31340721914); second deploy 7de9f5b46 failed once with transient SSH timeout (`ssh: connect to host port 22: Connection timed out`) then succeeded on `gh run rerun --failed` (run 31341371790).
+- **Verified on production**: migration `2026_08_08_000016` applied `[29] Ran`; `grep -c isTenantRoot` = 5 (HandleInertiaRequests) / 2 (HasBranchWarehouseScope); tinker check — staff user 3 with single assignment `[1]` now resolves `currentUserBranchId = 1` (was `null` before the fix). Customers 1-3 auto-linked to client users 4/5/6.
+
 ## Delivery order from here
 
 1. **P1 (completed Aug 2026)**: Inventory Redesign + Per-Role RBAC — Phase 3B. Restructure inventory into material-type-wise sub-menus (Yarn, Beam, Grey Fabric, Finished Fabric, Chemicals, Packing Materials) with auto-created lots. Add per-role capability overrides (owner sees all 111 items, manager sees 74 operational items). Verified: `npx tsc --noEmit`, `npm run build`, `php artisan test tests/Feature/Textile/TextileApprovalAdminTest.php`, and `php artisan db:seed --class=TextileRoleCapabilitySeeder --no-interaction --force`.
