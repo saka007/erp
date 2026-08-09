@@ -2614,9 +2614,30 @@ export default function Index({
                         const lotRef = String(row.lot_reference ?? '');
                         return lotRef !== '' && !approvedInspectionLotRefs.has(lotRef);
                     });
+                    const takhaReadableLabel = (row: WorkflowDocument): string => {
+                        const meta = (row.metadata ?? {}) as Record<string, unknown>;
+                        const documentNumber = String(row.document_number ?? '');
+                        const takhaNumber = String(meta.takha_number ?? '');
+                        const lotRef = String(row.lot_reference ?? '');
+                        const quantity = String(row.quantity ?? '-');
+                        const unit = String(row.unit ?? '');
+                        const batchNumber = String(meta.batch_number ?? '');
+                        const sourceRef = String(meta.source_reference ?? '');
+                        const productionDate = String(meta.production_date ?? '');
+                        // Prefer a human takha number (e.g. TK-0001); fall back to the system document number.
+                        const takhaId = takhaNumber !== '' && /[a-zA-Z]/.test(takhaNumber) ? takhaNumber : documentNumber;
+                        // Beam/source reference: new-style entries carry batch_number, older entries carry source_reference.
+                        const beamRef = batchNumber !== '' ? batchNumber : sourceRef;
+                        const parts = [takhaId];
+                        if (beamRef !== '') parts.push(beamRef);
+                        if (lotRef !== '' && lotRef !== takhaNumber && lotRef !== takhaId) parts.push(lotRef);
+                        parts.push(`${quantity} ${unit}`.trim());
+                        if (productionDate !== '') parts.push(productionDate);
+                        return parts.join(' | ');
+                    };
                     const takhaInspectionOptions = takhaEntries
                         .filter((row) => String(row.lot_reference ?? '') !== '')
-                        .map((row) => ({ value: String(row.lot_reference), label: `${String(row.lot_reference)} — ${String(row.quantity ?? '-')} ${String(row.unit ?? '')}` }));
+                        .map((row) => ({ value: String(row.id), label: takhaReadableLabel(row) }));
 
                     return (
                         <div className="space-y-6">
@@ -2641,11 +2662,11 @@ export default function Index({
                                 >
                                     <SelectField
                                         label={t('Takha Lot')}
-                                        value={inspectionForm.data.lot_reference}
+                                        value={inspectionForm.data.source_reference_id}
                                         onChange={(value: string) => {
-                                            const takha = takhaEntries.find((row) => String(row.lot_reference ?? '') === value);
-                                            inspectionForm.setData('lot_reference', value);
-                                            inspectionForm.setData('source_reference_id', takha ? String(takha.id) : '');
+                                            const takha = takhaEntries.find((row) => String(row.id) === value);
+                                            inspectionForm.setData('source_reference_id', value);
+                                            inspectionForm.setData('lot_reference', takha ? String(takha.lot_reference ?? '') : '');
                                             inspectionForm.setData('quantity', takha ? String(takha.quantity ?? '') : '');
                                             inspectionForm.setData('unit', takha?.unit ?? 'mtr');
                                             inspectionForm.setData('party_name', takha?.party_name ?? '');
@@ -2654,6 +2675,7 @@ export default function Index({
                                         includeEmpty
                                         emptyLabel={t('Select takha lot')}
                                         required
+                                        error={inspectionForm.errors.lot_reference}
                                     />
                                     <div className="grid grid-cols-2 gap-3">
                                         <SelectField
@@ -2707,7 +2729,7 @@ export default function Index({
                                 data={pendingQcTakhas}
                                 columns={[
                                     { key: 'document_number', header: t('Number') },
-                                    { key: 'takha_number', header: t('Takha'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.takha_number ?? row.lot_reference ?? '-') },
+                                    { key: 'takha_number', header: t('Takha'), render: (_value: unknown, row: WorkflowDocument) => takhaReadableLabel(row) },
                                     { key: 'lot_reference', header: t('Lot') },
                                     { key: 'quantity', header: t('Qty') },
                                     { key: 'unit', header: t('Unit') },

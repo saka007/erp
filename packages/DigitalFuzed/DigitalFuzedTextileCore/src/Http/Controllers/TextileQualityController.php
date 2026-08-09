@@ -379,6 +379,13 @@ class TextileQualityController extends Controller
             ->pluck('unit', 'lot_reference')
             ->map(fn ($unit) => (string) ($unit ?? 'mtr'));
 
+        $takhaSourceDocs = TextileWorkflowDocument::query()
+            ->where('created_by', $tenantId)
+            ->where('document_type', 'takha_entry')
+            ->whereNotNull('lot_reference')
+            ->get(['lot_reference', 'document_number', 'metadata'])
+            ->keyBy(fn ($document) => trim((string) $document->lot_reference));
+
         $approvedTakhas = TextileWorkflowDocument::query()
             ->where('created_by', $tenantId)
             ->where('document_type', 'inspection')
@@ -401,10 +408,12 @@ class TextileQualityController extends Controller
             ->unique()
             ->values();
 
-        return $takhaLots->map(function (TextileLot $lot) use ($approvedTakhas, $pendingTakhas, $takhaSourceUnits) {
+        return $takhaLots->map(function (TextileLot $lot) use ($approvedTakhas, $pendingTakhas, $takhaSourceUnits, $takhaSourceDocs) {
             $inspectionStatus = $approvedTakhas->contains($lot->lot_reference)
                 ? 'passed'
                 : ($pendingTakhas->contains($lot->lot_reference) ? 'pending' : 'uninspected');
+
+            $label = $this->readableTakhaLabel($lot, $takhaSourceDocs->get(trim((string) $lot->lot_reference)));
 
             return [
                 'value' => $lot->lot_reference,
@@ -413,9 +422,38 @@ class TextileQualityController extends Controller
                 'unit' => (string) ($takhaSourceUnits->get($lot->lot_reference) ?? 'mtr'),
                 'parent_lot_reference' => (string) ($lot->parent_lot_reference ?? ''),
                 'inspection_status' => $inspectionStatus,
-                'label' => trim(sprintf('%s%s', $lot->lot_reference, $inspectionStatus === 'passed' ? ' (QC passed)' : ($inspectionStatus === 'pending' ? ' (QC pending)' : ''))),
+                'label' => $inspectionStatus === 'passed' ? sprintf('%s (QC passed)', $label) : ($inspectionStatus === 'pending' ? sprintf('%s (QC pending)', $label) : $label),
             ];
         })->values()->all();
+    }
+
+    private function readableTakhaLabel(TextileLot $lot, ?TextileWorkflowDocument $sourceDocument): string
+    {
+        $lotReference = trim((string) $lot->lot_reference);
+
+        if (! $sourceDocument) {
+            return $lotReference;
+        }
+
+        $metadata = is_array($sourceDocument->metadata) ? $sourceDocument->metadata : [];
+        $takhaNumber = (string) ($metadata['takha_number'] ?? '');
+        $documentNumber = (string) $sourceDocument->document_number;
+        // Prefer a human takha number (e.g. TK-0001); fall back to the system document number.
+        $takhaId = $takhaNumber !== '' && preg_match('/[a-zA-Z]/', $takhaNumber) ? $takhaNumber : $documentNumber;
+        // Beam/source reference: new-style entries carry batch_number, older entries carry source_reference.
+        $batchNumber = (string) ($metadata['batch_number'] ?? '');
+        $sourceReference = (string) ($metadata['source_reference'] ?? '');
+        $beamReference = $batchNumber !== '' ? $batchNumber : $sourceReference;
+
+        $parts = [$takhaId];
+        if ($beamReference !== '') {
+            $parts[] = $beamReference;
+        }
+        if ($lotReference !== '' && $lotReference !== $takhaNumber && $lotReference !== $takhaId) {
+            $parts[] = $lotReference;
+        }
+
+        return implode(' | ', $parts);
     }
 
     private function authorizeTextileAccess(): void
