@@ -17,10 +17,14 @@ trait HasBranchWarehouseScope
 
     protected function currentUserBranchId($user): ?int
     {
-        $assignedBranchIds = \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, (int) creatorId());
+        $isTenantRoot = in_array($user->type, ['company', 'superadmin'], true);
+        $assignedBranchIds = $isTenantRoot
+            ? []
+            : \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, (int) creatorId());
 
-        // Users with explicit branch assignments are scoped to those branches.
-        if (! $this->canManageAllBranches($user) && count($assignedBranchIds) > 0) {
+        // Users with explicit branch assignments are scoped to those branches
+        // (takes precedence over the manage-any-branches permission).
+        if (count($assignedBranchIds) > 0) {
             if (count($assignedBranchIds) === 1) {
                 return $assignedBranchIds[0];
             }

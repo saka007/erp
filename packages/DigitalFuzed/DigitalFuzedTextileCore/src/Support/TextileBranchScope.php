@@ -92,10 +92,14 @@ class TextileBranchScope
     private static function currentBranchId($user): ?int
     {
         $tenantId = self::tenantId($user);
-        $assignedBranchIds = \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, $tenantId);
+        $isTenantRoot = in_array($user->type, ['company', 'superadmin'], true);
+        $assignedBranchIds = $isTenantRoot
+            ? []
+            : \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, $tenantId);
 
-        // Users with explicit branch assignments are scoped to those branches.
-        if (! self::canManageAllBranches($user) && count($assignedBranchIds) > 0) {
+        // Users with explicit branch assignments are scoped to those branches
+        // (takes precedence over the manage-any-branches permission).
+        if (count($assignedBranchIds) > 0) {
             if (count($assignedBranchIds) === 1) {
                 return $assignedBranchIds[0];
             }

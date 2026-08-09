@@ -18,9 +18,18 @@ class BranchContextController extends Controller
         }
 
         $canManageAll = $this->canManageAllBranches($user);
-        $assignedBranchIds = \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, (int) creatorId());
+        $isTenantRoot = in_array($user->type, ['company', 'superadmin'], true);
+        $assignedBranchIds = $isTenantRoot
+            ? []
+            : \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, (int) creatorId());
 
-        if (! $canManageAll && count($assignedBranchIds) <= 1) {
+        // Users with assignments may only switch within their assigned branches;
+        // the switcher is only available when they have multiple assignments.
+        $canSwitch = count($assignedBranchIds) > 0
+            ? count($assignedBranchIds) > 1
+            : $canManageAll;
+
+        if (! $canSwitch) {
             return back()->with('error', __('You are not allowed to change branch context.'));
         }
 
@@ -39,12 +48,12 @@ class BranchContextController extends Controller
             return back()->with('success', __('Branch context cleared.'));
         }
 
-        $exists = $canManageAll
-            ? DB::table('branches')
+        $exists = count($assignedBranchIds) > 0
+            ? in_array((int) $branchId, $assignedBranchIds, true)
+            : DB::table('branches')
                 ->where('created_by', creatorId())
                 ->where('id', (int) $branchId)
-                ->exists()
-            : in_array((int) $branchId, $assignedBranchIds, true);
+                ->exists();
 
         if (! $exists) {
             return back()->with('error', __('Selected branch is invalid.'));

@@ -90,14 +90,23 @@ class HandleInertiaRequests extends Middleware
         if ($request->user()) {
             $user = $request->user();
             $tenantId = (int) creatorId();
-            $canManageAll = $this->canManageAllBranches($user);
-            $assignedBranchIds = \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, $tenantId);
+            $isTenantRoot = in_array($user->type, ['company', 'superadmin'], true);
+            $assignedBranchIds = $isTenantRoot
+                ? []
+                : \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, $tenantId);
 
-            $branchContext['can_manage_all_branches'] = $canManageAll;
-            $branchContext['can_switch_branch'] = $canManageAll || count($assignedBranchIds) > 1;
-            $branchContext['branches'] = $canManageAll
-                ? $this->branchOptions($tenantId)
-                : $this->assignedBranchOptions($tenantId, $assignedBranchIds);
+            $branchContext['can_manage_all_branches'] = $this->canManageAllBranches($user);
+
+            if ($isTenantRoot || count($assignedBranchIds) === 0) {
+                // Tenant root / no assignments: legacy behavior (all tenant branches).
+                $branchContext['can_switch_branch'] = $this->canManageAllBranches($user);
+                $branchContext['branches'] = $this->branchOptions($tenantId);
+            } else {
+                // Users with assignments are limited to their assigned branches.
+                $branchContext['can_switch_branch'] = count($assignedBranchIds) > 1;
+                $branchContext['branches'] = $this->assignedBranchOptions($tenantId, $assignedBranchIds);
+            }
+
             $branchContext['active_branch_id'] = $this->resolveActiveBranchIdForUser($request);
         }
 
@@ -249,11 +258,15 @@ class HandleInertiaRequests extends Middleware
         }
 
         $tenantId = (int) creatorId();
-        $assignedBranchIds = \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, $tenantId);
+        $isTenantRoot = in_array($user->type, ['company', 'superadmin'], true);
+        $assignedBranchIds = $isTenantRoot
+            ? []
+            : \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, $tenantId);
 
-        // Users with explicit branch assignments are scoped to those branches:
+        // Users with explicit branch assignments are scoped to those branches
+        // (takes precedence over the manage-any-branches permission):
         // single assignment -> that branch; multiple -> session choice or first.
-        if (! $this->canManageAllBranches($user) && count($assignedBranchIds) > 0) {
+        if (count($assignedBranchIds) > 0) {
             if (count($assignedBranchIds) === 1) {
                 return $assignedBranchIds[0];
             }
