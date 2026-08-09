@@ -239,6 +239,18 @@ export default function Index({
     const materialPlanForm = useForm({ beam_id: '', plan_date: '', required_quantity: '', unit: 'mtr', notes: '' });
     const productionScheduleForm = useForm({ loom_master_id: '', beam_id: '', scheduled_date: '', scheduled_shift: 'day', scheduled_quantity: '', unit: 'mtr', operator_name: '', notes: '' });
     const productionAssignmentForm = useForm({ batch_id: '', production_mode: 'own_unit', assigned_quantity: '', assignment_date: '', expected_completion_date: '', loom_allocations: [{ loom_master_id: '', quantity: '' }], powerloom_vendor_id: '', planned_shift: 'day', operator_name: '', notes: '' });
+    // Partial beam allotment: for own-unit production the assigned quantity is
+    // whatever is distributed across looms. Keep assigned_quantity in sync with
+    // the loom allocations so the user can assign part of the beam without
+    // manually re-typing the quantity.
+    const syncLoomAllocations = (allocations: { loom_master_id: string; quantity: string }[]) => {
+        const total = allocations.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
+        productionAssignmentForm.setData((data) => ({
+            ...data,
+            loom_allocations: allocations,
+            assigned_quantity: total > 0 ? String(total) : data.assigned_quantity,
+        }));
+    };
 
     const beamForm = useForm({
         source_reference_type: 'sales_order',
@@ -1747,7 +1759,7 @@ export default function Index({
                                                         onChange={(value) => {
                                                             const allocations = [...productionAssignmentForm.data.loom_allocations];
                                                             allocations[index] = { ...allocation, loom_master_id: value };
-                                                            productionAssignmentForm.setData('loom_allocations', allocations);
+                                                            syncLoomAllocations(allocations);
                                                         }}
                                                         options={loomOptions}
                                                         includeEmpty
@@ -1763,27 +1775,34 @@ export default function Index({
                                                         onChange={(value) => {
                                                             const allocations = [...productionAssignmentForm.data.loom_allocations];
                                                             allocations[index] = { ...allocation, quantity: value };
-                                                            productionAssignmentForm.setData('loom_allocations', allocations);
+                                                            syncLoomAllocations(allocations);
                                                         }}
                                                         step="0.01"
                                                         required
                                                     />
-                                                    <Button type="button" variant="outline" className="mt-6 h-10 w-10 p-0" disabled={productionAssignmentForm.data.loom_allocations.length === 1} onClick={() => productionAssignmentForm.setData('loom_allocations', productionAssignmentForm.data.loom_allocations.filter((_row, rowIndex) => rowIndex !== index))} title={t('Remove loom')}>
+                                                    <Button type="button" variant="outline" className="mt-6 h-10 w-10 p-0" disabled={productionAssignmentForm.data.loom_allocations.length === 1} onClick={() => syncLoomAllocations(productionAssignmentForm.data.loom_allocations.filter((_row, rowIndex) => rowIndex !== index))} title={t('Remove loom')}>
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>
                                             );
                                         })}
                                         <div className="flex items-center justify-between gap-3">
-                                            <Button type="button" variant="outline" onClick={() => productionAssignmentForm.setData('loom_allocations', [...productionAssignmentForm.data.loom_allocations, { loom_master_id: '', quantity: '' }])}>
+                                            <Button type="button" variant="outline" onClick={() => syncLoomAllocations([...productionAssignmentForm.data.loom_allocations, { loom_master_id: '', quantity: '' }])}>
                                                 <Plus className="mr-2 h-4 w-4" />{t('Add Loom')}
                                             </Button>
                                             <p className="text-sm text-muted-foreground">
-                                                {t('Allocated')}: {productionAssignmentForm.data.loom_allocations.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0).toFixed(2)} / {Number(productionAssignmentForm.data.assigned_quantity || 0).toFixed(2)}
-                                                {' · '}
+                                                {t('Allocated')}: {productionAssignmentForm.data.loom_allocations.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0).toFixed(2)}
                                                 {(() => {
-                                                    const difference = Number(productionAssignmentForm.data.assigned_quantity || 0) - productionAssignmentForm.data.loom_allocations.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
-                                                    return difference >= 0 ? `${difference.toFixed(2)} ${t('remaining')}` : `${Math.abs(difference).toFixed(2)} ${t('over')}`;
+                                                    const batch = assignableBatches.find((row) => String(row.id) === productionAssignmentForm.data.batch_id);
+                                                    if (!batch) return null;
+                                                    const batchRemaining = Number(batch.remaining_quantity || 0);
+                                                    const allocated = productionAssignmentForm.data.loom_allocations.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
+                                                    return (
+                                                        <>
+                                                            {' · '}
+                                                            {t('Stays in stock')}: {Math.max(0, batchRemaining - allocated).toFixed(2)} {batch.unit || '-'}
+                                                        </>
+                                                    );
                                                 })()}
                                             </p>
                                         </div>
@@ -1807,14 +1826,14 @@ export default function Index({
                                     />
                                 )}
                                 <div className="grid grid-cols-3 gap-3">
-                                    <Field label={t('Assigned Quantity')} type="number" value={productionAssignmentForm.data.assigned_quantity} onChange={(value) => productionAssignmentForm.setData('assigned_quantity', value)} step="0.01" required />
+                                    <Field label={t('Assigned Quantity')} type="number" value={productionAssignmentForm.data.assigned_quantity} onChange={(value) => productionAssignmentForm.setData('assigned_quantity', value)} step="0.01" disabled={productionAssignmentForm.data.production_mode === 'own_unit'} helperText={productionAssignmentForm.data.production_mode === 'own_unit' ? t('Calculated from loom allocations. The rest of the beam stays in stock.') : t('Quantity of beam committed to this production run.')} required />
                                     <Field label={t('Assignment Date')} type="date" value={productionAssignmentForm.data.assignment_date} onChange={(value) => productionAssignmentForm.setData('assignment_date', value)} required />
                                     <Field label={t('Expected Completion')} type="date" value={productionAssignmentForm.data.expected_completion_date} onChange={(value) => productionAssignmentForm.setData('expected_completion_date', value)} />
                                 </div>
                                 <Field label={t('Notes')} value={productionAssignmentForm.data.notes} onChange={(value) => productionAssignmentForm.setData('notes', value)} />
                                 <Button
                                     type="submit"
-                                    disabled={productionAssignmentForm.processing || (productionAssignmentForm.data.production_mode === 'own_unit' && Math.abs(productionAssignmentForm.data.loom_allocations.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0) - Number(productionAssignmentForm.data.assigned_quantity || 0)) > 0.01)}
+                                    disabled={productionAssignmentForm.processing || (productionAssignmentForm.data.production_mode === 'own_unit' && (productionAssignmentForm.data.loom_allocations.length === 0 || productionAssignmentForm.data.loom_allocations.some((row) => !row.loom_master_id || !(Number(row.quantity) > 0)) || Math.abs(productionAssignmentForm.data.loom_allocations.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0) - Number(productionAssignmentForm.data.assigned_quantity || 0)) > 0.01))}
                                     className="w-full"
                                 ><Plus className="mr-2 h-4 w-4" />{t('Assign Beam for Production')}</Button>
                             </form>
