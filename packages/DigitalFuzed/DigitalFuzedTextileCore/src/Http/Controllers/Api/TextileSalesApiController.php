@@ -49,9 +49,38 @@ class TextileSalesApiController extends Controller
 
     public function approveSalesOrder(int $id): JsonResponse
     {
+        try {
+            $salesOrder = $this->salesService->approveSalesOrder($id);
+        } catch (\RuntimeException $exception) {
+            // If an approval workflow is configured, record this actor's approval
+            // decision and retry once so the API approve is a single-step action.
+            if (str_contains($exception->getMessage(), 'Approval required before transition')) {
+                try {
+                    app(\DigitalFuzed\TextileCore\Services\TextileApprovalService::class)->recordDecision(
+                        $id,
+                        'approved',
+                        'approved',
+                        'Recorded from API Approve action.'
+                    );
+
+                    $salesOrder = $this->salesService->approveSalesOrder($id);
+                } catch (\RuntimeException $retryException) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $retryException->getMessage(),
+                    ], 422);
+                }
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => $exception->getMessage(),
+                ], 422);
+            }
+        }
+
         return response()->json([
             'success' => true,
-            'data' => $this->salesService->approveSalesOrder($id),
+            'data' => $salesOrder,
         ]);
     }
 

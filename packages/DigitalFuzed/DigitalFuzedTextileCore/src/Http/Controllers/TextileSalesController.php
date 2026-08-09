@@ -6,6 +6,7 @@ use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
 use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
+use DigitalFuzed\TextileCore\Services\TextileApprovalService;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextilePartyBranchService;
 use DigitalFuzed\TextileCore\Services\TextileSalesService;
@@ -97,7 +98,7 @@ class TextileSalesController extends Controller
         return back()->with('success', __('Sales order created successfully.'));
     }
 
-    public function approveSalesOrder(Request $request, TextileSalesService $service)
+    public function approveSalesOrder(Request $request, TextileSalesService $service, TextileApprovalService $approvalService)
     {
         $this->authorizeTextileAccess();
         $this->authorizeCapability('sales_order', 'sales_order_id');
@@ -109,7 +110,34 @@ class TextileSalesController extends Controller
         try {
             $service->approveSalesOrder((int) $validated['sales_order_id']);
         } catch (RuntimeException $exception) {
-            return back()->withErrors(['sales_order_id' => __($exception->getMessage())]);
+            // If an approval workflow is configured, record this actor's approval
+            // decision and retry once so "Approve" works as a single-step action.
+            if (str_contains($exception->getMessage(), 'Approval required before transition')) {
+                try {
+                    $approvalService->recordDecision(
+                        (int) $validated['sales_order_id'],
+                        'approved',
+                        'approved',
+                        'Recorded from Approve action.'
+                    );
+
+                    $service->approveSalesOrder((int) $validated['sales_order_id']);
+
+                    return back()->with('success', __('Sales order approved successfully.'));
+                } catch (RuntimeException $retryException) {
+                    $message = __($retryException->getMessage());
+
+                    return back()
+                        ->withErrors(['sales_order_id' => $message])
+                        ->with('error', $message);
+                }
+            }
+
+            $message = __($exception->getMessage());
+
+            return back()
+                ->withErrors(['sales_order_id' => $message])
+                ->with('error', $message);
         }
 
         return back()->with('success', __('Sales order approved successfully.'));
