@@ -534,23 +534,34 @@ export default function Index({
                         }
 
                         case 'quotations': return (
-                            <TextileSection
-                                table={
-                                    <TextileDataTableCard
-                                        data={quotations}
-                                        columns={[
-                                            { key: 'quotation_number', header: t('Quotation #') },
-                                            { key: 'customer_name', header: t('Customer') },
-                                            { key: 'quotation_date', header: t('Date') },
-                                            { key: 'due_date', header: t('Due Date') },
-                                            { key: 'total_amount', header: t('Total') },
-                                            { key: 'status', header: t('Status'), render: formatTextileLabel },
-                                            { key: 'converted_to_invoice', header: t('Invoiced'), render: (_v: unknown, row: QuotationRecord) => row.converted_to_invoice ? t('Yes') : t('No') },
-                                        ]}
-                                        emptyState={<NoRecordsFound icon={ScrollText} title={t('No quotations found')} description={t('Create quotations from the Quotations page.')} />}
-                                    />
-                                }
-                            />
+                            <div className="space-y-6">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <p className="text-sm text-muted-foreground">
+                                        {t('Create new Saudas (quotations) for customers.')}
+                                    </p>
+                                    <Button type="button" variant="outline" onClick={() => router.get(route('quotations.create'), {}, { preserveState: true })}>
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        {t('Create Quotation')}
+                                    </Button>
+                                </div>
+                                <TextileSection
+                                    table={
+                                        <TextileDataTableCard
+                                            data={quotations}
+                                            columns={[
+                                                { key: 'quotation_number', header: t('Quotation #') },
+                                                { key: 'customer_name', header: t('Customer') },
+                                                { key: 'quotation_date', header: t('Date') },
+                                                { key: 'due_date', header: t('Due Date') },
+                                                { key: 'total_amount', header: t('Total') },
+                                                { key: 'status', header: t('Status'), render: formatTextileLabel },
+                                                { key: 'converted_to_invoice', header: t('Invoiced'), render: (_v: unknown, row: QuotationRecord) => row.converted_to_invoice ? t('Yes') : t('No') },
+                                            ]}
+                                            emptyState={<NoRecordsFound icon={ScrollText} title={t('No quotations found')} description={t('Create quotations from the Quotations page.')} />}
+                                        />
+                                    }
+                                />
+                            </div>
                         );
 
                         default:

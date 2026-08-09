@@ -81,7 +81,7 @@ class QuotationController extends Controller
                 'filters'    => $request->only(['customer_id', 'status', 'search', 'date_range'])
             ]);
         } else {
-            return back()->with('error', __('Permission denied'));
+            return redirect()->route('dashboard')->with('error', __('Permission denied'));
         }
     }
 
@@ -96,7 +96,7 @@ class QuotationController extends Controller
                 'warehouses' => $warehouses
             ]);
         } else {
-            return back()->with('error', __('Permission denied'));
+            return redirect()->route('dashboard')->with('error', __('Permission denied'));
         }
     }
 

@@ -33,6 +33,7 @@ class PermissionTableSeeder extends Seeder
         ];
 
         $company_role = Role::where('name', 'company')->first();
+        $staff_role = Role::where('name', 'staff')->first();
 
         foreach ($permission as $perm) {
             $permission_obj = Permission::firstOrCreate(
@@ -48,6 +49,10 @@ class PermissionTableSeeder extends Seeder
 
             if ($company_role && !$company_role->hasPermissionTo($permission_obj)) {
                 $company_role->givePermissionTo($permission_obj);
+            }
+
+            if ($staff_role && !$staff_role->hasPermissionTo($permission_obj)) {
+                $staff_role->givePermissionTo($permission_obj);
             }
         }
     }
