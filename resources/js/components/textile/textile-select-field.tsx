@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Label } from '@/components/ui/label';
+import { InputError } from '@/components/ui/input-error';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface TextileSelectOption {
@@ -22,6 +23,7 @@ interface TextileSelectFieldProps {
     helperText?: ReactNode;
     disabled?: boolean;
     disabledReason?: ReactNode;
+    error?: string;
 }
 
 export function TextileSelectField({
@@ -36,6 +38,7 @@ export function TextileSelectField({
     helperText,
     disabled = false,
     disabledReason,
+    error,
 }: TextileSelectFieldProps) {
     const normalizedOptions = options.map((option) => {
         if (typeof option === 'string') {
@@ -105,6 +108,7 @@ export function TextileSelectField({
                 </SelectContent>
             </Select>
             {supportingText ? <p className="text-xs text-muted-foreground">{supportingText}</p> : null}
+            <InputError message={error} className="mt-1" />
         </div>
     );
 }

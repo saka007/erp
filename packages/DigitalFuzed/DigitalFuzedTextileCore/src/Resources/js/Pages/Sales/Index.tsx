@@ -276,6 +276,7 @@ export default function Index({
                                         helperText={t('Job-work-only customer profiles are blocked from sales-order flow. Rate auto-fills from the customer default rate and stays editable.')}
                                         disabled={customerOptions.length === 0}
                                         disabledReason={t('No customer profile found. Create customer profile first.')}
+                                        error={salesOrderForm.errors.customer_id}
                                         required
                                     />
                                     {salesOrderForm.data.customer_id ? (() => {
