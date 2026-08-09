@@ -28,7 +28,7 @@ import { User, UsersIndexProps, UserFilters, UserModalState } from './types';
 
 export default function Index() {
     const { t } = useTranslation();
-    const { users, roles, auth } = usePage<UsersIndexProps>().props;
+    const { users, roles, branches, auth } = usePage<UsersIndexProps>().props;
     const urlParams = new URLSearchParams(window.location.search);
 
     const [filters, setFilters] = useState<UserFilters>({
@@ -612,13 +612,14 @@ export default function Index() {
 
             <Dialog open={modalState.isOpen} onOpenChange={closeModal}>
                 {modalState.mode === 'add' && (
-                    <Create onSuccess={closeModal} roles={roles} />
+                    <Create onSuccess={closeModal} roles={roles} branches={branches} />
                 )}
                 {modalState.mode === 'edit' && modalState.data && (
                     <EditUser
                         user={modalState.data}
                         onSuccess={closeModal}
                         roles={roles}
+                        branches={branches}
                     />
                 )}
                 {modalState.mode === 'change-password' && modalState.data && (

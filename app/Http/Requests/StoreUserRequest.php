@@ -14,7 +14,7 @@ class StoreUserRequest extends FormRequest
     public function rules(): array
     {
         $typeRule = auth()->user()->type === 'superadmin' ? 'nullable' : 'required|exists:roles,id';
-        
+
         return [
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
@@ -22,6 +22,8 @@ class StoreUserRequest extends FormRequest
             'password' => 'required|confirmed|min:6',
             'type' => $typeRule,
             'is_enable_login' => 'boolean',
+            'branch_ids' => ['nullable', 'array'],
+            'branch_ids.*' => ['integer'],
         ];
     }
 

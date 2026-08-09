@@ -3,6 +3,7 @@
 namespace Workdo\Quotation\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Concerns\HasBranchWarehouseScope;
 use Workdo\Quotation\Models\SalesQuotation;
 use Workdo\Quotation\Models\SalesQuotationItem;
 use Workdo\Quotation\Models\SalesQuotationItemTax;
@@ -27,6 +28,8 @@ use Workdo\Quotation\Events\SentSalesQuotation;
 
 class QuotationController extends Controller
 {
+    use HasBranchWarehouseScope;
+
     public function index(Request $request)
     {
         if (Auth::user()->can('manage-quotations')) {
@@ -73,7 +76,7 @@ class QuotationController extends Controller
 
             $perPage    = $request->get('per_page', 10);
             $quotations = $query->paginate($perPage);
-            $customers  = User::where('type', 'client')->select('id', 'name', 'email')->where('created_by', creatorId())->get();
+            $customers  = $this->customersForSelect();
 
             return Inertia::render('Quotation/Quotations/Index', [
                 'quotations' => $quotations,
@@ -88,12 +91,14 @@ class QuotationController extends Controller
     public function create()
     {
         if (Auth::user()->can('create-quotations')) {
-            $customers  = User::where('type', 'client')->select('id', 'name', 'email')->where('created_by', creatorId())->get();
-            $warehouses = Warehouse::where('is_active', true)->select('id', 'name', 'address')->where('created_by', creatorId())->get();
+            $customers          = $this->customersForSelect();
+            $warehouses         = $this->scopedWarehouseQuery(Auth::user())->select('id', 'name', 'address')->get();
+            $defaultWarehouseId = $warehouses->count() === 1 ? (int) $warehouses->first()->id : null;
 
             return Inertia::render('Quotation/Quotations/Create', [
-                'customers'  => $customers,
-                'warehouses' => $warehouses
+                'customers'          => $customers,
+                'warehouses'         => $warehouses,
+                'default_warehouse_id' => $defaultWarehouseId
             ]);
         } else {
             return redirect()->route('dashboard')->with('error', __('Permission denied'));
@@ -166,13 +171,15 @@ class QuotationController extends Controller
             }
 
             $quotation->load(['items.taxes']);
-            $customers  = User::where('type', 'client')->select('id', 'name', 'email')->where('created_by', creatorId())->get();
-            $warehouses = Warehouse::where('is_active', true)->select('id', 'name', 'address')->where('created_by', creatorId())->get();
+            $customers          = $this->customersForSelect();
+            $warehouses         = $this->scopedWarehouseQuery(Auth::user())->select('id', 'name', 'address')->get();
+            $defaultWarehouseId = $warehouses->count() === 1 ? (int) $warehouses->first()->id : null;
 
             return Inertia::render('Quotation/Quotations/Edit', [
-                'quotation'  => $quotation,
-                'customers'  => $customers,
-                'warehouses' => $warehouses
+                'quotation'          => $quotation,
+                'customers'          => $customers,
+                'warehouses'         => $warehouses,
+                'default_warehouse_id' => $defaultWarehouseId
             ]);
         } else {
             return redirect()->route('quotations.index')->with('error', __('Permission denied'));
@@ -537,5 +544,54 @@ class QuotationController extends Controller
         } else {
             return response()->json([], 403);
         }
+    }
+
+    /**
+     * Customer options for quotation selects: [{id: user_id, name, email}].
+     *
+     * Loads real customers from the Account module and guarantees every customer
+     * has a linked client user (sales_quotations.customer_id references users.id).
+     * Customers without a linked user get one created on first load.
+     */
+    private function customersForSelect(): array
+    {
+        if (! class_exists(\Workdo\Account\Models\Customer::class) || ! \Illuminate\Support\Facades\Schema::hasTable('customers')) {
+            // Fallback: client users
+            return User::where('type', 'client')->select('id', 'name', 'email')->where('created_by', creatorId())->get()->toArray();
+        }
+
+        $customers = \Workdo\Account\Models\Customer::where('created_by', creatorId())->get();
+
+        return $customers->map(function ($customer) {
+            $userId = (int) $customer->user_id;
+
+            if (! $userId) {
+                $email = $customer->contact_person_email ?: 'customer' . $customer->id . '@' . str_replace(['https://', 'http://'], '', (string) config('app.url'));
+
+                $user = User::firstOrCreate(
+                    ['email' => $email],
+                    [
+                        'name'              => $customer->company_name ?: ($customer->contact_person_name ?: 'Customer ' . $customer->id),
+                        'password'          => \Illuminate\Support\Str::random(16),
+                        'type'              => 'client',
+                        'creator_id'        => Auth::id(),
+                        'created_by'        => creatorId(),
+                        'lang'              => 'en',
+                        'email_verified_at' => now(),
+                    ]
+                );
+
+                $customer->user_id = $user->id;
+                $customer->save();
+
+                $userId = (int) $user->id;
+            }
+
+            return [
+                'id'    => $userId,
+                'name'  => $customer->company_name ?: ($customer->contact_person_name ?: 'Customer ' . $customer->id),
+                'email' => $customer->contact_person_email ?: '',
+            ];
+        })->values()->all();
     }
 }

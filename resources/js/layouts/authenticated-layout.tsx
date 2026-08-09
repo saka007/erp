@@ -49,6 +49,7 @@ function AuthenticatedLayoutContent({
     const dashboardRoute = isTextileCompany ? route('textile.dashboard.index') : route('dashboard');
     const branchOptions = branchContext?.branches || [];
     const canManageAllBranches = Boolean(branchContext?.can_manage_all_branches);
+    const canSwitchBranch = Boolean(branchContext?.can_switch_branch);
     const activeBranchId = branchContext?.active_branch_id;
     const isSuperAdmin = auth?.user?.type === 'superadmin';
     useFavicon();
@@ -131,7 +132,7 @@ function AuthenticatedLayoutContent({
                         settings.layoutDirection === "rtl" ? "order-1 flex-row-reverse" : "order-2"
                         }`}
                     >
-                        {canManageAllBranches && (
+                        {canSwitchBranch && (
                             <select
                                 className="h-8 rounded-md border border-input bg-background px-2 text-sm"
                                 value={activeBranchId ?? branchOptions[0]?.id ?? ''}

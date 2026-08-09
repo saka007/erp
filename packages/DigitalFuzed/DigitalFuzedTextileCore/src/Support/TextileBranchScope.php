@@ -91,8 +91,25 @@ class TextileBranchScope
 
     private static function currentBranchId($user): ?int
     {
+        $tenantId = self::tenantId($user);
+        $assignedBranchIds = \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, $tenantId);
+
+        // Users with explicit branch assignments are scoped to those branches.
+        if (! self::canManageAllBranches($user) && count($assignedBranchIds) > 0) {
+            if (count($assignedBranchIds) === 1) {
+                return $assignedBranchIds[0];
+            }
+
+            $activeBranchId = session('active_branch_id');
+            if (is_numeric($activeBranchId) && in_array((int) $activeBranchId, $assignedBranchIds, true)) {
+                return (int) $activeBranchId;
+            }
+
+            return $assignedBranchIds[0];
+        }
+
         if (self::canManageAllBranches($user)) {
-            return self::activeBranchIdForTenant(self::tenantId($user));
+            return self::activeBranchIdForTenant($tenantId);
         }
 
         return self::employeeBranchId($user);

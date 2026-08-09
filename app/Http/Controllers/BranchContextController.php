@@ -17,7 +17,10 @@ class BranchContextController extends Controller
             return back();
         }
 
-        if (! $this->canManageAllBranches($user)) {
+        $canManageAll = $this->canManageAllBranches($user);
+        $assignedBranchIds = \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, (int) creatorId());
+
+        if (! $canManageAll && count($assignedBranchIds) <= 1) {
             return back()->with('error', __('You are not allowed to change branch context.'));
         }
 
@@ -36,10 +39,12 @@ class BranchContextController extends Controller
             return back()->with('success', __('Branch context cleared.'));
         }
 
-        $exists = DB::table('branches')
-            ->where('created_by', creatorId())
-            ->where('id', (int) $branchId)
-            ->exists();
+        $exists = $canManageAll
+            ? DB::table('branches')
+                ->where('created_by', creatorId())
+                ->where('id', (int) $branchId)
+                ->exists()
+            : in_array((int) $branchId, $assignedBranchIds, true);
 
         if (! $exists) {
             return back()->with('error', __('Selected branch is invalid.'));

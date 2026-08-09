@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import InputError from "@/components/ui/input-error";
 import { PhoneInputComponent } from "@/components/ui/phone-input";
+import { MultiSelectEnhanced } from "@/components/ui/multi-select-enhanced";
 import { CreateUserProps, CreateUserFormData } from './types';
 
-export default function Create({ onSuccess, roles = {} }: CreateUserProps) {
+export default function Create({ onSuccess, roles = {}, branches = [] }: CreateUserProps) {
     const { t } = useTranslation();
     const { auth } = usePage().props as any;
     const { data, setData, post, processing, errors } = useForm<CreateUserFormData>({
@@ -20,9 +21,11 @@ export default function Create({ onSuccess, roles = {} }: CreateUserProps) {
         mobile_no: '',
         type: '',
         is_enable_login: true,
+        branch_ids: [],
     });
 
     const isSuperAdmin = auth.user?.type === 'superadmin';
+    const hasBranches = branches.length > 0;
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -135,6 +138,22 @@ export default function Create({ onSuccess, roles = {} }: CreateUserProps) {
                         <InputError message={errors.is_enable_login} />
                     </div>
                 </div>
+                {hasBranches && (
+                    <div>
+                        <Label>{t('Branches')}</Label>
+                        <MultiSelectEnhanced
+                            options={branches.map((branch) => ({ value: String(branch.id), label: branch.name }))}
+                            value={data.branch_ids.map(String)}
+                            onValueChange={(values) => setData('branch_ids', values.map(Number))}
+                            placeholder={t('Select branches')}
+                            searchable
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                            {t('User with a single branch is auto-scoped. Multiple branches enables the branch switcher.')}
+                        </p>
+                        <InputError message={errors.branch_ids as any} />
+                    </div>
+                )}
                 <div className="flex justify-end gap-2">
                     <Button type="button" variant="outline" onClick={onSuccess}>
                         {t('Cancel')}

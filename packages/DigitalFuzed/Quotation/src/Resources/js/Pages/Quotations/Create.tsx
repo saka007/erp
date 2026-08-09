@@ -20,12 +20,13 @@ import { CalendarDays, Package } from 'lucide-react';
 interface CreateProps {
     customers: Array<{id: number; name: string; email: string}>;
     warehouses: Array<{id: number; name: string; address: string}>;
+    default_warehouse_id?: number | null;
     [key: string]: any;
 }
 
 export default function Create() {
     const { t } = useTranslation();
-    const { customers, warehouses } = usePage<CreateProps>().props;
+    const { customers, warehouses, default_warehouse_id } = usePage<CreateProps>().props;
     const [availableProducts, setAvailableProducts] = useState([]);
 
     const { data, setData, post, processing, errors } = useForm({
@@ -46,6 +47,16 @@ export default function Create() {
             total_amount: 0
         }] as QuotationItem[]
     });
+
+    const warehouseLocked = warehouses.length === 1 && Boolean(default_warehouse_id);
+
+    // Auto-select the branch's single warehouse (auto-derived from session branch).
+    useEffect(() => {
+        if (warehouseLocked && default_warehouse_id) {
+            handleWarehouseChange(String(default_warehouse_id));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [warehouseLocked, default_warehouse_id]);
 
     const handleWarehouseChange = async (warehouseId: string) => {
         setData('warehouse_id', warehouseId);
@@ -155,18 +166,33 @@ export default function Create() {
                                     <Label htmlFor="warehouse_id" required>
                                         {t('Warehouse')}
                                     </Label>
-                                    <Select value={data.warehouse_id} onValueChange={handleWarehouseChange}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder={t('Select Warehouse')} />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {warehouses.map((warehouse) => (
-                                                <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
-                                                    {warehouse.name} - {warehouse.address}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    {warehouseLocked && warehouses[0] ? (
+                                        <div>
+                                            <Input
+                                                id="warehouse_id"
+                                                value={`${warehouses[0].name} - ${warehouses[0].address}`}
+                                                readOnly
+                                                disabled
+                                                className="bg-muted"
+                                            />
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                {t('Auto-selected from your active branch.')}
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <Select value={data.warehouse_id} onValueChange={handleWarehouseChange}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder={t('Select Warehouse')} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {warehouses.map((warehouse) => (
+                                                    <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
+                                                        {warehouse.name} - {warehouse.address}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
                                     <InputError message={errors.warehouse_id} />
                                 </div>
                             </div>

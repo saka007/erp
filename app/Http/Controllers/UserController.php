@@ -61,6 +61,8 @@ class UserController extends Controller
 
             $users->getCollection()->transform(function (User $user) use ($plans, $manualModules, $textileModules) {
                 if ($user->type !== 'company') {
+                    $user->setAttribute('branch_ids', $this->userBranchIds($user));
+
                     return $user;
                 }
 
@@ -71,15 +73,18 @@ class UserController extends Controller
 
                 $user->setAttribute('active_plan_name', $plan?->name);
                 $user->setAttribute('industry_type', count(array_intersect($textileModules, $effectiveModules)) > 0 ? 'textile' : 'standard');
+                $user->setAttribute('branch_ids', $this->userBranchIds($user));
 
                 return $user;
             });
 
             $roles = Role::where('created_by', creatorId())->pluck('label', 'id');
+            $branches = $this->tenantBranchOptions();
 
             return Inertia::render('users/index', [
                 'users' => $users,
                 'roles' => $roles,
+                'branches' => $branches,
             ]);
         }
         else{
@@ -123,6 +128,16 @@ class UserController extends Controller
 
             $user->assignRole($role);
 
+            // Persist branch assignments (only when the tenant actually has branches)
+            if (! empty($this->tenantBranchOptions()) && $request->has('branch_ids')) {
+                \DigitalFuzed\TextileCore\Services\TextileUserBranchService::syncBranches(
+                    $user->id,
+                    (array) $request->input('branch_ids', []),
+                    creatorId(),
+                    Auth::id()
+                );
+            }
+
             // Dispatch event for packages to handle their fields
             CreateUser::dispatch($request, $user);
 
@@ -161,6 +176,16 @@ class UserController extends Controller
             $user->mobile_no = $validated['mobile_no'];
             $user->is_enable_login = $validated['is_enable_login'];
             $user->save();
+
+            // Persist branch assignments (only when the tenant actually has branches)
+            if (! empty($this->tenantBranchOptions()) && $request->has('branch_ids')) {
+                \DigitalFuzed\TextileCore\Services\TextileUserBranchService::syncBranches(
+                    $user->id,
+                    (array) $request->input('branch_ids', []),
+                    creatorId(),
+                    Auth::id()
+                );
+            }
 
             return back()->with('success', __('The user details are updated successfully.'));
         }
@@ -318,5 +343,36 @@ class UserController extends Controller
         else{
             return back()->with('error', __('Permission denied'));
         }
+    }
+
+    /**
+     * Tenant branch options as [{id, name}].
+     * Returns [] when the tenant has no branches (field hidden in the form).
+     */
+    private function tenantBranchOptions(): array
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('branches')) {
+            return [];
+        }
+
+        return \Illuminate\Support\Facades\DB::table('branches')
+            ->where('created_by', creatorId())
+            ->orderBy('branch_name')
+            ->get(['id', 'branch_name'])
+            ->map(fn ($branch) => [
+                'id' => (int) $branch->id,
+                'name' => $branch->branch_name,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function userBranchIds(User $user): array
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('textile_user_branch_assignments')) {
+            return [];
+        }
+
+        return \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, creatorId());
     }
 }

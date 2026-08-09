@@ -1,5 +1,10 @@
 import { PaginatedData, ModalState, AuthContext, CreateProps, EditProps } from '@/types/common';
 
+export interface BranchOption {
+    id: number;
+    name: string;
+}
+
 export interface User {
     id: number;
     name: string;
@@ -12,6 +17,7 @@ export interface User {
     avatar?: string;
     active_plan_name?: string | null;
     industry_type?: 'standard' | 'textile';
+    branch_ids?: number[];
     created_at: string;
 }
 
@@ -23,6 +29,7 @@ export interface CreateUserFormData {
     mobile_no: string;
     type: string;
     is_enable_login: boolean;
+    branch_ids: number[];
 }
 
 export interface EditUserFormData {
@@ -30,6 +37,7 @@ export interface EditUserFormData {
     email: string;
     mobile_no: string;
     is_enable_login: boolean;
+    branch_ids: number[];
 }
 
 export interface ChangePasswordFormData {
@@ -39,12 +47,14 @@ export interface ChangePasswordFormData {
 
 export interface CreateUserProps extends CreateProps {
     roles?: Record<string, string>;
+    branches?: BranchOption[];
 }
 
 export interface EditUserProps {
     user: User;
     onSuccess: () => void;
     roles?: Record<string, string>;
+    branches?: BranchOption[];
 }
 
 export interface ChangePasswordProps {
@@ -69,6 +79,7 @@ export interface UserModalState {
 export interface UsersIndexProps {
     users: PaginatedUsers;
     roles: Record<string, string>;
+    branches?: BranchOption[];
     auth: AuthContext;
     [key: string]: unknown;
 }

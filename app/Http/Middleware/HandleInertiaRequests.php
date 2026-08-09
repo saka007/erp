@@ -83,12 +83,21 @@ class HandleInertiaRequests extends Middleware
         $branchContext = [
             'active_branch_id' => null,
             'can_manage_all_branches' => false,
+            'can_switch_branch' => false,
             'branches' => [],
         ];
 
         if ($request->user()) {
-            $branchContext['can_manage_all_branches'] = $this->canManageAllBranches($request->user());
-            $branchContext['branches'] = $this->branchOptions((int) creatorId());
+            $user = $request->user();
+            $tenantId = (int) creatorId();
+            $canManageAll = $this->canManageAllBranches($user);
+            $assignedBranchIds = \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, $tenantId);
+
+            $branchContext['can_manage_all_branches'] = $canManageAll;
+            $branchContext['can_switch_branch'] = $canManageAll || count($assignedBranchIds) > 1;
+            $branchContext['branches'] = $canManageAll
+                ? $this->branchOptions($tenantId)
+                : $this->assignedBranchOptions($tenantId, $assignedBranchIds);
             $branchContext['active_branch_id'] = $this->resolveActiveBranchIdForUser($request);
         }
 
@@ -239,6 +248,24 @@ class HandleInertiaRequests extends Middleware
             return null;
         }
 
+        $tenantId = (int) creatorId();
+        $assignedBranchIds = \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, $tenantId);
+
+        // Users with explicit branch assignments are scoped to those branches:
+        // single assignment -> that branch; multiple -> session choice or first.
+        if (! $this->canManageAllBranches($user) && count($assignedBranchIds) > 0) {
+            if (count($assignedBranchIds) === 1) {
+                return $assignedBranchIds[0];
+            }
+
+            $activeBranchId = $request->session()->get('active_branch_id');
+            if (is_numeric($activeBranchId) && in_array((int) $activeBranchId, $assignedBranchIds, true)) {
+                return (int) $activeBranchId;
+            }
+
+            return $assignedBranchIds[0];
+        }
+
         if ($this->canManageAllBranches($user)) {
             $activeBranchId = $request->session()->get('active_branch_id');
             if (! is_numeric($activeBranchId)) {
@@ -284,6 +311,28 @@ class HandleInertiaRequests extends Middleware
             ->value('branch_id');
 
         return $branchId ? (int) $branchId : null;
+    }
+
+    /**
+     * Branch options limited to the user's assigned branches.
+     */
+    private function assignedBranchOptions(int $tenantId, array $assignedBranchIds): array
+    {
+        if (empty($assignedBranchIds) || $tenantId <= 0 || ! Schema::hasTable('branches')) {
+            return [];
+        }
+
+        return DB::table('branches')
+            ->where('created_by', $tenantId)
+            ->whereIn('id', $assignedBranchIds)
+            ->orderBy('branch_name')
+            ->get(['id', 'branch_name'])
+            ->map(fn($branch) => [
+                'id' => (int) $branch->id,
+                'name' => $branch->branch_name,
+            ])
+            ->values()
+            ->all();
     }
 
     private function branchOptions(int $tenantId): array

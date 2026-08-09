@@ -17,6 +17,22 @@ trait HasBranchWarehouseScope
 
     protected function currentUserBranchId($user): ?int
     {
+        $assignedBranchIds = \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, (int) creatorId());
+
+        // Users with explicit branch assignments are scoped to those branches.
+        if (! $this->canManageAllBranches($user) && count($assignedBranchIds) > 0) {
+            if (count($assignedBranchIds) === 1) {
+                return $assignedBranchIds[0];
+            }
+
+            $activeBranchId = session('active_branch_id');
+            if (is_numeric($activeBranchId) && in_array((int) $activeBranchId, $assignedBranchIds, true)) {
+                return (int) $activeBranchId;
+            }
+
+            return $assignedBranchIds[0];
+        }
+
         if ($this->canManageAllBranches($user) && Schema::hasTable('branches')) {
             $activeBranchId = session('active_branch_id');
             if (is_numeric($activeBranchId)) {
