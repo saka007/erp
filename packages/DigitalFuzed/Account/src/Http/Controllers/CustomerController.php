@@ -71,6 +71,7 @@ class CustomerController extends Controller
             $customer->tax_number = $validated['tax_number'] ?? null;
             $customer->payment_terms = $validated['payment_terms'] ?? null;
             $customer->credit_limit = isset($validated['credit_limit']) ? (float) $validated['credit_limit'] : null;
+            $customer->default_rate = isset($validated['default_rate']) ? (float) $validated['default_rate'] : null;
             $customer->currency_code = isset($validated['currency_code']) ? strtoupper((string) $validated['currency_code']) : null;
             $customer->customer_category_id = $this->resolveCustomerCategoryId($validated['customer_category_id'] ?? null);
             $customer->operating_model = $validated['operating_model'] ?? 'full_package_buyer';
@@ -103,6 +104,7 @@ class CustomerController extends Controller
             $customer->tax_number = $validated['tax_number'] ?? null;
             $customer->payment_terms = $validated['payment_terms'] ?? null;
             $customer->credit_limit = isset($validated['credit_limit']) ? (float) $validated['credit_limit'] : null;
+            $customer->default_rate = isset($validated['default_rate']) ? (float) $validated['default_rate'] : null;
             $customer->currency_code = isset($validated['currency_code']) ? strtoupper((string) $validated['currency_code']) : null;
             $customer->customer_category_id = $this->resolveCustomerCategoryId($validated['customer_category_id'] ?? null);
             $customer->operating_model = $validated['operating_model'] ?? $customer->operating_model ?? 'full_package_buyer';

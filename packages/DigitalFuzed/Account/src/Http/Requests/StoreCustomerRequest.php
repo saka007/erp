@@ -22,6 +22,7 @@ class StoreCustomerRequest extends FormRequest
             'tax_number' => 'nullable|string|max:255',
             'payment_terms' => 'nullable|string|max:255',
             'credit_limit' => 'nullable|numeric|min:0',
+            'default_rate' => 'nullable|numeric|min:0',
             'currency_code' => 'nullable|string|max:10',
             'customer_category_id' => 'nullable|integer|min:1',
             'operating_model' => 'nullable|string|in:full_package_buyer,jobwork_weaving_beam_supplied,jobwork_processing_grey_supplied,trader_bulk,export_compliance',

@@ -20,6 +20,7 @@ class Customer extends Model
         'tax_number',
         'payment_terms',
         'credit_limit',
+        'default_rate',
         'currency_code',
         'customer_category_id',
         'operating_model',

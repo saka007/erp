@@ -20,6 +20,7 @@ export interface Customer {
   tax_number?: string;
   payment_terms?: string;
   credit_limit?: number;
+  default_rate?: number;
   currency_code?: string;
   operating_model?: string;
   material_ownership?: string;
@@ -62,6 +63,7 @@ export interface CustomerFormData {
   tax_number?: string;
   payment_terms?: string;
   credit_limit?: number;
+  default_rate?: number;
   currency_code?: string;
   operating_model?: string;
   material_ownership?: string;

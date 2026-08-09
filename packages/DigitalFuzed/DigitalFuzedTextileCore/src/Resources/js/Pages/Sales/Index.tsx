@@ -38,6 +38,7 @@ interface CustomerOption {
     operating_model?: string | null;
     material_ownership?: string | null;
     billing_mode?: string | null;
+    default_rate?: number | null;
 }
 
 interface QuotationRecord {
@@ -107,7 +108,7 @@ export default function Index({
 
     const customerOptions = customers.map((customer) => ({
         value: String(customer.id),
-        label: `${customer.company_name} | ${customer.operating_model || '-'} | ${customer.material_ownership || '-'} | ${customer.billing_mode || '-'}`,
+        label: `${customer.company_name} | ${customer.operating_model || '-'} | ${customer.material_ownership || '-'} | ${customer.billing_mode || '-'}${customer.default_rate != null ? ` | @ ${Number(customer.default_rate).toFixed(2)}` : ''}`,
     }));
 
     const allocationForm = useForm({ sales_order_id: '' });
@@ -261,11 +262,18 @@ export default function Index({
                                     <SelectField
                                         label={t('Customer')}
                                         value={salesOrderForm.data.customer_id}
-                                        onChange={(value: string) => salesOrderForm.setData('customer_id', value)}
+                                        onChange={(value: string) => {
+                                            const selected = customers.find((row) => String(row.id) === value);
+                                            salesOrderForm.setData((data) => ({
+                                                ...data,
+                                                customer_id: value,
+                                                rate: selected?.default_rate != null ? String(selected.default_rate) : data.rate,
+                                            }));
+                                        }}
                                         options={customerOptions}
                                         includeEmpty
                                         emptyLabel={t('Select customer')}
-                                        helperText={t('Job-work-only customer profiles are blocked from sales-order flow.')}
+                                        helperText={t('Job-work-only customer profiles are blocked from sales-order flow. Rate auto-fills from the customer default rate and stays editable.')}
                                         disabled={customerOptions.length === 0}
                                         disabledReason={t('No customer profile found. Create customer profile first.')}
                                         required
@@ -319,7 +327,12 @@ export default function Index({
                                             <p className="text-sm text-muted-foreground">{t('Order Quantity')}: {selectedTakhaQuantity.toFixed(2)} {selectedTakhaUnits.length === 1 ? selectedTakhaUnits[0] : ''}{selectedTakhaUnits.length > 1 ? ` · ${t('Mixed units not allowed')}` : ''}</p>
                                         </div>
                                     </div>
-                                    <Field label={t('Rate per Unit')} type="number" value={salesOrderForm.data.rate} onChange={(value: string) => salesOrderForm.setData('rate', value)} step="0.01" required />
+                                    <Field label={t('Rate per Unit')} type="number" value={salesOrderForm.data.rate} onChange={(value: string) => salesOrderForm.setData('rate', value)} step="0.01" required helperText={(() => {
+                                        const selected = customers.find((row) => String(row.id) === salesOrderForm.data.customer_id);
+                                        return selected?.default_rate != null
+                                            ? t('Auto-filled from this customer default rate. Adjust if needed.')
+                                            : t('No default rate set for this customer. You can add one in the customer profile.');
+                                    })()} />
                                     <div className="grid grid-cols-2 gap-3">
                                         <Field label={t('Required Delivery Date')} type="date" value={salesOrderForm.data.required_delivery_date} onChange={(value: string) => salesOrderForm.setData('required_delivery_date', value)} required />
                                         <SelectField label={t('Delivery Warehouse')} value={salesOrderForm.data.warehouse} onChange={(value: string) => salesOrderForm.setData('warehouse', value)} options={warehouseOptions} includeEmpty emptyLabel={t('Select warehouse')} />

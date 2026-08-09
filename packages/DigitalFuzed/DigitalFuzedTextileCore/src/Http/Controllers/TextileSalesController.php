@@ -276,7 +276,7 @@ class TextileSalesController extends Controller
             ->where('created_by', creatorId())
             ->orderBy('company_name')
             ->pipe(fn ($query) => TextilePartyBranchService::applyPartyScope($query, TextilePartyBranchService::PARTY_CUSTOMER, 'customers'))
-            ->get(['id', 'company_name', 'operating_model', 'material_ownership', 'billing_mode'])
+            ->get(['id', 'company_name', 'operating_model', 'material_ownership', 'billing_mode', 'default_rate'])
             ->map(function (Customer $customer) {
                 return [
                     'id' => (int) $customer->id,
@@ -284,6 +284,7 @@ class TextileSalesController extends Controller
                     'operating_model' => $customer->operating_model,
                     'material_ownership' => $customer->material_ownership,
                     'billing_mode' => $customer->billing_mode,
+                    'default_rate' => $customer->default_rate !== null ? (float) $customer->default_rate : null,
                 ];
             })
             ->values();

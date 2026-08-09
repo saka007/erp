@@ -35,6 +35,7 @@ export default function Create({ onSuccess, users = [], customerCategories = [],
         tax_number: '',
         payment_terms: '',
         credit_limit: undefined,
+        default_rate: undefined,
         currency_code: 'USD',
         customer_category_id: undefined,
         operating_model: 'full_package_buyer',
@@ -206,6 +207,20 @@ export default function Create({ onSuccess, users = [], customerCategories = [],
                         onChange={(value) => setData('currency_code', value || 'USD')}
                         options={['USD', 'INR', 'EUR', 'GBP', 'AED']}
                     />
+                </div>
+                <div>
+                    <Label htmlFor="default_rate">{t('Default Rate per Unit')}</Label>
+                    <Input
+                        id="default_rate"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={data.default_rate ?? ''}
+                        onChange={(e) => setData('default_rate', e.target.value ? Number(e.target.value) : undefined)}
+                        placeholder={t('Enter default selling rate per unit')}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">{t('Auto-fills the rate in sales orders for this customer. You can still edit it per order.')}</p>
+                    <InputError message={errors.default_rate} />
                 </div>
                 <div>
                     <SelectField
