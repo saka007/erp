@@ -1,5 +1,6 @@
 import { DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useForm } from "@inertiajs/react";
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,11 +20,22 @@ export default function Edit({ user, onSuccess, roles = {}, branches = [] }: Edi
         is_enable_login: user.is_enable_login,
         branch_ids: user.branch_ids || [],
     });
+    const [branchError, setBranchError] = useState('');
 
     const hasBranches = branches.length > 0;
+    // Staff users must always be branch scoped: branch assignment is mandatory
+    // for staff-type accounts when the tenant has branches. Company/superadmin
+    // accounts are tenant roots and are not branch scoped.
+    const isTenantRoot = user.type === 'company' || user.type === 'superadmin';
+    const branchRequired = hasBranches && !isTenantRoot;
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (branchRequired && data.branch_ids.length === 0) {
+            setBranchError(t('At least one branch must be assigned.'));
+            return;
+        }
+        setBranchError('');
         put(route('users.update', user.id), {
             onSuccess: () => {
                 onSuccess();
@@ -85,7 +97,10 @@ export default function Edit({ user, onSuccess, roles = {}, branches = [] }: Edi
                 </div>
                 {hasBranches && (
                     <div>
-                        <Label>{t('Branches')}</Label>
+                        <Label>
+                            {t('Branches')}
+                            {branchRequired && <span className="text-destructive"> *</span>}
+                        </Label>
                         <MultiSelectEnhanced
                             options={branches.map((branch) => ({ value: String(branch.id), label: branch.name }))}
                             value={data.branch_ids.map(String)}
@@ -96,6 +111,9 @@ export default function Edit({ user, onSuccess, roles = {}, branches = [] }: Edi
                         <p className="text-xs text-muted-foreground mt-1">
                             {t('User with a single branch is auto-scoped. Multiple branches enables the branch switcher.')}
                         </p>
+                        {branchError && (
+                            <p className="text-sm font-medium text-destructive mt-1">{branchError}</p>
+                        )}
                         <InputError message={errors.branch_ids as any} />
                     </div>
                 )}

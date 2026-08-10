@@ -23,11 +23,12 @@ class BranchContextController extends Controller
             ? []
             : \DigitalFuzed\TextileCore\Services\TextileUserBranchService::branchIdsForUser($user->id, (int) creatorId());
 
-        // Users with assignments may only switch within their assigned branches;
-        // the switcher is only available when they have multiple assignments.
-        $canSwitch = count($assignedBranchIds) > 0
-            ? count($assignedBranchIds) > 1
-            : $canManageAll;
+        // Tenant roots may switch across all branches. Staff are always branch
+        // scoped: switching is only allowed within multiple assigned branches -
+        // the manage-any-branches permission does not grant switching for staff.
+        $canSwitch = $isTenantRoot
+            ? $canManageAll
+            : count($assignedBranchIds) > 1;
 
         if (! $canSwitch) {
             return back()->with('error', __('You are not allowed to change branch context.'));

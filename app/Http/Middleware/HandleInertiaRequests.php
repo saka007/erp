@@ -97,12 +97,16 @@ class HandleInertiaRequests extends Middleware
 
             $branchContext['can_manage_all_branches'] = $this->canManageAllBranches($user);
 
-            if ($isTenantRoot || count($assignedBranchIds) === 0) {
-                // Tenant root / no assignments: legacy behavior (all tenant branches).
-                $branchContext['can_switch_branch'] = $this->canManageAllBranches($user);
-                $branchContext['branches'] = $this->branchOptions($tenantId);
-            } else {
-                // Users with assignments are limited to their assigned branches.
+if ($isTenantRoot) {
+            // Tenant root (company/superadmin): can view all tenant branches.
+            $branchContext['can_switch_branch'] = $this->canManageAllBranches($user);
+            $branchContext['branches'] = $this->branchOptions($tenantId);
+        } else {
+            // Staff are always branch scoped: the top switcher only appears when
+            // the user has multiple assigned branches, and it is limited to those
+            // branches. The manage-any-branches permission does not grant an
+            // all-branches view to staff - branch flexibility is driven solely
+            // by explicit branch assignments.
                 $branchContext['can_switch_branch'] = count($assignedBranchIds) > 1;
                 $branchContext['branches'] = $this->assignedBranchOptions($tenantId, $assignedBranchIds);
             }
@@ -266,8 +270,11 @@ class HandleInertiaRequests extends Middleware
         // Users with explicit branch assignments are scoped to those branches
         // (takes precedence over the manage-any-branches permission):
         // single assignment -> that branch; multiple -> session choice or first.
+        // The resolved branch is persisted to the session so downstream readers
+        // (warehouse pickers, warehouse scopes, ...) stay scoped consistently.
         if (count($assignedBranchIds) > 0) {
             if (count($assignedBranchIds) === 1) {
+                $request->session()->put('active_branch_id', $assignedBranchIds[0]);
                 return $assignedBranchIds[0];
             }
 
@@ -276,6 +283,7 @@ class HandleInertiaRequests extends Middleware
                 return (int) $activeBranchId;
             }
 
+            $request->session()->put('active_branch_id', $assignedBranchIds[0]);
             return $assignedBranchIds[0];
         }
 

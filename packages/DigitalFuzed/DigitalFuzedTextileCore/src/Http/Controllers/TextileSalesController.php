@@ -326,8 +326,14 @@ class TextileSalesController extends Controller
         }
 
         $query = \DB::table('warehouses')->where('created_by', creatorId());
-        if (Schema::hasColumn('warehouses', 'branch_id') && session('active_branch_id')) {
-            $query->where('branch_id', (int) session('active_branch_id'));
+        if (Schema::hasColumn('warehouses', 'branch_id')) {
+            // Always scope the picker to the current user's branch. For staff
+            // the branch is derived from their assignments (single -> that
+            // branch; multiple -> active choice), never all tenant branches.
+            $branchId = TextileBranchScope::branchIdForCreate();
+            if ($branchId !== null) {
+                $query->where('branch_id', (int) $branchId);
+            }
         }
 
         return $query->orderBy('name')->pluck('name')->map(fn ($name) => ['value' => (string) $name, 'label' => (string) $name])->values()->all();
