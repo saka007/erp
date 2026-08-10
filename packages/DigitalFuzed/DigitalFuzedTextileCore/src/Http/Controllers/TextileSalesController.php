@@ -279,13 +279,13 @@ class TextileSalesController extends Controller
     {
         return SalesQuotation::query()
             ->where('created_by', creatorId())
-            ->with('customer:id,company_name')
+            ->with(['customer:id,name', 'customerDetails:id,user_id,company_name'])
             ->latest()
             ->get()
             ->map(fn (SalesQuotation $q) => [
                 'id' => $q->id,
                 'quotation_number' => $q->quotation_number,
-                'customer_name' => $q->customer?->company_name ?? '-',
+                'customer_name' => $q->customerDetails?->company_name ?? $q->customer?->name ?? '-',
                 'quotation_date' => $q->quotation_date?->format('d M Y') ?? '-',
                 'due_date' => $q->due_date?->format('d M Y') ?? '-',
                 'quotation_type' => $q->quotation_type ?? 'general',

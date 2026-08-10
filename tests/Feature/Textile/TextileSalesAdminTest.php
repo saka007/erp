@@ -13,6 +13,7 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 use Workdo\Account\Models\Customer;
 use Workdo\Hrm\Models\Branch;
+use Workdo\Quotation\Models\SalesQuotation;
 
 class TextileSalesAdminTest extends TestCase
 {
@@ -304,5 +305,68 @@ class TextileSalesAdminTest extends TestCase
         ]);
 
         return $company;
+    }
+
+    public function test_sales_index_renders_quotation_customer_name_without_500(): void
+    {
+        AddOn::create([
+            'module' => 'TextileCore',
+            'name' => 'Textile Core',
+            'package_name' => 'textile-core',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        $company = $this->company();
+
+        $this->actingAs($company);
+
+        // Customer auto-linked to a client user (customers.user_id -> users.id),
+        // matching how QuotationController::customersForSelect() stores quotations.
+        $customer = Customer::create([
+            'company_name' => 'Metro Fashions Pvt Ltd',
+            'contact_person_name' => 'Metro Buyer',
+            'contact_person_email' => 'buyer@metro.test',
+            'operating_model' => 'full_package_buyer',
+            'material_ownership' => 'company_owned',
+            'billing_mode' => 'sale_value',
+            'creator_id' => $company->id,
+            'created_by' => $company->id,
+        ]);
+
+        $clientUser = User::factory()->create([
+            'type' => 'client',
+            'created_by' => $company->id,
+        ]);
+
+        $customer->update(['user_id' => $clientUser->id]);
+
+        // Quotation references the CLIENT USER id, not the customer id.
+        $quotation = SalesQuotation::create([
+            'customer_id' => $clientUser->id,
+            'quotation_date' => now(),
+            'due_date' => now()->addDays(7),
+            'total_amount' => 5000,
+            'status' => 'draft',
+            'converted_to_invoice' => false,
+            'quotation_type' => 'general',
+            'creator_id' => $company->id,
+            'created_by' => $company->id,
+        ]);
+
+        // Regression: users table has no company_name column; the page must
+        // read it from the customers table (customerDetails) instead.
+        $this->actingAs($company)
+            ->get(route('textile.sales.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('quotations', 1)
+                ->where('quotations.0.customer_name', 'Metro Fashions Pvt Ltd'));
+
+        $this->assertDatabaseHas('sales_quotations', [
+            'id' => $quotation->id,
+            'customer_id' => $clientUser->id,
+        ]);
     }
 }
