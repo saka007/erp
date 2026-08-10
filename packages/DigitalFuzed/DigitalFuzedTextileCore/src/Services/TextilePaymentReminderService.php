@@ -227,9 +227,9 @@ class TextilePaymentReminderService
 
         return DB::table('branches')
             ->where('created_by', $tenantId)
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn ($branch) => ['id' => (int) $branch->id, 'name' => $branch->name])
+            ->orderBy('branch_name')
+            ->get(['id', 'branch_name'])
+            ->map(fn ($branch) => ['id' => (int) $branch->id, 'name' => $branch->branch_name])
             ->values()
             ->all();
     }
@@ -392,7 +392,7 @@ class TextilePaymentReminderService
             return null;
         }
 
-        return DB::table('branches')->where('id', $branchId)->value('name');
+        return DB::table('branches')->where('id', $branchId)->value('branch_name');
     }
 
     private function wasRecentlyReminded(string $invoiceType, int $invoiceId, ?int $tenantId): bool
@@ -484,11 +484,14 @@ class TextilePaymentReminderService
             'party_email' => $partyType === self::PARTY_SUPPLIER
                 ? ($party->contact_person_email ?: $party->primary_email)
                 : $party->contact_person_email,
+            'supplier_type' => $partyType === self::PARTY_SUPPLIER ? ($party->supplier_type ?? null) : null,
+            'party_code' => $party->vendor_code ?? $party->customer_code ?? null,
             'credit_enabled' => (bool) ($party->credit_enabled ?? false),
             'credit_days' => $party->credit_days !== null ? (int) $party->credit_days : null,
             'credit_limit' => $party->credit_limit !== null ? (float) $party->credit_limit : null,
             'reminder_enabled' => (bool) ($party->reminder_enabled ?? true),
             'branch_id' => $party->branch_id !== null ? (int) $party->branch_id : null,
+            'branch_name' => $this->branchName($party->branch_id, $party->created_by),
         ];
     }
 

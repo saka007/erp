@@ -14,6 +14,7 @@ use DigitalFuzed\TextileCore\Http\Controllers\TextileDispatchController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileCostingController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileDashboardController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextilePaymentController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextilePartyController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileApprovalController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileCostCenterController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileCustomFieldController;
@@ -309,6 +310,8 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::get('/textile/payments', [TextilePaymentController::class, 'index'])->name('textile.payments.index');
     Route::post('/textile/payments/credit', [TextilePaymentController::class, 'updateCredit'])->name('textile.payments.credit.update');
     Route::post('/textile/payments/reminders', [TextilePaymentController::class, 'sendReminders'])->name('textile.payments.reminders.send');
+
+    Route::get('/textile/parties', [TextilePartyController::class, 'index'])->name('textile.parties.index');
 
     Route::get('/textile/approvals', [TextileApprovalController::class, 'index'])->name('textile.approvals.index');
     Route::post('/textile/approvals/rules', [TextileApprovalController::class, 'storeRule'])->name('textile.approvals.rules.store');

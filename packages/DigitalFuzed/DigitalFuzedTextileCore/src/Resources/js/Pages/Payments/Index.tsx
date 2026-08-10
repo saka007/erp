@@ -164,6 +164,15 @@ export default function Index({
             return;
         }
 
+        creditForm.transform((formData) => {
+            const [partyType, partyId] = String(formData.party_key).split(':');
+            return {
+                ...formData,
+                party_type: partyType,
+                party_id: partyId,
+            };
+        });
+
         creditForm.post(route('textile.payments.credit.update'), {
             preserveScroll: true,
             onSuccess: () => {

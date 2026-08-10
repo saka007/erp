@@ -306,7 +306,24 @@ export default function Index() {
 
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">{t('Supplier Type')}</label>
-                                            <Select value={filters.supplier_type || '__all__'} onValueChange={(value) => setFilters({...filters, supplier_type: value === '__all__' ? '' : value})}>
+                                            <Select
+                                                value={filters.supplier_type || '__all__'}
+                                                onValueChange={(value) => {
+                                                    const nextValue = value === '__all__' ? '' : value;
+                                                    const nextFilters = {...filters, supplier_type: nextValue};
+                                                    setFilters(nextFilters);
+                                                    router.get(route('account.vendors.index'), {
+                                                        ...nextFilters,
+                                                        per_page: perPage,
+                                                        sort: sortField,
+                                                        direction: sortDirection,
+                                                        view: viewMode
+                                                    }, {
+                                                        preserveState: true,
+                                                        replace: true
+                                                    });
+                                                }}
+                                            >
                                                 <SelectTrigger>
                                                     <SelectValue placeholder={t('All supplier types')} />
                                                 </SelectTrigger>
