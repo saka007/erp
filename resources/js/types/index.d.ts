@@ -26,6 +26,8 @@ export interface NavItem {
     order?: number;
     activePaths?: string[];
     capability?: string;
+    /** When true, the item (and its subtree) is only rendered for admin users (company/superadmin). */
+    adminOnly?: boolean;
 }
 
 export type PageProps<

@@ -196,6 +196,33 @@ const filterByCapabilities = (items: NavItem[], capabilities: Record<string, boo
         .filter((item): item is NavItem => item !== null);
 };
 
+const isAdminUser = (userType: string | undefined, userRoles: string[]): boolean => {
+    return userType === 'company' || userType === 'superadmin' || userRoles.includes('superadmin');
+};
+
+const filterByAdminOnly = (items: NavItem[], isAdmin: boolean): NavItem[] => {
+    return items
+        .map((item) => {
+            const nextItem: NavItem = {
+                ...item,
+                children: item.children ? filterByAdminOnly(item.children, isAdmin) : undefined,
+            };
+
+            // Items flagged adminOnly are only visible to admin (company/superadmin) users.
+            if (nextItem.adminOnly && !isAdmin) {
+                return null;
+            }
+
+            // Drop parents that ended up empty (all children filtered out) and have no direct href.
+            if (nextItem.children && nextItem.children.length === 0 && !nextItem.href) {
+                return null;
+            }
+
+            return nextItem;
+        })
+        .filter((item): item is NavItem => item !== null);
+};
+
 // Main function to get filtered menu items
 export const allMenuItems = (): NavItem[] => {
     const { auth } = usePage().props as any;
@@ -206,6 +233,8 @@ export const allMenuItems = (): NavItem[] => {
     const industryType = auth?.user?.industry_type;
     const textileCapabilities = auth?.user?.textile_capabilities || {};
     const activatedPackages = auth?.user?.activatedPackages || [];
+
+    const isAdmin = isAdminUser(userType, userRoles);
 
     const coreMenuItems = filterCoreMenusForIndustry(getCoreMenuItems(userRoles, t), userType, userRoles, industryType, activatedPackages, t);
 
@@ -227,8 +256,9 @@ export const allMenuItems = (): NavItem[] => {
 
     const sortedMenuItems = finalGroupedMenuItems.sort((a, b) => (a.order || 999) - (b.order || 999));
     const capabilityFilteredMenuItems = filterByCapabilities(sortedMenuItems, textileCapabilities);
+    const adminFilteredMenuItems = filterByAdminOnly(capabilityFilteredMenuItems, isAdmin);
 
-    const finalMenuItems = filterByPermission(capabilityFilteredMenuItems, userPermissions);
+    const finalMenuItems = filterByPermission(adminFilteredMenuItems, userPermissions);
 
     return finalMenuItems;
 };
