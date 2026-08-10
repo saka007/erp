@@ -287,6 +287,7 @@ class TextileSalesController extends Controller
                 'customer_name' => $q->customer?->company_name ?? '-',
                 'quotation_date' => $q->quotation_date?->format('d M Y') ?? '-',
                 'due_date' => $q->due_date?->format('d M Y') ?? '-',
+                'quotation_type' => $q->quotation_type ?? 'general',
                 'total_amount' => $q->total_amount,
                 'status' => $q->status,
                 'converted_to_invoice' => $q->converted_to_invoice,

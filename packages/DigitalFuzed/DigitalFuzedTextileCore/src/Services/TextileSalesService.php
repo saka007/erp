@@ -5,6 +5,7 @@ namespace DigitalFuzed\TextileCore\Services;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
+use DigitalFuzed\TextileInventory\Models\TextileReservation;
 use DigitalFuzed\TextileInventory\Services\TextileAvailabilityService;
 use DigitalFuzed\TextileInventory\Services\TextileLedgerService;
 use Illuminate\Support\Facades\DB;
@@ -50,6 +51,7 @@ class TextileSalesService
 
         $metadata = array_merge($payload['metadata'] ?? [], $profile);
         $lotSelections = collect($payload['lot_selections'] ?? []);
+        $validatedLots = collect();
         if ($lotSelections->isNotEmpty()) {
             $validatedLots = $lotSelections->map(function (array $line) {
                 $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
@@ -119,19 +121,34 @@ class TextileSalesService
             $metadata['order_value'] = (float) ($metadata['rate'] ?? 0) * (float) $payload['quantity'];
         }
 
-        return $this->workflowService->createDocument([
-            'document_type' => 'sales_order',
-            'source_reference_type' => $payload['source_reference_type'] ?? null,
-            'source_reference_id' => ! empty($payload['source_reference_id']) ? (int) $payload['source_reference_id'] : null,
-            'source_action' => ! empty($payload['source_reference_id']) ? ($payload['source_action'] ?? 'convert') : null,
-            'party_name' => $payload['party_name'] ?? ($profile['party_name'] ?? null),
-            'lot_reference' => $payload['lot_reference'] ?? null,
-            'quantity' => $payload['quantity'] ?? 0,
-            'unit' => $payload['unit'] ?? null,
-            'status' => 'draft',
-            'metadata' => $metadata,
-            'idempotency_key' => $payload['idempotency_key'] ?? null,
-        ]);
+        return DB::transaction(function () use ($payload, $metadata, $validatedLots, $profile) {
+            $salesOrder = $this->workflowService->createDocument([
+                'document_type' => 'sales_order',
+                'source_reference_type' => $payload['source_reference_type'] ?? null,
+                'source_reference_id' => ! empty($payload['source_reference_id']) ? (int) $payload['source_reference_id'] : null,
+                'source_action' => ! empty($payload['source_reference_id']) ? ($payload['source_action'] ?? 'convert') : null,
+                'party_name' => $payload['party_name'] ?? ($profile['party_name'] ?? null),
+                'lot_reference' => $payload['lot_reference'] ?? null,
+                'quantity' => $payload['quantity'] ?? 0,
+                'unit' => $payload['unit'] ?? null,
+                'status' => 'draft',
+                'metadata' => $metadata,
+                'idempotency_key' => $payload['idempotency_key'] ?? null,
+            ]);
+
+            // Commit the takha stock at sales-order creation so the same lot
+            // cannot be double-booked by a second sales order.
+            foreach ($validatedLots as $line) {
+                $this->availabilityService->reserve(
+                    $line['lot_reference'],
+                    (float) $line['quantity'],
+                    'sales_order',
+                    $salesOrder->id
+                );
+            }
+
+            return $salesOrder;
+        });
     }
 
     public function approveSalesOrder(int $salesOrderId): TextileWorkflowDocument
@@ -207,7 +224,17 @@ class TextileSalesService
                 }
 
                 $quantity = (float) $line['quantity'];
-                if ($quantity <= 0 || $quantity > (float) $lot->available_quantity) {
+                // The sales order already holds a reservation for this lot; it will be
+                // transferred to this allocation, so the effective availability includes it.
+                $soReservedQuantity = (float) TextileReservation::query()
+                    ->where('created_by', $salesOrder->created_by)
+                    ->where('lot_reference', $lot->lot_reference)
+                    ->where('reference_type', 'sales_order')
+                    ->where('reference_id', $salesOrder->id)
+                    ->where('is_active', true)
+                    ->sum('reserved_quantity');
+                $effectiveAvailable = (float) $lot->available_quantity + $soReservedQuantity;
+                if ($quantity <= 0 || $quantity > $effectiveAvailable) {
                     throw new RuntimeException('Allocated quantity exceeds available fabric stock.');
                 }
 
@@ -232,13 +259,41 @@ class TextileSalesService
             ]);
 
             foreach ($validatedLines as $line) {
-                $this->availabilityService->reserve(
-                    $line['lot_reference'],
-                    (float) $line['quantity'],
-                    'allocation',
-                    $allocation->id
-                );
+                // Transfer the sales-order reservation into the allocation so the
+                // stock is not double-reserved.
+                $soReservation = TextileReservation::query()
+                    ->where('created_by', $salesOrder->created_by)
+                    ->where('lot_reference', $line['lot_reference'])
+                    ->where('reference_type', 'sales_order')
+                    ->where('reference_id', $salesOrder->id)
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($soReservation !== null) {
+                    $this->availabilityService->allocateReservation(
+                        $soReservation->id,
+                        $allocation->id,
+                        'allocation'
+                    );
+                } else {
+                    $this->availabilityService->reserve(
+                        $line['lot_reference'],
+                        (float) $line['quantity'],
+                        'allocation',
+                        $allocation->id
+                    );
+                }
             }
+
+            // Release any sales-order reservations for lots that were not consumed
+            // by this allocation (e.g. a different lot was picked at allocation time).
+            TextileReservation::query()
+                ->where('created_by', $salesOrder->created_by)
+                ->where('reference_type', 'sales_order')
+                ->where('reference_id', $salesOrder->id)
+                ->where('is_active', true)
+                ->get()
+                ->each(fn (TextileReservation $reservation) => $this->availabilityService->releaseReservation($reservation->id));
 
             return $allocation;
         });

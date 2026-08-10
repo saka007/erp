@@ -47,6 +47,7 @@ interface QuotationRecord {
     customer_name: string;
     quotation_date: string;
     due_date: string;
+    quotation_type?: string;
     total_amount: string;
     status: string;
     converted_to_invoice: boolean;
@@ -352,7 +353,13 @@ export default function Index({
                                             columns={[
                                                 { key: 'document_number', header: t('Order') },
                                                 { key: 'party_name', header: t('Customer') },
-                                                { key: 'item_name', header: t('Item'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.item_name ?? '-') },
+                                                { key: 'item_name', header: t('Item'), render: (_value: unknown, row: WorkflowDocument) => {
+                                                    const requestedLots = (row.metadata?.requested_lots as Array<{ lot_reference: string; quantity: number; unit?: string }> | undefined) ?? [];
+                                                    if (requestedLots.length > 0) {
+                                                        return requestedLots.map((line) => `${line.lot_reference} (${line.quantity}${line.unit ? ` ${line.unit}` : ''})`).join(', ');
+                                                    }
+                                                    return String(row.metadata?.item_name ?? row.lot_reference ?? '-');
+                                                } },
                                                 { key: 'quantity', header: t('Qty') },
                                                 { key: 'unit', header: t('Unit') },
                                                 { key: 'rate', header: t('Rate'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.rate ?? '-') },
@@ -553,6 +560,11 @@ export default function Index({
                                                 { key: 'customer_name', header: t('Customer') },
                                                 { key: 'quotation_date', header: t('Date') },
                                                 { key: 'due_date', header: t('Due Date') },
+                                                { key: 'quotation_type', header: t('Type'), render: (_v: unknown, row: QuotationRecord) => ({
+                                                    takha: t('Takha'),
+                                                    yarn: t('Yarn'),
+                                                    general: t('General'),
+                                                })[row.quotation_type || 'general'] },
                                                 { key: 'total_amount', header: t('Total') },
                                                 { key: 'status', header: t('Status'), render: formatTextileLabel },
                                                 { key: 'converted_to_invoice', header: t('Invoiced'), render: (_v: unknown, row: QuotationRecord) => row.converted_to_invoice ? t('Yes') : t('No') },

@@ -104,6 +104,29 @@ class TextileSalesAdminTest extends TestCase
         $this->assertNotNull($salesOrder);
         $this->assertSame('draft', $salesOrder->status);
 
+        // Creating the sales order must reserve the takha stock immediately,
+        // preventing the same lot from being double-booked.
+        $this->assertEquals(30, (float) $fabricLot->refresh()->available_quantity);
+        $this->assertDatabaseHas('textile_reservations', [
+            'created_by' => $companyA->id,
+            'lot_reference' => $fabricLot->lot_reference,
+            'reference_type' => 'sales_order',
+            'reference_id' => $salesOrder->id,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($companyA)
+            ->post(route('textile.sales.orders.store'), [
+                'customer_id' => $customer->id,
+                'lot_selections' => [
+                    ['lot_reference' => $fabricLot->lot_reference, 'quantity' => 60],
+                ],
+                'rate' => 75,
+                'required_delivery_date' => now()->addDays(7)->toDateString(),
+                'warehouse' => 'Main Warehouse',
+            ])
+            ->assertSessionHasErrors('customer_id');
+
         $this->actingAs($companyA)
             ->post(route('textile.sales.orders.approve'), [
                 'sales_order_id' => $salesOrder->id,
@@ -121,7 +144,7 @@ class TextileSalesAdminTest extends TestCase
                 ],
             ])
             ->assertSessionHasErrors('sales_order_id');
-        $this->assertEquals(150, (float) $fabricLot->refresh()->available_quantity);
+        $this->assertEquals(30, (float) $fabricLot->refresh()->available_quantity);
 
         $otherBranch = Branch::create(['branch_name' => 'Other Sales Branch', 'creator_id' => $companyA->id, 'created_by' => $companyA->id]);
         $otherSource = TextileWorkflowDocument::create([
