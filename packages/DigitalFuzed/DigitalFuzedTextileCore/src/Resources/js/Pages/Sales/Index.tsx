@@ -17,6 +17,7 @@ import { TextileInfoPanel, MetricSummaryCard, type ActivityItem } from '@/compon
 import { TextileWorkflowSteps, workflowStepStatuses, type WorkflowStep } from '@/components/textile/textile-workflow-steps';
 import { buildUnitOptions, formatTextileLabel } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
+import { QuotationEditDialog, type QuotationEditRecord } from './components/QuotationEditDialog';
 import { PageProps } from '@/types';
 
 interface WorkflowDocument {
@@ -47,12 +48,44 @@ interface QuotationRecord {
     id: number;
     quotation_number: string;
     customer_name: string;
+    customer_id: number;
+    warehouse_id?: number | null;
     quotation_date: string;
     due_date: string;
     quotation_type?: string;
     total_amount: string;
+    payment_terms?: string;
+    notes?: string;
     status: string;
     converted_to_invoice: boolean;
+    items: Array<{
+        id: number;
+        product_id: number;
+        product_type?: string;
+        lot_reference?: string | null;
+        quantity: number;
+        unit_price: number;
+        discount_percentage: number;
+        tax_percentage: number;
+        taxes: Array<{ tax_name: string; tax_rate: number }>;
+    }>;
+}
+
+interface QuotationCustomerOption {
+    id: number;
+    name: string;
+    email: string;
+}
+
+interface QuotationTypeOption {
+    value: string;
+    label: string;
+}
+
+interface QuotationWarehouseOption {
+    id: number;
+    name: string;
+    address: string;
 }
 
 export default function Index({
@@ -63,6 +96,9 @@ export default function Index({
     pods,
     quotations,
     customers,
+    quotationCustomers,
+    quotationTypes,
+    quotationWarehouses,
     sellableLotOptions,
     sourceTypeOptions,
     sourceActionOptions,
@@ -78,6 +114,9 @@ export default function Index({
     pods: WorkflowDocument[];
     quotations: QuotationRecord[];
     customers: CustomerOption[];
+    quotationCustomers: QuotationCustomerOption[];
+    quotationTypes: QuotationTypeOption[];
+    quotationWarehouses: QuotationWarehouseOption[];
     sellableLotOptions: Array<{ value: string; label: string; available_quantity: string; material_type: string; unit: string }>;
     sourceTypeOptions: string[];
     sourceActionOptions: string[];
@@ -94,6 +133,8 @@ export default function Index({
     const activeMenuSection = salesWorkspace.sections.find((item) => item.id === sectionParam)
         ?? salesWorkspace.sections[0];
     const [openStep, setOpenStep] = useState<string | null>(null);
+    const [editingQuotation, setEditingQuotation] = useState<QuotationEditRecord | null>(null);
+    const [creatingQuotation, setCreatingQuotation] = useState(false);
 
     const salesOrderForm = useForm({
         source_reference_type: '',
@@ -547,7 +588,7 @@ export default function Index({
                                     <p className="text-sm text-muted-foreground">
                                         {t('Create new Saudas (quotations) for customers.')}
                                     </p>
-                                    <Button type="button" variant="outline" onClick={() => router.get(route('quotations.create'), {}, { preserveState: true })}>
+                                    <Button type="button" variant="outline" onClick={() => setCreatingQuotation(true)}>
                                         <Plus className="mr-2 h-4 w-4" />
                                         {t('Create Quotation')}
                                     </Button>
@@ -569,6 +610,16 @@ export default function Index({
                                                 { key: 'total_amount', header: t('Total') },
                                                 { key: 'status', header: t('Status'), render: formatTextileLabel },
                                                 { key: 'converted_to_invoice', header: t('Invoiced'), render: (_v: unknown, row: QuotationRecord) => row.converted_to_invoice ? t('Yes') : t('No') },
+                                                {
+                                                    key: 'actions',
+                                                    header: t('Actions'),
+                                                    render: (_v: unknown, row: QuotationRecord) => row.status === 'draft' ? (
+                                                        <Button type="button" size="sm" variant="outline" onClick={() => setEditingQuotation(row as unknown as QuotationEditRecord)}>
+                                                            <FileEdit className="mr-1 h-3.5 w-3.5" />
+                                                            {t('Edit')}
+                                                        </Button>
+                                                    ) : null,
+                                                },
                                             ]}
                                             emptyState={<NoRecordsFound icon={ScrollText} title={t('No quotations found')} description={t('Create quotations from the Quotations page.')} />}
                                         />
@@ -582,6 +633,18 @@ export default function Index({
                     }
                 }}
             </TextileWorkspace>
+            {(editingQuotation || creatingQuotation) && (
+                <QuotationEditDialog
+                    quotation={editingQuotation}
+                    customers={quotationCustomers}
+                    types={quotationTypes}
+                    warehouses={quotationWarehouses}
+                    onClose={() => {
+                        setEditingQuotation(null);
+                        setCreatingQuotation(false);
+                    }}
+                />
+            )}
         </AuthenticatedLayout>
     );
 }

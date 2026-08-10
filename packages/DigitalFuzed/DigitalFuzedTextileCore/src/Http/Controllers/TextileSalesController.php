@@ -19,6 +19,8 @@ use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use RuntimeException;
 use Workdo\Account\Models\Customer;
+use Workdo\Quotation\Http\Requests\StoreQuotationRequest;
+use Workdo\Quotation\Http\Requests\UpdateQuotationRequest;
 use Workdo\Quotation\Models\SalesQuotation;
 
 class TextileSalesController extends Controller
@@ -42,6 +44,9 @@ class TextileSalesController extends Controller
             'pods' => $this->documents('pod'),
             'quotations' => $this->quotations(),
             'customers' => $this->customerOptions(),
+            'quotationCustomers' => $this->quotationCustomers(),
+            'quotationTypes' => $this->quotationTypeOptions(),
+            'quotationWarehouses' => $this->quotationWarehouses(),
             'sellableLotOptions' => $this->sellableLotOptions(),
             'sourceTypeOptions' => $this->sourceTypeOptions(),
             'sourceActionOptions' => $this->sourceActionOptions(),
@@ -279,20 +284,214 @@ class TextileSalesController extends Controller
     {
         return SalesQuotation::query()
             ->where('created_by', creatorId())
-            ->with(['customer:id,name', 'customerDetails:id,user_id,company_name'])
+            ->with(['customer:id,name', 'customerDetails:id,user_id,company_name', 'items.taxes'])
             ->latest()
             ->get()
             ->map(fn (SalesQuotation $q) => [
                 'id' => $q->id,
                 'quotation_number' => $q->quotation_number,
                 'customer_name' => $q->customerDetails?->company_name ?? $q->customer?->name ?? '-',
+                'customer_id' => (int) $q->customer_id,
+                'warehouse_id' => $q->warehouse_id !== null ? (int) $q->warehouse_id : null,
                 'quotation_date' => $q->quotation_date?->format('d M Y') ?? '-',
                 'due_date' => $q->due_date?->format('d M Y') ?? '-',
                 'quotation_type' => $q->quotation_type ?? 'general',
                 'total_amount' => $q->total_amount,
+                'payment_terms' => $q->payment_terms ?? '',
+                'notes' => $q->notes ?? '',
                 'status' => $q->status,
                 'converted_to_invoice' => $q->converted_to_invoice,
+                'items' => $q->items
+                    ->map(fn ($item) => [
+                        'id' => (int) $item->id,
+                        'product_id' => (int) $item->product_id,
+                        'product_type' => $item->product_type ?? 'product',
+                        'lot_reference' => $item->lot_reference,
+                        'quantity' => (float) $item->quantity,
+                        'unit_price' => (float) $item->unit_price,
+                        'discount_percentage' => (float) ($item->discount_percentage ?? 0),
+                        'tax_percentage' => (float) ($item->tax_percentage ?? 0),
+                        'taxes' => $item->taxes
+                            ->map(fn ($tax) => [
+                                'tax_name' => $tax->tax_name ?? '',
+                                'tax_rate' => (float) ($tax->tax_rate ?? 0),
+                            ])
+                            ->values()
+                            ->all(),
+                    ])
+                    ->values()
+                    ->all(),
             ])
+            ->all();
+    }
+
+    public function storeQuotation(StoreQuotationRequest $request)
+    {
+        $this->authorizeTextileAccess();
+
+        $totals = $this->calculateQuotationTotals($request->items);
+
+        $quotation = new SalesQuotation();
+        $quotation->quotation_date  = $request->invoice_date;
+        $quotation->due_date        = $request->due_date;
+        $quotation->customer_id     = $request->customer_id;
+        $quotation->warehouse_id    = $request->warehouse_id;
+        $quotation->payment_terms   = $request->payment_terms;
+        $quotation->notes           = $request->notes;
+        $quotation->quotation_type  = $request->quotation_type ?? 'general';
+        $quotation->subtotal        = $totals['subtotal'];
+        $quotation->tax_amount      = $totals['tax_amount'];
+        $quotation->discount_amount = $totals['discount_amount'];
+        $quotation->total_amount    = $totals['total_amount'];
+        $quotation->creator_id      = Auth::id();
+        $quotation->created_by      = creatorId();
+        $quotation->save();
+
+        $this->createQuotationItems($quotation->id, $request->items);
+
+        return back()->with('success', __('The quotation has been created successfully.'));
+    }
+
+    public function updateQuotation(UpdateQuotationRequest $request, SalesQuotation $quotation)
+    {
+        $this->authorizeTextileAccess();
+
+        if ((int) $quotation->created_by !== (int) creatorId()) {
+            abort(403, __('Access denied'));
+        }
+
+        if ($quotation->status !== 'draft') {
+            return back()->with('error', __('Cannot update a quotation that is not in draft status.'));
+        }
+
+        $totals = $this->calculateQuotationTotals($request->items);
+
+        $quotation->quotation_date  = $request->invoice_date;
+        $quotation->due_date        = $request->due_date;
+        $quotation->customer_id     = $request->customer_id;
+        $quotation->warehouse_id    = $request->warehouse_id;
+        $quotation->payment_terms   = $request->payment_terms;
+        $quotation->notes           = $request->notes;
+        $quotation->quotation_type  = $request->quotation_type ?? $quotation->quotation_type ?? 'general';
+        $quotation->subtotal        = $totals['subtotal'];
+        $quotation->tax_amount      = $totals['tax_amount'];
+        $quotation->discount_amount = $totals['discount_amount'];
+        $quotation->total_amount    = $totals['total_amount'];
+        $quotation->save();
+
+        $quotation->items()->delete();
+        $this->createQuotationItems($quotation->id, $request->items);
+
+        return back()->with('success', __('The quotation has been updated successfully.'));
+    }
+
+    private function calculateQuotationTotals(array $items): array
+    {
+        $subtotal      = 0;
+        $totalTax      = 0;
+        $totalDiscount = 0;
+
+        foreach ($items as $item) {
+            $lineTotal      = $item['quantity'] * $item['unit_price'];
+            $discountAmount = ($lineTotal * ($item['discount_percentage'] ?? 0)) / 100;
+            $afterDiscount  = $lineTotal - $discountAmount;
+            $taxAmount      = ($afterDiscount * ($item['tax_percentage'] ?? 0)) / 100;
+
+            $subtotal      += $lineTotal;
+            $totalDiscount += $discountAmount;
+            $totalTax      += $taxAmount;
+        }
+
+        return [
+            'subtotal'        => $subtotal,
+            'tax_amount'      => $totalTax,
+            'discount_amount' => $totalDiscount,
+            'total_amount'    => $subtotal + $totalTax - $totalDiscount,
+        ];
+    }
+
+    private function createQuotationItems(int $quotationId, array $items): void
+    {
+        foreach ($items as $itemData) {
+            $item = \Workdo\Quotation\Models\SalesQuotationItem::create([
+                'quotation_id'        => $quotationId,
+                'product_id'          => $itemData['product_id'],
+                'product_type'        => $itemData['product_type'] ?? 'product',
+                'lot_reference'       => $itemData['lot_reference'] ?? null,
+                'quantity'            => $itemData['quantity'],
+                'unit_price'          => $itemData['unit_price'],
+                'discount_percentage' => $itemData['discount_percentage'] ?? 0,
+                'tax_percentage'      => $itemData['tax_percentage'] ?? 0,
+            ]);
+
+            if (isset($itemData['taxes']) && is_array($itemData['taxes'])) {
+                foreach ($itemData['taxes'] as $tax) {
+                    \Workdo\Quotation\Models\SalesQuotationItemTax::create([
+                        'item_id'  => $item->id,
+                        'tax_name' => $tax['tax_name'] ?? '',
+                        'tax_rate' => $tax['tax_rate'] ?? $tax['rate'] ?? 0,
+                    ]);
+                }
+            }
+        }
+    }
+
+    private function quotationCustomers(): array
+    {
+        if (! Schema::hasTable('customers')) {
+            return [];
+        }
+
+        return Customer::query()
+            ->where('created_by', creatorId())
+            ->orderBy('company_name')
+            ->pipe(fn ($query) => TextilePartyBranchService::applyPartyScope($query, TextilePartyBranchService::PARTY_CUSTOMER, 'customers'))
+            ->get()
+            ->map(function (Customer $customer) {
+                $userId = (int) $customer->user_id;
+
+                return [
+                    'id' => $userId > 0 ? $userId : (int) $customer->id,
+                    'name' => $customer->company_name ?: ($customer->contact_person_name ?: ('Customer ' . $customer->id)),
+                    'email' => $customer->contact_person_email ?: '',
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function quotationTypeOptions(): array
+    {
+        return [
+            ['value' => 'takha', 'label' => __('Takha / Grey Fabric Quotation')],
+            ['value' => 'yarn', 'label' => __('Yarn Quotation')],
+            ['value' => 'general', 'label' => __('General Quotation')],
+        ];
+    }
+
+    private function quotationWarehouses(): array
+    {
+        if (! Schema::hasTable('warehouses')) {
+            return [];
+        }
+
+        $query = \DB::table('warehouses')->where('created_by', creatorId());
+
+        if (Schema::hasColumn('warehouses', 'branch_id')) {
+            $branchId = TextileBranchScope::branchIdForCreate();
+            if ($branchId !== null) {
+                $query->where('branch_id', (int) $branchId);
+            }
+        }
+
+        return $query->orderBy('name')
+            ->get(['id', 'name', 'address'])
+            ->map(fn ($warehouse) => [
+                'id' => (int) $warehouse->id,
+                'name' => $warehouse->name,
+                'address' => $warehouse->address ?? '',
+            ])
+            ->values()
             ->all();
     }
 

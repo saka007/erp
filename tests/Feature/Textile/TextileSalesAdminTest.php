@@ -6,6 +6,7 @@ use App\Models\AddOn;
 use App\Models\Plan;
 use App\Models\User;
 use App\Models\UserActiveModule;
+use App\Models\Warehouse;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -14,6 +15,7 @@ use Tests\TestCase;
 use Workdo\Account\Models\Customer;
 use Workdo\Hrm\Models\Branch;
 use Workdo\Quotation\Models\SalesQuotation;
+use Workdo\Quotation\Models\SalesQuotationItem;
 
 class TextileSalesAdminTest extends TestCase
 {
@@ -368,5 +370,131 @@ class TextileSalesAdminTest extends TestCase
             'id' => $quotation->id,
             'customer_id' => $clientUser->id,
         ]);
+    }
+
+    public function test_quotations_can_be_created_and_updated_inline_from_sales_screen(): void
+    {
+        AddOn::create([
+            'module' => 'TextileCore',
+            'name' => 'Textile Core',
+            'package_name' => 'textile-core',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        $company = $this->company();
+        $this->actingAs($company);
+
+        $customer = Customer::create([
+            'company_name' => 'Inline Buyer Co',
+            'contact_person_name' => 'Inline Buyer',
+            'contact_person_email' => 'inline@buyer.test',
+            'operating_model' => 'full_package_buyer',
+            'material_ownership' => 'company_owned',
+            'billing_mode' => 'sale_value',
+            'creator_id' => $company->id,
+            'created_by' => $company->id,
+        ]);
+        $clientUser = User::factory()->create(['type' => 'client', 'created_by' => $company->id]);
+        $customer->update(['user_id' => $clientUser->id]);
+
+        $warehouse = Warehouse::create([
+            'name' => 'Inline Warehouse',
+            'address' => 'Main Rd',
+            'city' => 'Cityville',
+            'zip_code' => '12345',
+            'creator_id' => $company->id,
+            'created_by' => $company->id,
+        ]);
+
+        // Inline CREATE from /textile/sales?section=quotations
+        $this->post(route('textile.sales.quotations.store'), [
+            'invoice_date' => now()->format('Y-m-d'),
+            'due_date' => now()->addDays(7)->format('Y-m-d'),
+            'customer_id' => $clientUser->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_terms' => 'Net 30',
+            'notes' => 'Created inline',
+            'quotation_type' => 'general',
+            'items' => [
+                [
+                    'product_id' => 1,
+                    'product_type' => 'product',
+                    'quantity' => 10,
+                    'unit_price' => 100,
+                    'discount_percentage' => 10,
+                    'tax_percentage' => 5,
+                ],
+            ],
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('sales_quotations', [
+            'customer_id' => $clientUser->id,
+            'warehouse_id' => $warehouse->id,
+            'quotation_type' => 'general',
+            'created_by' => $company->id,
+        ]);
+
+        $quotation = SalesQuotation::where('customer_id', $clientUser->id)->firstOrFail();
+        // subtotal = 10 * 100 = 1000; discount = 1000 * 10% = 100;
+        // tax = (1000 - 100) * 5% = 45; total = 1000 + 45 - 100 = 945
+        $this->assertEquals(1000.0, (float) $quotation->subtotal);
+        $this->assertEquals(45.0, (float) $quotation->tax_amount);
+        $this->assertEquals(100.0, (float) $quotation->discount_amount);
+        $this->assertEquals(945.0, (float) $quotation->total_amount);
+        $this->assertSame('draft', $quotation->status);
+
+        $item = SalesQuotationItem::where('quotation_id', $quotation->id)->firstOrFail();
+        $this->assertSame(10, (int) $item->quantity);
+        $this->assertSame(100.0, (float) $item->unit_price);
+
+        // Inline UPDATE from the same screen (still draft)
+        $this->post(route('textile.sales.quotations.update', $quotation->id), [
+            'invoice_date' => now()->format('Y-m-d'),
+            'due_date' => now()->addDays(5)->format('Y-m-d'),
+            'customer_id' => $clientUser->id,
+            'warehouse_id' => $warehouse->id,
+            'payment_terms' => 'Net 15',
+            'notes' => 'Updated inline',
+            'quotation_type' => 'general',
+            'items' => [
+                [
+                    'product_id' => 1,
+                    'product_type' => 'product',
+                    'quantity' => 5,
+                    'unit_price' => 200,
+                    'discount_percentage' => 0,
+                    'tax_percentage' => 0,
+                ],
+            ],
+        ])->assertRedirect();
+
+        $quotation->refresh();
+        $this->assertEquals(1000.0, (float) $quotation->total_amount);
+        $this->assertSame('Net 15', $quotation->payment_terms);
+        $this->assertSame('Updated inline', $quotation->notes);
+
+        // Items are replaced on update (old row deleted, one new row)
+        $this->assertSame(1, SalesQuotationItem::where('quotation_id', $quotation->id)->count());
+
+        // Non-draft quotations cannot be updated inline
+        $quotation->update(['status' => 'sent']);
+        $this->post(route('textile.sales.quotations.update', $quotation->id), [
+            'invoice_date' => now()->format('Y-m-d'),
+            'due_date' => now()->addDays(5)->format('Y-m-d'),
+            'customer_id' => $clientUser->id,
+            'warehouse_id' => $warehouse->id,
+            'items' => [
+                [
+                    'product_id' => 1,
+                    'product_type' => 'product',
+                    'quantity' => 1,
+                    'unit_price' => 1,
+                ],
+            ],
+        ])->assertRedirect();
+        $quotation->refresh();
+        $this->assertEquals(1000.0, (float) $quotation->total_amount);
     }
 }

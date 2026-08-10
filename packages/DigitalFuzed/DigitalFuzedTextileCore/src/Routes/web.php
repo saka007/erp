@@ -181,6 +181,8 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/sales/dispatches/release', [TextileSalesController::class, 'releaseDispatch'])->name('textile.sales.dispatches.release');
     Route::post('/textile/sales/challans', [TextileSalesController::class, 'storeChallan'])->name('textile.sales.challans.store');
     Route::post('/textile/sales/challans/pod', [TextileSalesController::class, 'markPod'])->name('textile.sales.challans.pod');
+    Route::post('/textile/sales/quotations', [TextileSalesController::class, 'storeQuotation'])->name('textile.sales.quotations.store');
+    Route::post('/textile/sales/quotations/{quotation}/update', [TextileSalesController::class, 'updateQuotation'])->name('textile.sales.quotations.update');
 
     Route::get('/textile/packing', [TextilePackingController::class, 'index'])->name('textile.packing.index');
     Route::post('/textile/packing/rolls', [TextilePackingController::class, 'storeRollPacking'])->name('textile.packing.rolls.store');
