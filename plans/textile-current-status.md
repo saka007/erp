@@ -1322,6 +1322,13 @@ Progress note (2026-08-04):
   - `TextilePaymentController::updateCredit` also derives `branch_id` from the session scope instead of accepting a user-supplied value.
   - Test: `test_parties_page_scopes_to_session_branch_automatically` covers default first-branch scoping + explicit session branch switching (global + branch-specific parties). Full textile suite 94 passed (1613 assertions); `npx tsc --noEmit` 0 errors; `npm run build` pass. Verified on prod: `grep -n 'Parties without a branch'` in the deployed controller matches.
 
+## Sales page quotation 500 fix (deployed 2026-08-11)
+
+- **Commit `d18dc14c3`, run 31432341986**: `/textile/sales` returned HTTP 500 (SQLSTATE[42S22] `Unknown column 'company_name'`) for logged-in users. Root cause: `TextileSalesController::quotations()` eager-loaded `customer:id,company_name` via `SalesQuotation::customer()` which belongs to the **users** table (has `name`, no `company_name`).
+- **Fix**: eager-load `customerDetails:id,user_id,company_name` (`customers` table matched on `customers.user_id = sales_quotations.customer_id`) plus `customer:id,name` as fallback; display name resolves as `customerDetails?->company_name ?? customer?->name ?? '-'`. The `customer_name` prop shape is unchanged, so `Sales/Index.tsx` needs no change.
+- **Test**: `test_sales_index_renders_quotation_customer_name_without_500` creates a Customer auto-linked to a client user (matching `QuotationController::customersForSelect()` behavior) with a quotation referencing the client user id, then asserts the sales index renders `customer_name` correctly. Full textile suite 95 passed (1627 assertions).
+- **Verified on prod**: `grep -n 'customerDetails:id,user_id,company_name'` matches in the deployed controller (line 282).
+
 ## Delivery order from here
 
 1. **P1 (completed Aug 2026)**: Inventory Redesign + Per-Role RBAC — Phase 3B. Restructure inventory into material-type-wise sub-menus (Yarn, Beam, Grey Fabric, Finished Fabric, Chemicals, Packing Materials) with auto-created lots. Add per-role capability overrides (owner sees all 111 items, manager sees 74 operational items). Verified: `npx tsc --noEmit`, `npm run build`, `php artisan test tests/Feature/Textile/TextileApprovalAdminTest.php`, and `php artisan db:seed --class=TextileRoleCapabilitySeeder --no-interaction --force`.
