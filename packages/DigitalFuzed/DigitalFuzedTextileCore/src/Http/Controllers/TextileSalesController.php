@@ -42,7 +42,6 @@ class TextileSalesController extends Controller
             'pods' => $this->documents('pod'),
             'quotations' => $this->quotations(),
             'customers' => $this->customerOptions(),
-            'warehouseOptions' => $this->warehouseOptions(),
             'sellableLotOptions' => $this->sellableLotOptions(),
             'sourceTypeOptions' => $this->sourceTypeOptions(),
             'sourceActionOptions' => $this->sourceActionOptions(),
@@ -83,7 +82,9 @@ class TextileSalesController extends Controller
                 'item_name' => 'Takha / Woven Fabric',
                 'rate' => (float) $validated['rate'],
                 'required_delivery_date' => $validated['required_delivery_date'],
-                'warehouse' => $validated['warehouse'] ?? null,
+                // Warehouse is always auto-derived from the user's active branch
+                // (single warehouse in scope); no manual selection in the form.
+                'warehouse' => $this->activeBranchWarehouseName(),
                 'notes' => $validated['notes'] ?? null,
             ];
         }
@@ -319,24 +320,26 @@ class TextileSalesController extends Controller
             ->values();
     }
 
-    private function warehouseOptions(): array
+    private function activeBranchWarehouseName(): ?string
     {
         if (! Schema::hasTable('warehouses')) {
-            return [];
+            return null;
         }
 
         $query = \DB::table('warehouses')->where('created_by', creatorId());
         if (Schema::hasColumn('warehouses', 'branch_id')) {
-            // Always scope the picker to the current user's branch. For staff
-            // the branch is derived from their assignments (single -> that
-            // branch; multiple -> active choice), never all tenant branches.
+            // Always scope to the current user's branch: for staff the branch
+            // is derived from their assignments (single -> that branch;
+            // multiple -> active choice), never all tenant branches.
             $branchId = TextileBranchScope::branchIdForCreate();
             if ($branchId !== null) {
                 $query->where('branch_id', (int) $branchId);
             }
         }
 
-        return $query->orderBy('name')->pluck('name')->map(fn ($name) => ['value' => (string) $name, 'label' => (string) $name])->values()->all();
+        $name = $query->orderBy('name')->value('name');
+
+        return $name !== null ? (string) $name : null;
     }
 
     private function sellableLotOptions(): array

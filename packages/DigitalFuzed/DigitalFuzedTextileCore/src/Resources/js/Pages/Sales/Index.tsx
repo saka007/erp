@@ -61,7 +61,6 @@ export default function Index({
     pods,
     quotations,
     customers,
-    warehouseOptions,
     sellableLotOptions,
     sourceTypeOptions,
     sourceActionOptions,
@@ -77,7 +76,6 @@ export default function Index({
     pods: WorkflowDocument[];
     quotations: QuotationRecord[];
     customers: CustomerOption[];
-    warehouseOptions: Array<{ value: string; label: string }>;
     sellableLotOptions: Array<{ value: string; label: string; available_quantity: string; material_type: string; unit: string }>;
     sourceTypeOptions: string[];
     sourceActionOptions: string[];
@@ -103,7 +101,6 @@ export default function Index({
         lot_selections: [{ lot_reference: '', quantity: '' }],
         rate: '',
         required_delivery_date: '',
-        warehouse: '',
         notes: '',
     });
 
@@ -335,10 +332,7 @@ export default function Index({
                                             ? t('Auto-filled from this customer default rate. Adjust if needed.')
                                             : t('No default rate set for this customer. You can add one in the customer profile.');
                                     })()} />
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <Field label={t('Required Delivery Date')} type="date" value={salesOrderForm.data.required_delivery_date} onChange={(value: string) => salesOrderForm.setData('required_delivery_date', value)} required />
-                                        <SelectField label={t('Delivery Warehouse')} value={salesOrderForm.data.warehouse} onChange={(value: string) => salesOrderForm.setData('warehouse', value)} options={warehouseOptions} includeEmpty emptyLabel={t('Select warehouse')} />
-                                    </div>
+                                    <Field label={t('Required Delivery Date')} type="date" value={salesOrderForm.data.required_delivery_date} onChange={(value: string) => salesOrderForm.setData('required_delivery_date', value)} required />
                                     <Field label={t('Notes')} value={salesOrderForm.data.notes} onChange={(value: string) => salesOrderForm.setData('notes', value)} />
                                     <Button type="submit" disabled={salesOrderForm.processing || selectedTakhaQuantity <= 0 || selectedTakhaUnits.length !== 1} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create Sales Order')}</Button>
                                 </form>
