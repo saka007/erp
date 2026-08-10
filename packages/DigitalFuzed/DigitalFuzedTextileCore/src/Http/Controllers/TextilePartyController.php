@@ -3,7 +3,9 @@
 namespace DigitalFuzed\TextileCore\Http\Controllers;
 
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
+use DigitalFuzed\TextileCore\Services\TextilePartyBranchService;
 use DigitalFuzed\TextileCore\Services\TextilePaymentReminderService;
+use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -33,10 +35,10 @@ class TextilePartyController extends Controller
         $this->authorizeCapabilityOrAbort('payments');
 
         $category = $request->input('category', 'all');
-        $branchId = $request->has('branch_id') && $request->input('branch_id') !== ''
-            ? (int) $request->input('branch_id')
-            : null;
         $search = trim((string) $request->input('search', ''));
+        // Branch comes automatically from the user's session scope (assigned branch,
+        // active branch, or employee branch) — never user-selectable.
+        $branchId = TextileBranchScope::branchIdForCreate();
 
         $parties = collect($service->partyMasters())
             ->filter(function (array $party) use ($category) {
@@ -63,7 +65,17 @@ class TextilePartyController extends Controller
                     return true;
                 }
 
-                return (int) ($party['branch_id'] ?? 0) === $branchId;
+                // Branch visibility follows the party-branch assignment model:
+                // no assignments → visible in all branches; with assignments →
+                // only in the branches it is assigned to.
+                return TextilePartyBranchService::partyVisibleToBranch(
+                    $party['party_type'] === TextilePaymentReminderService::PARTY_BUYER
+                        ? TextilePartyBranchService::PARTY_CUSTOMER
+                        : TextilePartyBranchService::PARTY_VENDOR,
+                    (int) $party['party_id'],
+                    $branchId,
+                    (int) creatorId()
+                );
             })
             ->filter(function (array $party) use ($search) {
                 if ($search === '') {
@@ -87,8 +99,6 @@ class TextilePartyController extends Controller
                 ['value' => self::CATEGORY_OTHER, 'label' => __('Other Vendors')],
             ],
             'selectedCategory' => $category,
-            'selectedBranchId' => $branchId,
-            'branchOptions' => $service->branchOptions(),
             'search' => $search,
         ]);
     }

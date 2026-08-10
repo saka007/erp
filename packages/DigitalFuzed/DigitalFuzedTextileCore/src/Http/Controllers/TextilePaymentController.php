@@ -4,6 +4,7 @@ namespace DigitalFuzed\TextileCore\Http\Controllers;
 
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextilePaymentReminderService;
+use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -51,8 +52,10 @@ class TextilePaymentController extends Controller
             'credit_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
             'reminder_enabled' => ['required', 'boolean'],
-            'branch_id' => ['nullable', 'integer'],
         ]);
+
+        // Branch comes automatically from the user's session scope — never user-selectable.
+        $validated['branch_id'] = TextileBranchScope::branchIdForCreate();
 
         try {
             $party = $service->updateCredit($validated['party_type'], (int) $validated['party_id'], $validated);

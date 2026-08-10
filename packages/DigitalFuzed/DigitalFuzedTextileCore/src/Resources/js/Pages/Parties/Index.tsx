@@ -30,11 +30,6 @@ interface CategoryOption {
     label: string;
 }
 
-interface BranchOption {
-    id: number;
-    name: string;
-}
-
 function formatCurrency(value?: number | null): string {
     if (value == null) {
         return '-';
@@ -81,15 +76,11 @@ export default function Index({
     parties,
     categoryOptions,
     selectedCategory,
-    selectedBranchId,
-    branchOptions,
     search,
 }: {
     parties: PartyMaster[];
     categoryOptions: CategoryOption[];
     selectedCategory: string;
-    selectedBranchId: number | null;
-    branchOptions: BranchOption[];
     search: string;
 }) {
     const { t } = useTranslation();
@@ -101,7 +92,6 @@ export default function Index({
         credit_limit: '',
         credit_enabled: false,
         reminder_enabled: true,
-        branch_id: '',
     });
 
     const selectedParty = parties.find((party) => `${party.party_type}:${party.party_id}` === creditForm.data.party_key);
@@ -114,7 +104,6 @@ export default function Index({
             credit_limit: party?.credit_limit != null ? String(party.credit_limit) : '',
             credit_enabled: party?.credit_enabled ?? false,
             reminder_enabled: party?.reminder_enabled ?? true,
-            branch_id: party?.branch_id != null ? String(party.branch_id) : '',
         });
     };
 
@@ -140,17 +129,13 @@ export default function Index({
         });
     };
 
-    const applyFilter = (updates: { category?: string; branch_id?: string; search?: string }) => {
+    const applyFilter = (updates: { category?: string; search?: string }) => {
         const params: Record<string, string> = {};
         const category = updates.category ?? selectedCategory;
-        const branch = updates.branch_id !== undefined ? updates.branch_id : selectedBranchId != null ? String(selectedBranchId) : '';
         const searchValue = updates.search !== undefined ? updates.search : search;
 
         if (category && category !== 'all') {
             params.category = category;
-        }
-        if (branch !== '') {
-            params.branch_id = branch;
         }
         if (searchValue !== '') {
             params.search = searchValue;
@@ -189,21 +174,13 @@ export default function Index({
                     formTitle={t('Party Filters')}
                     formIcon={Search}
                     form={
-                        <div className="grid gap-4 md:grid-cols-3">
+                        <div className="grid gap-4 md:grid-cols-2">
                             <SelectField
                                 label={t('Category')}
                                 value={selectedCategory}
                                 onChange={(value) => applyFilter({ category: value })}
                                 options={categoryOptions.map((option) => ({ value: option.value, label: t(option.label) }))}
                                 helperText={t('Yarn suppliers, sizing vendors, powerloom vendors and customers.')}
-                            />
-                            <SelectField
-                                label={t('Branch')}
-                                value={selectedBranchId != null ? String(selectedBranchId) : ''}
-                                onChange={(value: string) => applyFilter({ branch_id: value })}
-                                options={branchOptions.map((branch) => ({ value: String(branch.id), label: branch.name }))}
-                                includeEmpty
-                                emptyLabel={t('All branches')}
                             />
                             <Field
                                 label={t('Search')}
@@ -335,14 +312,6 @@ export default function Index({
                             />
                             {t('Credit enabled for this party (allow payment within credit days)')}
                         </label>
-                        <SelectField
-                            label={t('Branch')}
-                            value={creditForm.data.branch_id}
-                            onChange={(value: string) => creditForm.setData('branch_id', value)}
-                            options={branchOptions.map((branch) => ({ value: String(branch.id), label: branch.name }))}
-                            includeEmpty
-                            emptyLabel={t('Unassigned')}
-                        />
                         <label className="flex items-center gap-2 text-sm">
                             <input
                                 type="checkbox"

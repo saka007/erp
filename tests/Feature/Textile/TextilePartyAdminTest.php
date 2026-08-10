@@ -6,6 +6,7 @@ use App\Models\AddOn;
 use App\Models\Plan;
 use App\Models\User;
 use App\Models\UserActiveModule;
+use DigitalFuzed\TextileCore\Services\TextilePartyBranchService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -142,7 +143,7 @@ class TextilePartyAdminTest extends TestCase
                 ->where('parties.0.party_name', 'Yarn Traders'));
     }
 
-    public function test_parties_page_filters_by_search_and_branch(): void
+    public function test_parties_page_filters_by_search(): void
     {
         $this->enableTextileModule();
 
@@ -156,15 +157,69 @@ class TextilePartyAdminTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->has('parties', 1)
                 ->where('parties.0.party_name', 'Yarn Traders'));
+    }
 
-        $branch = Branch::create(['branch_name' => 'Main Office', 'creator_id' => $company->id, 'created_by' => $company->id]);
+    public function test_parties_page_scopes_to_session_branch_automatically(): void
+    {
+        $this->enableTextileModule();
 
+        $company = $this->company();
+        $mainOffice = Branch::create(['branch_name' => 'Main Office', 'creator_id' => $company->id, 'created_by' => $company->id]);
+        $branchB = Branch::create(['branch_name' => 'Branch B', 'creator_id' => $company->id, 'created_by' => $company->id]);
+
+        // Global party — no branch assignments → visible in every branch.
+        $globalVendor = $this->makeVendor($company, 'Global Yarn Co', 'yarn');
+
+        // Branch-specific party — assigned only to Main Office.
+        $mainVendor = $this->makeVendor($company, 'Main Office Yarn', 'yarn');
+        TextilePartyBranchService::assignToBranches(
+            TextilePartyBranchService::PARTY_VENDOR,
+            [(int) $mainVendor->id],
+            [$mainOffice->id],
+            (int) $company->id,
+            (int) $company->id
+        );
+
+        // Branch-specific party — assigned only to Branch B.
+        $branchBVendor = $this->makeVendor($company, 'Branch B Yarn', 'yarn');
+        TextilePartyBranchService::assignToBranches(
+            TextilePartyBranchService::PARTY_VENDOR,
+            [(int) $branchBVendor->id],
+            [$branchB->id],
+            (int) $company->id,
+            (int) $company->id
+        );
+
+        // Company users are always scoped to the tenant's first branch (auto-set
+        // in session by the Inertia middleware when none is chosen) — Branch B
+        // sorts first alphabetically, so its parties + global parties are listed.
         $this->actingAs($company)
-            ->get(route('textile.parties.index', ['branch_id' => $branch->id]))
+            ->get(route('textile.parties.index'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->has('branchOptions', 1)
-                ->where('selectedBranchId', (int) $branch->id));
+                ->has('parties', 2)
+                ->where('parties.0.party_name', 'Branch B Yarn')
+                ->where('parties.1.party_name', 'Global Yarn Co'));
+
+        // Choosing Main Office in session switches the scope → global + Main Office.
+        $this->actingAs($company)
+            ->withSession(['active_branch_id' => $mainOffice->id])
+            ->get(route('textile.parties.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('parties', 2)
+                ->where('parties.0.party_name', 'Global Yarn Co')
+                ->where('parties.1.party_name', 'Main Office Yarn'));
+
+        // Branch B scope → global + Branch B only (Main Office party excluded).
+        $this->actingAs($company)
+            ->withSession(['active_branch_id' => $branchB->id])
+            ->get(route('textile.parties.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('parties', 2)
+                ->where('parties.0.party_name', 'Branch B Yarn')
+                ->where('parties.1.party_name', 'Global Yarn Co'));
     }
 
     public function test_parties_page_includes_credit_fields(): void
