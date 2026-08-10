@@ -14,9 +14,20 @@ import { SUPPLIER_TYPE_OPTIONS } from './supplier-types';
 
 export default function Edit({ vendor, onSuccess }: EditVendorProps) {
     const { t } = useTranslation();
+    const emptyAddress = {
+        name: '',
+        address_line_1: '',
+        address_line_2: '',
+        city: '',
+        state: '',
+        country: '',
+        zip_code: ''
+    };
     const { data, setData, put, processing, errors } = useForm<CreateVendorFormData>({
         ...vendor,
         supplier_type: vendor.supplier_type || 'yarn',
+        billing_address: vendor.billing_address || emptyAddress,
+        shipping_address: vendor.shipping_address || emptyAddress,
     });
 
     const submit = (e: React.FormEvent) => {

@@ -20,7 +20,20 @@ interface EditCustomerProps {
 
 export default function Edit({ customer, customerCategories = [], onSuccess }: EditCustomerProps) {
     const { t } = useTranslation();
-    const { data, setData, put, processing, errors } = useForm<CustomerFormData>(customer);
+    const emptyAddress = {
+        name: '',
+        address_line_1: '',
+        address_line_2: '',
+        city: '',
+        state: '',
+        country: '',
+        zip_code: ''
+    };
+    const { data, setData, put, processing, errors } = useForm<CustomerFormData>({
+        ...customer,
+        billing_address: customer.billing_address || emptyAddress,
+        shipping_address: customer.shipping_address || emptyAddress,
+    });
 
     const formFields = useFormFields('customerEditFields', data, setData, errors, 'edit');
     const submit = (e: React.FormEvent) => {
