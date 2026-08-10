@@ -221,7 +221,7 @@ export default function Index({
                                 {
                                     key: 'party_name',
                                     header: t('Party'),
-                                    render: (row: PartyMaster) => (
+                                    render: (_value: unknown, row: PartyMaster) => (
                                         <div>
                                             <div className="font-medium text-gray-900">{row.party_name}</div>
                                             {row.party_code && <div className="text-xs text-gray-400">{row.party_code}</div>}
@@ -231,17 +231,17 @@ export default function Index({
                                 {
                                     key: 'category',
                                     header: t('Type'),
-                                    render: (row: PartyMaster) => <CategoryBadge party={row} />,
+                                    render: (_value: unknown, row: PartyMaster) => <CategoryBadge party={row} />,
                                 },
                                 {
                                     key: 'branch_name',
                                     header: t('Branch'),
-                                    render: (row: PartyMaster) => row.branch_name ?? t('Unassigned'),
+                                    render: (_value: unknown, row: PartyMaster) => row.branch_name ?? t('Unassigned'),
                                 },
                                 {
                                     key: 'credit_enabled',
                                     header: t('Credit'),
-                                    render: (row: PartyMaster) => (row.credit_enabled ? (
+                                    render: (_value: unknown, row: PartyMaster) => (row.credit_enabled ? (
                                         <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">{t('On')}</span>
                                     ) : (
                                         <span className="text-gray-400">{t('Off')}</span>
@@ -250,17 +250,17 @@ export default function Index({
                                 {
                                     key: 'credit_days',
                                     header: t('Credit Days'),
-                                    render: (row: PartyMaster) => row.credit_days ?? '-',
+                                    render: (_value: unknown, row: PartyMaster) => row.credit_days ?? '-',
                                 },
                                 {
                                     key: 'credit_limit',
                                     header: t('Credit Limit'),
-                                    render: (row: PartyMaster) => formatCurrency(row.credit_limit),
+                                    render: (_value: unknown, row: PartyMaster) => formatCurrency(row.credit_limit),
                                 },
                                 {
                                     key: 'reminder_enabled',
                                     header: t('Reminders'),
-                                    render: (row: PartyMaster) => (row.reminder_enabled ? (
+                                    render: (_value: unknown, row: PartyMaster) => (row.reminder_enabled ? (
                                         <span className="text-emerald-600">{t('On')}</span>
                                     ) : (
                                         <span className="text-gray-400">{t('Off')}</span>
@@ -269,7 +269,7 @@ export default function Index({
                                 {
                                     key: 'actions',
                                     header: t('Actions'),
-                                    render: (row: PartyMaster) => {
+                                    render: (_value: unknown, row: PartyMaster) => {
                                         const canEdit = row.party_type === 'supplier' ? canEditVendors : canEditCustomers;
                                         if (!canEdit) {
                                             return null;

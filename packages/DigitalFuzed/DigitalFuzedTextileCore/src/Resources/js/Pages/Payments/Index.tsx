@@ -262,12 +262,12 @@ export default function Index({
                                         <TextileDataTableCard
                                             data={summary.branches}
                                             columns={[
-                                                { key: 'name', header: t('Branch'), render: (row) => row.name ?? t('Unassigned') },
-                                                { key: 'payable', header: t('Payable'), render: (row) => formatCurrency(row.payable) },
-                                                { key: 'receivable', header: t('Receivable'), render: (row) => formatCurrency(row.receivable) },
-                                                { key: 'net', header: t('Net'), render: (row) => formatCurrency(row.net) },
-                                                { key: 'overdue_payable', header: t('Overdue Payable'), render: (row) => formatCurrency(row.overdue_payable) },
-                                                { key: 'overdue_receivable', header: t('Overdue Receivable'), render: (row) => formatCurrency(row.overdue_receivable) },
+                                                { key: 'name', header: t('Branch'), render: (_value: unknown, row: any) => row.name ?? t('Unassigned') },
+                                                { key: 'payable', header: t('Payable'), render: (_value: unknown, row: any) => formatCurrency(row.payable) },
+                                                { key: 'receivable', header: t('Receivable'), render: (_value: unknown, row: any) => formatCurrency(row.receivable) },
+                                                { key: 'net', header: t('Net'), render: (_value: unknown, row: any) => formatCurrency(row.net) },
+                                                { key: 'overdue_payable', header: t('Overdue Payable'), render: (_value: unknown, row: any) => formatCurrency(row.overdue_payable) },
+                                                { key: 'overdue_receivable', header: t('Overdue Receivable'), render: (_value: unknown, row: any) => formatCurrency(row.overdue_receivable) },
                                                 { key: 'vendor_count', header: t('Suppliers') },
                                                 { key: 'buyer_count', header: t('Buyers') },
                                             ]}
@@ -358,26 +358,26 @@ export default function Index({
                                                     {
                                                         key: 'direction',
                                                         header: t('Activity'),
-                                                        render: (row) => <DirectionBadge direction={row.direction} />,
+                                                        render: (_value: unknown, row: any) => <DirectionBadge direction={row.direction} />,
                                                     },
-                                                    { key: 'branch_name', header: t('Branch'), render: (row) => row.branch_name ?? t('Unassigned') },
-                                                    { key: 'outstanding', header: t('Outstanding'), render: (row) => formatCurrency(row.outstanding) },
+                                                    { key: 'branch_name', header: t('Branch'), render: (_value: unknown, row: any) => row.branch_name ?? t('Unassigned') },
+                                                    { key: 'outstanding', header: t('Outstanding'), render: (_value: unknown, row: any) => formatCurrency(row.outstanding) },
                                                     { key: 'due_invoices', header: t('Due Invoices') },
-                                                    { key: 'oldest_due_date', header: t('Oldest Due'), render: (row) => formatDate(row.oldest_due_date) },
+                                                    { key: 'oldest_due_date', header: t('Oldest Due'), render: (_value: unknown, row: any) => formatDate(row.oldest_due_date) },
                                                     {
                                                         key: 'overdue_days',
                                                         header: t('Overdue Days'),
-                                                        render: (row) => (row.overdue_days > 0 ? (
+                                                        render: (_value: unknown, row: any) => (row.overdue_days > 0 ? (
                                                             <span className="font-semibold text-red-600">{row.overdue_days}</span>
                                                         ) : (
                                                             <span className="text-emerald-600">0</span>
                                                         )),
                                                     },
-                                                    { key: 'credit_days', header: t('Credit Days'), render: (row) => row.credit_days ?? '-' },
+                                                    { key: 'credit_days', header: t('Credit Days'), render: (_value: unknown, row: any) => row.credit_days ?? '-' },
                                                     {
                                                         key: 'credit_enabled',
                                                         header: t('Credit'),
-                                                        render: (row) => (row.credit_enabled ? (
+                                                        render: (_value: unknown, row: any) => (row.credit_enabled ? (
                                                             <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">{t('On')}</span>
                                                         ) : (
                                                             <span className="text-gray-400">{t('Off')}</span>
@@ -386,7 +386,7 @@ export default function Index({
                                                     {
                                                         key: 'reminder_enabled',
                                                         header: t('Reminders'),
-                                                        render: (row) => (row.reminder_enabled ? (
+                                                        render: (_value: unknown, row: any) => (row.reminder_enabled ? (
                                                             <span className="text-emerald-600">{t('On')}</span>
                                                         ) : (
                                                             <span className="text-gray-400">{t('Off')}</span>
@@ -395,7 +395,7 @@ export default function Index({
                                                     {
                                                         key: 'last_reminded_at',
                                                         header: t('Last Reminded'),
-                                                        render: (row) => (row.last_reminded_at ? new Date(row.last_reminded_at).toLocaleString('en-IN') : '-'),
+                                                        render: (_value: unknown, row: any) => (row.last_reminded_at ? new Date(row.last_reminded_at).toLocaleString('en-IN') : '-'),
                                                     },
                                                 ]}
                                             />
@@ -452,17 +452,17 @@ export default function Index({
                                             <TextileDataTableCard
                                                 data={summary.reminders}
                                                 columns={[
-                                                    { key: 'reminded_at', header: t('Sent At'), render: (row) => (row.reminded_at ? new Date(row.reminded_at).toLocaleString('en-IN') : '-') },
-                                                    { key: 'party_name', header: t('Party'), render: (row) => row.party_name ?? '-' },
+                                                    { key: 'reminded_at', header: t('Sent At'), render: (_value: unknown, row: any) => (row.reminded_at ? new Date(row.reminded_at).toLocaleString('en-IN') : '-') },
+                                                    { key: 'party_name', header: t('Party'), render: (_value: unknown, row: any) => row.party_name ?? '-' },
                                                     {
                                                         key: 'party_type',
                                                         header: t('Type'),
-                                                        render: (row) => (row.party_type === 'supplier' ? t('Supplier') : t('Buyer')),
+                                                        render: (_value: unknown, row: any) => (row.party_type === 'supplier' ? t('Supplier') : t('Buyer')),
                                                     },
-                                                    { key: 'invoice_number', header: t('Invoice'), render: (row) => row.invoice_number ?? '-' },
-                                                    { key: 'amount_due', header: t('Amount Due'), render: (row) => formatCurrency(row.amount_due) },
-                                                    { key: 'due_date', header: t('Due Date'), render: (row) => formatDate(row.due_date) },
-                                                    { key: 'template_name', header: t('Template'), render: (row) => row.template_name ?? '-' },
+                                                    { key: 'invoice_number', header: t('Invoice'), render: (_value: unknown, row: any) => row.invoice_number ?? '-' },
+                                                    { key: 'amount_due', header: t('Amount Due'), render: (_value: unknown, row: any) => formatCurrency(row.amount_due) },
+                                                    { key: 'due_date', header: t('Due Date'), render: (_value: unknown, row: any) => formatDate(row.due_date) },
+                                                    { key: 'template_name', header: t('Template'), render: (_value: unknown, row: any) => row.template_name ?? '-' },
                                                 ]}
                                             />
                                         }
