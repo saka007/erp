@@ -136,12 +136,24 @@ export default function QuotationItemsTable({ items, onChange, errors, products 
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                        {items.map((item, index) => (
+                        {items.map((item, index) => {
+                            // Takha/yarn lots already chosen in another row are not
+                            // selectable again here — prevents duplicate lots in one
+                            // quotation. The current row's own lot stays selectable.
+                            const selectedLotRefs = items
+                                .map((row) => row.lot_reference)
+                                .filter((ref): ref is string => Boolean(ref));
+                            const disabledLotReferences = new Set(
+                                selectedLotRefs.filter((ref) => ref !== item.lot_reference)
+                            );
+
+                            return (
                             <tr key={index}>
                                 <td className="px-4 py-4">
                                     <ProductSelector
                                         products={products}
                                         value={item.product_id}
+                                        disabledLotReferences={disabledLotReferences}
                                         onChange={(productId, product) => handleProductSelect(index, productId, product)}
                                     />
                                     <InputError message={errors[`items.${index}.product_id`]} />
@@ -227,7 +239,8 @@ export default function QuotationItemsTable({ items, onChange, errors, products 
                                     </Button>
                                 </td>
                             </tr>
-                        ))}
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>

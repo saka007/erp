@@ -19,9 +19,11 @@ interface Props {
     products: Product[];
     value: number;
     onChange: (productId: number, product?: Product) => void;
+    /** Lot references already chosen in another item row — these options are disabled. */
+    disabledLotReferences?: Set<string>;
 }
 
-export default function ProductSelector({ products, value, onChange }: Props) {
+export default function ProductSelector({ products, value, onChange, disabledLotReferences }: Props) {
     const { t } = useTranslation();
 
     const handleChange = (productId: string) => {
@@ -36,8 +38,13 @@ export default function ProductSelector({ products, value, onChange }: Props) {
                 <SelectValue placeholder={t('Select Product')} />
             </SelectTrigger>
             <SelectContent searchable>
-                {products.map((product) => (
-                    <SelectItem key={product.id} value={product.id.toString()}>
+                {products.map((product) => {
+                    const isDisabled = product.product_type === 'lot' &&
+                        product.lot_reference != null &&
+                        Boolean(disabledLotReferences?.has(product.lot_reference));
+
+                    return (
+                    <SelectItem key={product.id} value={product.id.toString()} disabled={isDisabled}>
                         {product.product_type === 'lot' ? (
                             <>
                                 {product.lot_reference || product.name}
@@ -52,7 +59,8 @@ export default function ProductSelector({ products, value, onChange }: Props) {
                             </>
                         )}
                     </SelectItem>
-                ))}
+                    );
+                })}
             </SelectContent>
         </Select>
     );

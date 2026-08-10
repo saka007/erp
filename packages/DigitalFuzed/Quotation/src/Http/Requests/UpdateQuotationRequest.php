@@ -45,4 +45,30 @@ class UpdateQuotationRequest extends FormRequest
             'items.*.unit_price.min' => __('Unit price must be 0 or greater.')
         ];
     }
+
+    /**
+     * Reject duplicate takha/yarn lots in the same quotation. Only non-null
+     * lot_reference values are compared, so product (catalog) rows are unaffected.
+     */
+    public function withValidator(\Illuminate\Contracts\Validation\Validator $validator)
+    {
+        $validator->after(function ($validator) {
+            $seen = [];
+
+            foreach ((array) $this->input('items', []) as $index => $item) {
+                $lotReference = $item['lot_reference'] ?? null;
+
+                if (! empty($lotReference)) {
+                    if (isset($seen[$lotReference])) {
+                        $validator->errors()->add(
+                            "items.$index.lot_reference",
+                            __('This lot has already been added to the quotation. Each lot can only be added once.')
+                        );
+                    }
+
+                    $seen[$lotReference] = true;
+                }
+            }
+        });
+    }
 }
