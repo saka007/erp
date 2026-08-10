@@ -797,7 +797,8 @@ class TextileMasterDataController extends Controller
     {
         $user = Auth::user();
 
-        abort_unless($user && in_array($user->type, ['company', 'superadmin', 'staff'], true), 403);
+        // Master setup is admin-only (company/superadmin) so staff cannot manage reference masters.
+        abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
     }
 
     private function referenceMasterRecords(string $masterType, string $domain = self::DEFAULT_MASTER_DOMAIN)

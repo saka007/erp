@@ -368,6 +368,7 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
         title: t('Master Setup'),
         icon: SlidersHorizontal,
         order: 261,
+        adminOnly: true,
         children: [
                     {
                         title: t('Core Config'),
@@ -422,7 +423,6 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                                 title: t('Source Types & Actions'),
                                 href: route('textile.master-domains.source-types.index', { domain: 'manufacturing' }),
                                 icon: Workflow,
-                                adminOnly: true,
                             },
                         ],
                     },

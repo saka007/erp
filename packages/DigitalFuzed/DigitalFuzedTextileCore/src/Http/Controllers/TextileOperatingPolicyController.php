@@ -116,6 +116,7 @@ class TextileOperatingPolicyController extends Controller
     {
         $user = Auth::user();
 
-        abort_unless($user && in_array($user->type, ['company', 'superadmin', 'staff'], true), 403);
+        // Master setup is admin-only (company/superadmin) so staff cannot change the operating model.
+        abort_unless($user && in_array($user->type, ['company', 'superadmin'], true), 403);
     }
 }
