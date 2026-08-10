@@ -64,9 +64,16 @@ class TextilePartyController extends Controller
                     return true;
                 }
 
-                // Filter to parties whose record branch matches the user's
-                // session-active branch (selected in the header dropdown).
-                return (int) ($party['branch_id'] ?? 0) === $branchId;
+                $partyBranchId = $party['branch_id'] ?? null;
+
+                // Parties without a branch are global — visible in all branches.
+                if ($partyBranchId === null || $partyBranchId === '') {
+                    return true;
+                }
+
+                // Otherwise show only parties whose record branch matches the
+                // user's session-active branch (selected in the header dropdown).
+                return (int) $partyBranchId === $branchId;
             })
             ->filter(function (array $party) use ($search) {
                 if ($search === '') {
