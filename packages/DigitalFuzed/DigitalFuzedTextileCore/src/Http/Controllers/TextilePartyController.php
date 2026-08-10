@@ -3,7 +3,6 @@
 namespace DigitalFuzed\TextileCore\Http\Controllers;
 
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
-use DigitalFuzed\TextileCore\Services\TextilePartyBranchService;
 use DigitalFuzed\TextileCore\Services\TextilePaymentReminderService;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use Illuminate\Http\Request;
@@ -65,17 +64,9 @@ class TextilePartyController extends Controller
                     return true;
                 }
 
-                // Branch visibility follows the party-branch assignment model:
-                // no assignments → visible in all branches; with assignments →
-                // only in the branches it is assigned to.
-                return TextilePartyBranchService::partyVisibleToBranch(
-                    $party['party_type'] === TextilePaymentReminderService::PARTY_BUYER
-                        ? TextilePartyBranchService::PARTY_CUSTOMER
-                        : TextilePartyBranchService::PARTY_VENDOR,
-                    (int) $party['party_id'],
-                    $branchId,
-                    (int) creatorId()
-                );
+                // Filter to parties whose record branch matches the user's
+                // session-active branch (selected in the header dropdown).
+                return (int) ($party['branch_id'] ?? 0) === $branchId;
             })
             ->filter(function (array $party) use ($search) {
                 if ($search === '') {

@@ -6,7 +6,6 @@ use App\Models\AddOn;
 use App\Models\Plan;
 use App\Models\User;
 use App\Models\UserActiveModule;
-use DigitalFuzed\TextileCore\Services\TextilePartyBranchService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -167,59 +166,41 @@ class TextilePartyAdminTest extends TestCase
         $mainOffice = Branch::create(['branch_name' => 'Main Office', 'creator_id' => $company->id, 'created_by' => $company->id]);
         $branchB = Branch::create(['branch_name' => 'Branch B', 'creator_id' => $company->id, 'created_by' => $company->id]);
 
-        // Global party — no branch assignments → visible in every branch.
-        $globalVendor = $this->makeVendor($company, 'Global Yarn Co', 'yarn');
-
-        // Branch-specific party — assigned only to Main Office.
         $mainVendor = $this->makeVendor($company, 'Main Office Yarn', 'yarn');
-        TextilePartyBranchService::assignToBranches(
-            TextilePartyBranchService::PARTY_VENDOR,
-            [(int) $mainVendor->id],
-            [$mainOffice->id],
-            (int) $company->id,
-            (int) $company->id
-        );
-
-        // Branch-specific party — assigned only to Branch B.
+        $mainVendor->update(['branch_id' => $mainOffice->id]);
         $branchBVendor = $this->makeVendor($company, 'Branch B Yarn', 'yarn');
-        TextilePartyBranchService::assignToBranches(
-            TextilePartyBranchService::PARTY_VENDOR,
-            [(int) $branchBVendor->id],
-            [$branchB->id],
-            (int) $company->id,
-            (int) $company->id
-        );
+        $branchBVendor->update(['branch_id' => $branchB->id]);
+
+        $this->assertSame(2, Vendor::count());
+        $this->assertSame(2, Vendor::query()->where('created_by', $company->id)->count());
 
         // Company users are always scoped to the tenant's first branch (auto-set
         // in session by the Inertia middleware when none is chosen) — Branch B
-        // sorts first alphabetically, so its parties + global parties are listed.
+        // sorts first alphabetically, so only its parties are listed.
         $this->actingAs($company)
             ->get(route('textile.parties.index'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->has('parties', 2)
-                ->where('parties.0.party_name', 'Branch B Yarn')
-                ->where('parties.1.party_name', 'Global Yarn Co'));
+                ->has('parties', 1)
+                ->where('parties.0.party_name', 'Branch B Yarn'));
 
-        // Choosing Main Office in session switches the scope → global + Main Office.
+        // Choosing a different branch in the header dropdown (session) switches
+        // the party scope to that branch only.
         $this->actingAs($company)
             ->withSession(['active_branch_id' => $mainOffice->id])
             ->get(route('textile.parties.index'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->has('parties', 2)
-                ->where('parties.0.party_name', 'Global Yarn Co')
-                ->where('parties.1.party_name', 'Main Office Yarn'));
+                ->has('parties', 1)
+                ->where('parties.0.party_name', 'Main Office Yarn'));
 
-        // Branch B scope → global + Branch B only (Main Office party excluded).
         $this->actingAs($company)
             ->withSession(['active_branch_id' => $branchB->id])
             ->get(route('textile.parties.index'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->has('parties', 2)
-                ->where('parties.0.party_name', 'Branch B Yarn')
-                ->where('parties.1.party_name', 'Global Yarn Co'));
+                ->has('parties', 1)
+                ->where('parties.0.party_name', 'Branch B Yarn'));
     }
 
     public function test_parties_page_includes_credit_fields(): void
