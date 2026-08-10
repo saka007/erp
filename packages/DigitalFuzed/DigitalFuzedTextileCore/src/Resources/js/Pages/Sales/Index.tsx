@@ -17,6 +17,7 @@ import { TextileInfoPanel, MetricSummaryCard, type ActivityItem } from '@/compon
 import { TextileWorkflowSteps, workflowStepStatuses, type WorkflowStep } from '@/components/textile/textile-workflow-steps';
 import { buildUnitOptions, formatTextileLabel } from '@/components/textile/textile-form-options';
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
+import { formatCurrency } from '@/utils/helpers';
 import { QuotationEditDialog, type QuotationEditRecord } from './components/QuotationEditDialog';
 import { PageProps } from '@/types';
 
@@ -62,6 +63,9 @@ interface QuotationRecord {
         id: number;
         product_id: number;
         product_type?: string;
+        product_name?: string | null;
+        product_sku?: string | null;
+        unit?: string | null;
         lot_reference?: string | null;
         quantity: number;
         unit_price: number;
@@ -607,6 +611,31 @@ export default function Index({
                                                     yarn: t('Yarn'),
                                                     general: t('General'),
                                                 })[row.quotation_type || 'general'] },
+                                                {
+                                                    key: 'items',
+                                                    header: t('Items'),
+                                                    render: (_v: unknown, row: QuotationRecord) => row.items && row.items.length ? (
+                                                        <div className="flex flex-col gap-0.5">
+                                                            {row.items.map((item, index) => {
+                                                                const label = item.product_type === 'lot'
+                                                                    ? (item.lot_reference || item.product_name || `Item ${index + 1}`)
+                                                                    : (item.product_name || `Item ${index + 1}`);
+                                                                const detail = item.product_type === 'lot'
+                                                                    ? `${item.quantity}${item.unit ? ` ${item.unit}` : ''}`
+                                                                    : `${item.quantity} × ${formatCurrency(item.unit_price)}`;
+                                                                return (
+                                                                    <span key={item.id ?? index} className="text-xs text-muted-foreground">
+                                                                        <span className="font-medium text-foreground">{label}</span>
+                                                                        <span className="mx-1 text-border">·</span>
+                                                                        {detail}
+                                                                    </span>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">-</span>
+                                                    ),
+                                                },
                                                 { key: 'total_amount', header: t('Total') },
                                                 { key: 'status', header: t('Status'), render: formatTextileLabel },
                                                 { key: 'converted_to_invoice', header: t('Invoiced'), render: (_v: unknown, row: QuotationRecord) => row.converted_to_invoice ? t('Yes') : t('No') },

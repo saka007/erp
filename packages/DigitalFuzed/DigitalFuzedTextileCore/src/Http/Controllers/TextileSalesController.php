@@ -284,7 +284,7 @@ class TextileSalesController extends Controller
     {
         return SalesQuotation::query()
             ->where('created_by', creatorId())
-            ->with(['customer:id,name', 'customerDetails:id,user_id,company_name', 'items.taxes'])
+            ->with(['customer:id,name', 'customerDetails:id,user_id,company_name', 'items.product:id,name,sku,unit', 'items.taxes'])
             ->latest()
             ->get()
             ->map(fn (SalesQuotation $q) => [
@@ -306,6 +306,9 @@ class TextileSalesController extends Controller
                         'id' => (int) $item->id,
                         'product_id' => (int) $item->product_id,
                         'product_type' => $item->product_type ?? 'product',
+                        'product_name' => $item->product?->name ?? null,
+                        'product_sku' => $item->product?->sku ?? null,
+                        'unit' => $item->product?->unit ?? null,
                         'lot_reference' => $item->lot_reference,
                         'quantity' => (float) $item->quantity,
                         'unit_price' => (float) $item->unit_price,
