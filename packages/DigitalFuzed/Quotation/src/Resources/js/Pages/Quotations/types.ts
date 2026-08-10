@@ -19,6 +19,7 @@ export interface Quotation {
     created_by: number;
     converted_to_invoice: boolean;
     invoice_id?: number;
+    quotation_type?: 'general' | 'takha' | 'yarn';
     created_at: string;
     updated_at: string;
     customer?: User;
@@ -33,6 +34,8 @@ export interface QuotationItem {
     id?: number;
     quotation_id?: number;
     product_id: number;
+    product_type?: 'product' | 'lot';
+    lot_reference?: string;
     quantity: number;
     unit_price: number;
     discount_percentage: number;

@@ -49,6 +49,13 @@ export default function View() {
                                             v{quotation.revision_number}
                                         </span>
                                     )}
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-foreground">
+                                        {({
+                                            takha: t('Takha'),
+                                            yarn: t('Yarn'),
+                                            general: t('General')
+                                        } as Record<string, string>)[quotation.quotation_type || 'general']}
+                                    </span>
                                 </div>
                                 {quotation.parent_quotation_id && (
                                     <p className="text-sm mt-1">
@@ -199,12 +206,23 @@ export default function View() {
                                     {quotation.items?.map((item, index) => (
                                         <tr key={index}>
                                             <td className="px-4 py-4">
-                                                <div className="font-medium">{item.product?.name}</div>
-                                                {item.product?.sku && (
-                                                    <div className="text-sm text-muted-foreground">SKU: {item.product.sku}</div>
-                                                )}
-                                                {item.product?.description && (
-                                                    <div className="text-sm text-muted-foreground mt-1">{item.product.description}</div>
+                                                {item.product_type === 'lot' ? (
+                                                    <>
+                                                        <div className="font-medium">{item.lot_reference || item.product?.name}</div>
+                                                        {item.product?.unit && (
+                                                            <div className="text-sm text-muted-foreground">Unit: {item.product.unit}</div>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <div className="font-medium">{item.product?.name}</div>
+                                                        {item.product?.sku && (
+                                                            <div className="text-sm text-muted-foreground">SKU: {item.product.sku}</div>
+                                                        )}
+                                                        {item.product?.description && (
+                                                            <div className="text-sm text-muted-foreground mt-1">{item.product.description}</div>
+                                                        )}
+                                                    </>
                                                 )}
                                             </td>
                                             <td className="px-4 py-4 text-right">{item.quantity}</td>

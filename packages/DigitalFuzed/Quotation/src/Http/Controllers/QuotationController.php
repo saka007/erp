@@ -96,9 +96,11 @@ class QuotationController extends Controller
             $defaultWarehouseId = $warehouses->count() === 1 ? (int) $warehouses->first()->id : null;
 
             return Inertia::render('Quotation/Quotations/Create', [
-                'customers'          => $customers,
-                'warehouses'         => $warehouses,
-                'default_warehouse_id' => $defaultWarehouseId
+                'customers'             => $customers,
+                'warehouses'            => $warehouses,
+                'default_warehouse_id'  => $defaultWarehouseId,
+                'quotation_types'       => $this->quotationTypeOptions(),
+                'default_quotation_type' => $this->defaultQuotationType(),
             ]);
         } else {
             return redirect()->route('dashboard')->with('error', __('Permission denied'));
@@ -117,6 +119,7 @@ class QuotationController extends Controller
             $quotation->warehouse_id    = $request->warehouse_id;
             $quotation->payment_terms   = $request->payment_terms;
             $quotation->notes           = $request->notes;
+            $quotation->quotation_type  = $request->quotation_type ?? 'general';
             $quotation->subtotal        = $totals['subtotal'];
             $quotation->tax_amount      = $totals['tax_amount'];
             $quotation->discount_amount = $totals['discount_amount'];
@@ -176,10 +179,12 @@ class QuotationController extends Controller
             $defaultWarehouseId = $warehouses->count() === 1 ? (int) $warehouses->first()->id : null;
 
             return Inertia::render('Quotation/Quotations/Edit', [
-                'quotation'          => $quotation,
-                'customers'          => $customers,
-                'warehouses'         => $warehouses,
-                'default_warehouse_id' => $defaultWarehouseId
+                'quotation'            => $quotation,
+                'customers'            => $customers,
+                'warehouses'           => $warehouses,
+                'default_warehouse_id' => $defaultWarehouseId,
+                'quotation_types'      => $this->quotationTypeOptions(),
+                'default_quotation_type' => $quotation->quotation_type ?? 'general',
             ]);
         } else {
             return redirect()->route('quotations.index')->with('error', __('Permission denied'));
@@ -201,6 +206,7 @@ class QuotationController extends Controller
             $quotation->warehouse_id    = $request->warehouse_id;
             $quotation->payment_terms   = $request->payment_terms;
             $quotation->notes           = $request->notes;
+            $quotation->quotation_type  = $request->quotation_type ?? $quotation->quotation_type ?? 'general';
             $quotation->subtotal        = $totals['subtotal'];
             $quotation->tax_amount      = $totals['tax_amount'];
             $quotation->discount_amount = $totals['discount_amount'];
@@ -266,6 +272,8 @@ class QuotationController extends Controller
             $item                      = new SalesQuotationItem();
             $item->quotation_id        = $quotationId;
             $item->product_id          = $itemData['product_id'];
+            $item->product_type        = $itemData['product_type'] ?? 'product';
+            $item->lot_reference       = $itemData['lot_reference'] ?? null;
             $item->quantity            = $itemData['quantity'];
             $item->unit_price          = $itemData['unit_price'];
             $item->discount_percentage = $itemData['discount_percentage'] ?? 0;
@@ -504,6 +512,13 @@ class QuotationController extends Controller
     public function getWarehouseProducts(Request $request)
     {
         if (Auth::user()->can('create-quotations') || Auth::user()->can('edit-quotations')) {
+            $type = $request->get('type', 'general');
+
+            // Textile lot-based item sources (takha / yarn quotations)
+            if (in_array($type, ['takha', 'yarn'], true)) {
+                return response()->json($this->lotItemsForType($type));
+            }
+
             $warehouseId = $request->warehouse_id;
 
             if (!$warehouseId) {
@@ -530,6 +545,8 @@ class QuotationController extends Controller
                         'sale_price'     => $product->sale_price,
                         'unit'           => $product->unit,
                         'type'           => $product->type,
+                        'product_type'   => 'product',
+                        'lot_reference'  => null,
                         'stock_quantity' => $stock ? $stock->quantity : 0,
                         'taxes'          => $product->taxes->map(function ($tax) {
                             return [
@@ -544,6 +561,102 @@ class QuotationController extends Controller
         } else {
             return response()->json([], 403);
         }
+    }
+
+    /**
+     * Quotation type options shown as the first field on create/edit.
+     *
+     * The type decides which item source populates the quotation items picker:
+     *   - takha   -> sellable grey fabric takha lots
+     *   - yarn    -> sellable yarn lots
+     *   - general -> regular catalog products (warehouse stock based)
+     */
+    private function quotationTypeOptions(): array
+    {
+        return [
+            ['value' => 'takha', 'label' => __('Takha / Grey Fabric Quotation')],
+            ['value' => 'yarn', 'label' => __('Yarn Quotation')],
+            ['value' => 'general', 'label' => __('General Quotation')],
+        ];
+    }
+
+    /**
+     * Auto-detected default quotation type: prefer takha lots, then yarn lots,
+     * falling back to a general (product) quotation when no textile lots are
+     * available in the current branch.
+     */
+    private function defaultQuotationType(): string
+    {
+        if (count($this->lotItemsForType('takha')) > 0) {
+            return 'takha';
+        }
+
+        if (count($this->lotItemsForType('yarn')) > 0) {
+            return 'yarn';
+        }
+
+        return 'general';
+    }
+
+    /**
+     * Sellable textile lot options for a quotation item source.
+     *
+     * Lots are tenant scoped and branch scoped through their source workflow
+     * document (textile_workflow_documents.branch_id), mirroring the textile
+     * sales gate. Available quantity drives the selectable stock.
+     *
+     * Returns a ProductSelector-compatible shape:
+     * [{id (lot id), name (lot reference), product_type: 'lot', lot_reference,
+     *   unit, sale_price: 0, stock_quantity (available qty), taxes: []}]
+     */
+    private function lotItemsForType(string $type): array
+    {
+        if (! class_exists(\DigitalFuzed\TextileInventory\Models\TextileLot::class) || ! \Illuminate\Support\Facades\Schema::hasTable('textile_lots')) {
+            return [];
+        }
+
+        $isYarn = $type === 'yarn';
+        $materialType = $isYarn
+            ? \DigitalFuzed\TextileInventory\Models\TextileLot::TYPE_YARN
+            : \DigitalFuzed\TextileInventory\Models\TextileLot::TYPE_GREY_FABRIC;
+
+        $sourceQuery = \DigitalFuzed\TextileCore\Models\TextileWorkflowDocument::query()->where('created_by', creatorId());
+        \DigitalFuzed\TextileCore\Support\TextileBranchScope::applyWorkflowScope($sourceQuery);
+        $sourceDocuments = $sourceQuery->get(['id', 'party_name', 'unit', 'metadata', 'created_at'])->keyBy('id');
+
+        $query = \DigitalFuzed\TextileInventory\Models\TextileLot::query()
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->where('available_quantity', '>', 0)
+            ->where('material_type', $materialType)
+            ->whereIn('source_document_id', $sourceDocuments->keys())
+            ->latest('created_at');
+
+        if (! $isYarn) {
+            $query->where('source_document_type', 'takha_entry');
+        }
+
+        return $query->get()
+            ->map(function ($lot) use ($sourceDocuments) {
+                $source = $sourceDocuments->get($lot->source_document_id);
+                $metadata = is_array($source?->metadata) ? $source->metadata : [];
+
+                return [
+                    'id'             => (int) $lot->id,
+                    'name'           => $lot->lot_reference,
+                    'sku'            => null,
+                    'sale_price'     => 0,
+                    'unit'           => (string) ($source?->unit ?? ''),
+                    'type'           => 'lot',
+                    'product_type'   => 'lot',
+                    'lot_reference'  => $lot->lot_reference,
+                    'stock_quantity' => (float) $lot->available_quantity,
+                    'grade'          => $metadata['grade'] ?? null,
+                    'taxes'          => [],
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**

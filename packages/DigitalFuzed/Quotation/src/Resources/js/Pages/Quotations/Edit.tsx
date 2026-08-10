@@ -22,12 +22,14 @@ interface EditProps {
     customers: Array<{id: number; name: string; email: string}>;
     warehouses: Array<{id: number; name: string; address: string}>;
     default_warehouse_id?: number | null;
+    quotation_types?: Array<{value: string; label: string}>;
+    default_quotation_type?: string;
     [key: string]: any;
 }
 
 export default function Edit() {
     const { t } = useTranslation();
-    const { quotation, customers, warehouses, default_warehouse_id } = usePage<EditProps>().props;
+    const { quotation, customers, warehouses, default_warehouse_id, quotation_types, default_quotation_type } = usePage<EditProps>().props;
     const [availableProducts, setAvailableProducts] = useState([]);
 
     const { data, setData, put, processing, errors } = useForm({
@@ -35,6 +37,7 @@ export default function Edit() {
         due_date: quotation.due_date,
         customer_id: quotation.customer_id.toString(),
         warehouse_id: quotation.warehouse_id?.toString() || '',
+        quotation_type: quotation.quotation_type || default_quotation_type || 'general',
         payment_terms: quotation.payment_terms || '',
         notes: quotation.notes || '',
         items: (quotation.items || []).map(item => {
@@ -68,7 +71,7 @@ export default function Edit() {
         
         if (warehouseId) {
             try {
-                const response = await fetch(route('quotations.warehouse.products') + `?warehouse_id=${warehouseId}`);
+                const response = await fetch(route('quotations.warehouse.products') + `?warehouse_id=${warehouseId}&type=${data.quotation_type}`);
                 const warehouseProducts = await response.json();
                 setAvailableProducts(warehouseProducts);
             } catch (error) {
@@ -76,6 +79,20 @@ export default function Edit() {
                 setAvailableProducts([]);
             }
         } else {
+            setAvailableProducts([]);
+        }
+    };
+
+    // Reload the item source when the quotation type changes.
+    const handleTypeChange = async (type: string) => {
+        setData('quotation_type', type);
+
+        try {
+            const response = await fetch(route('quotations.warehouse.products') + `?type=${type}`);
+            const items = await response.json();
+            setAvailableProducts(items);
+        } catch (error) {
+            console.error('Failed to fetch quotation items:', error);
             setAvailableProducts([]);
         }
     };
@@ -109,6 +126,31 @@ export default function Edit() {
                         </CardHeader>
                         <CardContent>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div>
+                                    <Label htmlFor="quotation_type" required>
+                                        {t('Quotation Type')}
+                                    </Label>
+                                    <Select
+                                        value={data.quotation_type}
+                                        onValueChange={handleTypeChange}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={t('Select Quotation Type')} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {(quotation_types || []).map((type) => (
+                                                <SelectItem key={type.value} value={type.value}>
+                                                    {t(type.label)}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        {t('Determines which items are available below.')}
+                                    </p>
+                                    <InputError message={errors.quotation_type} />
+                                </div>
+
                                 <div>
                                     <Label htmlFor="invoice_date" required>
                                         {t('Quotation Date')}
@@ -230,6 +272,8 @@ export default function Edit() {
                                     onClick={() => {
                                         const newItem = {
                                             product_id: 0,
+                                            product_type: data.quotation_type === 'general' ? 'product' : 'lot',
+                                            lot_reference: null,
                                             quantity: 1,
                                             unit_price: 0,
                                             discount_percentage: 0,

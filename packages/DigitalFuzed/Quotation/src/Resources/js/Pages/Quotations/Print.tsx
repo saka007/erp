@@ -81,6 +81,13 @@ export default function Print() {
                     <div className="text-right w-1/2">
                         <h2 className="text-2xl font-bold mb-2">{t('QUOTATION')}</h2>
                         <p className="text-lg font-semibold">#{quotation.quotation_number}</p>
+                        <p className="text-sm font-medium mt-1">
+                            {({
+                                takha: t('Takha Quotation'),
+                                yarn: t('Yarn Quotation'),
+                                general: t('General Quotation')
+                            } as Record<string, string>)[quotation.quotation_type || 'general']}
+                        </p>
                         <div className="text-sm mt-2 space-y-1">
                             <p>{t('Date')}: {formatDate(quotation.quotation_date)}</p>
                             <p>{t('Due Date')}: {formatDate(quotation.due_date)}</p>
@@ -135,9 +142,15 @@ export default function Print() {
                             {quotation.items?.map((item, index) => (
                                 <tr key={index} className="page-break-inside-avoid">
                                     <td className="py-4">
-                                        <div className="font-semibold">{item.product?.name}</div>
-                                        {item.product?.sku && (
-                                            <div className="text-xs text-gray-500">{t('SKU')}: {item.product.sku}</div>
+                                        {item.product_type === 'lot' ? (
+                                            <div className="font-semibold">{item.lot_reference || item.product?.name}</div>
+                                        ) : (
+                                            <>
+                                                <div className="font-semibold">{item.product?.name}</div>
+                                                {item.product?.sku && (
+                                                    <div className="text-xs text-gray-500">{t('SKU')}: {item.product.sku}</div>
+                                                )}
+                                            </>
                                         )}
                                     </td>
                                     <td className="text-center py-4">{item.quantity}</td>

@@ -13,7 +13,7 @@ interface Props {
     items: QuotationItem[];
     onChange: (items: QuotationItem[]) => void;
     errors: any;
-    products?: Array<{id: number; name: string; sale_price: number; unit?: string; stock_quantity?: number; taxes?: Array<{id: number; tax_name: string; rate: number}>}>;
+    products?: Array<{id: number; name: string; sale_price: number; unit?: string; stock_quantity?: number; product_type?: 'product' | 'lot'; lot_reference?: string; taxes?: Array<{id: number; tax_name: string; rate: number}>}>;
     showAddButton?: boolean;
 }
 
@@ -23,6 +23,8 @@ export default function QuotationItemsTable({ items, onChange, errors, products 
     const addItem = () => {
         const newItem: QuotationItem = {
             product_id: 0,
+            product_type: 'product',
+            lot_reference: null,
             quantity: 1,
             unit_price: 0,
             discount_percentage: 0,
@@ -69,22 +71,25 @@ export default function QuotationItemsTable({ items, onChange, errors, products 
 
     const handleProductSelect = (index: number, productId: number, product?: any) => {
         const newItems = [...items];
-        const totalTaxRate = product?.taxes?.reduce((sum: number, tax: any) => sum + Number(tax.rate), 0) || 0;
-        const taxes = product?.taxes?.map((tax: any) => ({
+        const isLot = product?.product_type === 'lot';
+        const totalTaxRate = !isLot && product?.taxes?.reduce((sum: number, tax: any) => sum + Number(tax.rate), 0) || 0;
+        const taxes = !isLot ? (product?.taxes?.map((tax: any) => ({
             tax_name: tax.tax_name,
             tax_rate: tax.rate
-        })) || [];
+        })) || []) : [];
 
         newItems[index] = {
             ...newItems[index],
             product_id: productId,
+            product_type: isLot ? 'lot' : 'product',
+            lot_reference: isLot ? product?.lot_reference : null,
+            quantity: isLot && product?.stock_quantity ? Number(product.stock_quantity) : (Number(newItems[index].quantity) || 1),
             unit_price: Number(product?.sale_price) || 0,
             tax_percentage: Number(totalTaxRate) || 0,
             taxes: taxes
         };
 
         const item = newItems[index];
-        item.quantity = Number(item.quantity) || 1;
         item.discount_percentage = Number(item.discount_percentage) || 0;
 
         const calculations = calculateLineItemAmounts(

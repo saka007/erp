@@ -8,6 +8,10 @@ interface Product {
     name: string;
     sale_price: number;
     unit?: string;
+    product_type?: 'product' | 'lot';
+    lot_reference?: string;
+    stock_quantity?: number;
+    grade?: string | null;
     taxes?: Array<{id: number; tax_name: string; rate: number}>;
 }
 
@@ -34,7 +38,19 @@ export default function ProductSelector({ products, value, onChange }: Props) {
             <SelectContent searchable>
                 {products.map((product) => (
                     <SelectItem key={product.id} value={product.id.toString()}>
-                        {product.name} - {formatCurrency(product.sale_price || 0)}
+                        {product.product_type === 'lot' ? (
+                            <>
+                                {product.lot_reference || product.name}
+                                {product.stock_quantity != null && (
+                                    <> - {product.stock_quantity} {product.unit || ''} {t('available')}</>
+                                )}
+                                {product.grade ? ` (${product.grade})` : ''}
+                            </>
+                        ) : (
+                            <>
+                                {product.name} - {formatCurrency(product.sale_price || 0)}
+                            </>
+                        )}
                     </SelectItem>
                 ))}
             </SelectContent>

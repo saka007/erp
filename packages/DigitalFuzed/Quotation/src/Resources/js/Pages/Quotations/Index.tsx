@@ -148,6 +148,22 @@ export default function Index() {
             render: (value: any) => value?.name || '-'
         },
         {
+            key: 'quotation_type',
+            header: t('Type'),
+            render: (value: string) => {
+                const labels: Record<string, string> = {
+                    takha: t('Takha'),
+                    yarn: t('Yarn'),
+                    general: t('General')
+                };
+                return (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-muted text-foreground">
+                        {labels[value] || t('General')}
+                    </span>
+                );
+            }
+        },
+        {
             key: 'quotation_date',
             header: t('Quotation Date'),
             sortable: true,
@@ -583,7 +599,16 @@ export default function Index() {
                                                 <div className="space-y-3 mb-4">
                                                     <div>
                                                         <p className="text-xs font-medium text-gray-600 mb-1">{t('Customer')}</p>
-                                                        <p className="text-sm text-gray-900 truncate font-medium">{quotation.customer?.name}</p>
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <p className="text-sm text-gray-900 truncate font-medium">{quotation.customer?.name}</p>
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground shrink-0">
+                                                                {({
+                                                                    takha: t('Takha'),
+                                                                    yarn: t('Yarn'),
+                                                                    general: t('General')
+                                                                } as Record<string, string>)[quotation.quotation_type || 'general']}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-3">
                                                         <div>
