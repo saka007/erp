@@ -89,6 +89,9 @@ export default function Create({ onSuccess, users = [], customerCategories = [],
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
         post(route('account.customers.store'), {
+            transform: (formData) => formData.same_as_billing
+                ? {...formData, shipping_address: {...formData.billing_address}}
+                : formData,
             onSuccess: () => {
                 onSuccess();
             }

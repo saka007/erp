@@ -11,6 +11,15 @@ class StoreCustomerRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation()
+    {
+        $data = $this->all();
+        if (($data['same_as_billing'] ?? false)) {
+            $data['shipping_address'] = $data['billing_address'] ?? [];
+            $this->merge($data);
+        }
+    }
+
     public function rules()
     {
         return [

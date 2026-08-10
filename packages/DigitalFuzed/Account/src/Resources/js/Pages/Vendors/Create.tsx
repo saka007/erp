@@ -68,6 +68,9 @@ export default function Create({ onSuccess, users = [], auth }: CreateVendorProp
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
         post(route('account.vendors.store'), {
+            transform: (formData) => formData.same_as_billing
+                ? {...formData, shipping_address: {...formData.billing_address}}
+                : formData,
             onSuccess: () => {
                 onSuccess();
             }

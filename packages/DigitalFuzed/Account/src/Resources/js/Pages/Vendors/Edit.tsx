@@ -33,6 +33,9 @@ export default function Edit({ vendor, onSuccess }: EditVendorProps) {
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
         put(route('account.vendors.update', vendor.id), {
+            transform: (formData) => formData.same_as_billing
+                ? {...formData, shipping_address: {...formData.billing_address}}
+                : formData,
             onSuccess: () => {
                 onSuccess();
             }

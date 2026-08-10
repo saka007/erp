@@ -39,6 +39,9 @@ export default function Edit({ customer, customerCategories = [], onSuccess }: E
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
         put(route('account.customers.update', customer.id), {
+            transform: (formData) => formData.same_as_billing
+                ? {...formData, shipping_address: {...formData.billing_address}}
+                : formData,
             onSuccess: () => {
                 onSuccess();
             }
