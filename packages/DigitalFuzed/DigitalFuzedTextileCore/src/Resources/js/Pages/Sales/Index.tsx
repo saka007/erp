@@ -422,7 +422,7 @@ export default function Index({
                         }
 
                         case 'allocation-dispatch': {
-                            const allocationStatuses = workflowStepStatuses([allocations.length, dispatches.length]);
+                            const allocationStatuses = workflowStepStatuses([allocations.length, dispatches.length, challans.length]);
                             const steps: WorkflowStep[] = [
                                 { id: 'create-allocation', title: t('Create Allocation'), icon: ClipboardCheck, status: allocationStatuses[0], count: allocations.length, form: (
                                     <TextileFormCard showHeader={false}>
@@ -478,6 +478,30 @@ export default function Index({
                                 </form>
                                     </TextileFormCard>
                                 ) },
+                                { id: 'create-challan', title: t('Create Challan'), icon: ScrollText, status: allocationStatuses[2], count: challans.length, form: (
+                                    <TextileFormCard showHeader={false}>
+                                <form className="grid grid-cols-[1fr_auto] gap-3" onSubmit={(e) => {
+                                    e.preventDefault();
+                                    challanForm.post(route('textile.sales.challans.store'), {
+                                        onSuccess: () => challanForm.reset('dispatch_id'),
+                                    });
+                                }}>
+                                    <SelectField
+                                        label={t('From Released Dispatch')}
+                                        value={challanForm.data.dispatch_id}
+                                        onChange={(value: string) => challanForm.setData('dispatch_id', value)}
+                                        options={createTextileWorkflowSelectOptions(releasedDispatches)}
+                                        includeEmpty
+                                        emptyLabel={t('Select released dispatch')}
+                                        helperText={t('Only released dispatches are listed.')}
+                                        disabled={releasedDispatches.length === 0}
+                                        disabledReason={t('No released dispatch found. Release a dispatch first.')}
+                                        required
+                                    />
+                                    <Button type="submit" disabled={challanForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Challan')}</Button>
+                                </form>
+                                    </TextileFormCard>
+                                ) },
                             ];
                             const activeAllocationStepId = steps.some((step) => step.id === openStep) ? openStep : steps[0].id;
                             return (
@@ -515,6 +539,13 @@ export default function Index({
                                                     ]),
                                                 })}
                                                 emptyState={<NoRecordsFound icon={Truck} title={t('No dispatches found')} description={t('Create dispatches from released allocations.')} />}
+                                            />}
+                                            {activeAllocationStepId === 'create-challan' &&
+                                            <TextileDataTableSection
+                                                title={t('Challan Records')}
+                                                data={challans}
+                                                columns={createTextileWorkflowColumns(t)}
+                                                emptyState={<NoRecordsFound icon={ScrollText} title={t('No challans found')} description={t('Create challans for released dispatches.')} />}
                                             />}
                                         </div>
                                     } />
