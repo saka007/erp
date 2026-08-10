@@ -343,14 +343,32 @@ class TextileSalesController extends Controller
         TextileBranchScope::applyWorkflowScope($sourceQuery);
         $sourceDocuments = $sourceQuery->get(['id', 'party_name', 'unit', 'metadata', 'created_at'])->keyBy('id');
 
-        return TextileLot::query()
+        $lotQuery = TextileLot::query()
             ->where('created_by', creatorId())
             ->where('is_active', true)
             ->where('available_quantity', '>', 0)
             ->where('material_type', TextileLot::TYPE_GREY_FABRIC)
             ->where('source_document_type', 'takha_entry')
-            ->whereIn('source_document_id', $sourceDocuments->keys())
-            ->latest('created_at')
+            ->whereIn('source_document_id', $sourceDocuments->keys());
+
+        // QC gate mirror: when the tenant operates quality inspection, only show
+        // takha lots that have passed inspection so the picker matches the backend
+        // gate instead of letting the user pick a lot that will be rejected.
+        // Pass = an approved/released inspection document exists, or the lot is
+        // marked quality-approved (production_stage) — the visible QC marker.
+        if ($this->tenantOperatesQualityInspection()) {
+            $inspectedQuery = TextileWorkflowDocument::query()
+                ->where('created_by', creatorId())
+                ->where('document_type', 'inspection')
+                ->whereIn('status', ['approved', 'released']);
+            TextileBranchScope::applyWorkflowScope($inspectedQuery);
+            $lotQuery->where(function ($query) use ($inspectedQuery) {
+                $query->whereIn('lot_reference', $inspectedQuery->pluck('lot_reference'))
+                    ->orWhere('production_stage', TextileLot::STAGE_QUALITY_APPROVED);
+            });
+        }
+
+        return $lotQuery->latest('created_at')
             ->get()
             ->map(function (TextileLot $lot) use ($sourceDocuments) {
                 $source = $sourceDocuments->get($lot->source_document_id);
@@ -375,6 +393,17 @@ class TextileSalesController extends Controller
             })
             ->values()
             ->all();
+    }
+
+    private function tenantOperatesQualityInspection(): bool
+    {
+        try {
+            $this->policyService->assertCapability('quality_inspection');
+
+            return true;
+        } catch (RuntimeException) {
+            return false;
+        }
     }
 
     private function sourceTypeOptions(): array

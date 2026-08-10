@@ -634,6 +634,23 @@ class QuotationController extends Controller
 
         if (! $isYarn) {
             $query->where('source_document_type', 'takha_entry');
+
+            // QC gate mirror: takha quotations eventually convert to sales orders,
+            // so only offer lots that have passed inspection when the tenant
+            // operates quality inspection (same rule as the sales order picker).
+            // Pass = an approved/released inspection document exists, or the lot is
+            // marked quality-approved (production_stage) — the visible QC marker.
+            if ($this->tenantOperatesQualityInspection()) {
+                $inspectedQuery = \DigitalFuzed\TextileCore\Models\TextileWorkflowDocument::query()
+                    ->where('created_by', creatorId())
+                    ->where('document_type', 'inspection')
+                    ->whereIn('status', ['approved', 'released']);
+                \DigitalFuzed\TextileCore\Support\TextileBranchScope::applyWorkflowScope($inspectedQuery);
+                $query->where(function ($sub) use ($inspectedQuery) {
+                    $sub->whereIn('lot_reference', $inspectedQuery->pluck('lot_reference'))
+                        ->orWhere('production_stage', \DigitalFuzed\TextileInventory\Models\TextileLot::STAGE_QUALITY_APPROVED);
+                });
+            }
         }
 
         return $query->get()
@@ -657,6 +674,22 @@ class QuotationController extends Controller
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * Whether the tenant operates quality inspection (fail-open when the policy
+     * service or capability is unavailable).
+     */
+    private function tenantOperatesQualityInspection(): bool
+    {
+        try {
+            $policyService = app(\DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService::class);
+            $policyService->assertCapability('quality_inspection');
+
+            return true;
+        } catch (\RuntimeException) {
+            return false;
+        }
     }
 
     /**

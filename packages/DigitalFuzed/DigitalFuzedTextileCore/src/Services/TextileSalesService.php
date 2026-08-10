@@ -82,6 +82,8 @@ class TextileSalesService
                 }
 
                 // Gate: fabric lots must pass inspection before sale (only when the tenant operates QC).
+                // Pass = an approved/released inspection document exists, or the lot has been
+                // marked quality-approved (production_stage), which is the visible QC marker.
                 if ($this->tenantHasCapability('quality_inspection')) {
                     $inspectionQuery = TextileWorkflowDocument::query()
                         ->where('created_by', $tenantId)
@@ -89,7 +91,9 @@ class TextileSalesService
                         ->where('lot_reference', $lot->lot_reference)
                         ->whereIn('status', ['approved', 'released']);
                     TextileBranchScope::applyWorkflowScope($inspectionQuery);
-                    if (! $inspectionQuery->exists()) {
+                    $passedInspection = $inspectionQuery->exists()
+                        || $lot->production_stage === TextileLot::STAGE_QUALITY_APPROVED;
+                    if (! $passedInspection) {
                         throw new RuntimeException('Takha lot must pass inspection before it can be sold.');
                     }
                 }
