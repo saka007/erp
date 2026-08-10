@@ -1,7 +1,7 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, CheckCircle2, ClipboardCheck, FileEdit, ListChecks, Plus, Send, ScrollText, ShoppingBag, Trash2, Truck } from 'lucide-react';
+import { Check, CheckCircle2, ClipboardCheck, FileEdit, ListChecks, Plus, Send, ScrollText, ShoppingBag, Trash2, Truck, X } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
 import NoRecordsFound from '@/components/no-records-found';
@@ -613,12 +613,56 @@ export default function Index({
                                                 {
                                                     key: 'actions',
                                                     header: t('Actions'),
-                                                    render: (_v: unknown, row: QuotationRecord) => row.status === 'draft' ? (
-                                                        <Button type="button" size="sm" variant="outline" onClick={() => setEditingQuotation(row as unknown as QuotationEditRecord)}>
-                                                            <FileEdit className="mr-1 h-3.5 w-3.5" />
-                                                            {t('Edit')}
-                                                        </Button>
-                                                    ) : null,
+                                                    render: (_v: unknown, row: QuotationRecord) => {
+                                                        const quoteId = row.id;
+                                                        const permissions = auth.user?.permissions || [];
+                                                        const editButton = row.status === 'draft' ? (
+                                                            <Button type="button" size="sm" variant="outline" onClick={() => setEditingQuotation(row as unknown as QuotationEditRecord)}>
+                                                                <FileEdit className="mr-1 h-3.5 w-3.5" />
+                                                                {t('Edit')}
+                                                            </Button>
+                                                        ) : null;
+                                                        const sendButton = row.status === 'draft' && permissions.includes('sent-quotations') ? (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="text-purple-600 hover:text-purple-700"
+                                                                onClick={() => router.post(route('quotations.sent', quoteId), {}, { preserveScroll: true })}
+                                                            >
+                                                                <Send className="mr-1 h-3.5 w-3.5" />
+                                                                {t('Send')}
+                                                            </Button>
+                                                        ) : null;
+                                                        const approveButton = row.status === 'sent' && permissions.includes('approve-quotations') ? (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="text-green-600 hover:text-green-700"
+                                                                onClick={() => router.post(route('quotations.approve', quoteId), {}, { preserveScroll: true })}
+                                                            >
+                                                                <Check className="mr-1 h-3.5 w-3.5" />
+                                                                {t('Approve')}
+                                                            </Button>
+                                                        ) : null;
+                                                        const rejectButton = row.status === 'sent' && permissions.includes('reject-quotations') ? (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="text-red-600 hover:text-red-700"
+                                                                onClick={() => router.post(route('quotations.reject', quoteId), {}, { preserveScroll: true })}
+                                                            >
+                                                                <X className="mr-1 h-3.5 w-3.5" />
+                                                                {t('Reject')}
+                                                            </Button>
+                                                        ) : null;
+                                                        const buttons = [editButton, sendButton, approveButton, rejectButton].filter(Boolean);
+                                                        return buttons.length ? (
+                                                            <div className="flex items-center gap-1.5">{buttons}</div>
+                                                        ) : null;
+                                                    },
                                                 },
                                             ]}
                                             emptyState={<NoRecordsFound icon={ScrollText} title={t('No quotations found')} description={t('Create quotations from the Quotations page.')} />}
