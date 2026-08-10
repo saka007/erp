@@ -497,4 +497,89 @@ class TextileSalesAdminTest extends TestCase
         $quotation->refresh();
         $this->assertEquals(1000.0, (float) $quotation->total_amount);
     }
+
+    public function test_challans_can_be_approved_and_edited_inline_from_records(): void
+    {
+        AddOn::create([
+            'module' => 'TextileCore',
+            'name' => 'Textile Core',
+            'package_name' => 'textile-core',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        $company = $this->company();
+        $this->actingAs($company);
+
+        // Released dispatch so a challan can be created from it.
+        $dispatch = TextileWorkflowDocument::create([
+            'document_type' => 'dispatch',
+            'document_number' => 'DISPATCH-CHALLAN-EDIT',
+            'party_name' => 'Metro Fashions Pvt Ltd',
+            'lot_reference' => 'TAK-LOT-0001',
+            'quantity' => 120,
+            'unit' => 'mtr',
+            'status' => 'released',
+            'created_by' => $company->id,
+            'creator_id' => $company->id,
+        ]);
+
+        $this->post(route('textile.sales.challans.store'), [
+            'dispatch_id' => $dispatch->id,
+        ])->assertSessionHasNoErrors();
+
+        $challan = TextileWorkflowDocument::query()
+            ->where('created_by', $company->id)
+            ->where('document_type', 'challan')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($challan);
+        $this->assertSame('draft', $challan->status);
+        $this->assertSame('TAK-LOT-0001', $challan->lot_reference);
+
+        // Draft challans can be edited inline (party/lot/qty/unit).
+        $this->post(route('textile.sales.challans.update'), [
+            'challan_id' => $challan->id,
+            'party_name' => 'Updated Party Ltd',
+            'lot_reference' => 'TAK-LOT-0001',
+            'quantity' => 115,
+            'unit' => 'mtr',
+        ])->assertSessionHasNoErrors();
+
+        $challan->refresh();
+        $this->assertSame('Updated Party Ltd', $challan->party_name);
+        $this->assertEquals(115, (float) $challan->quantity);
+        $this->assertSame('draft', $challan->status);
+
+        // Draft challans can be approved from the records row.
+        $this->post(route('textile.sales.challans.approve'), [
+            'challan_id' => $challan->id,
+        ])->assertSessionHasNoErrors();
+
+        $challan->refresh();
+        $this->assertSame('approved', $challan->status);
+
+        // Approved challans cannot be edited anymore.
+        $this->post(route('textile.sales.challans.update'), [
+            'challan_id' => $challan->id,
+            'party_name' => 'Should Not Apply',
+            'lot_reference' => 'TAK-LOT-0001',
+            'quantity' => 100,
+            'unit' => 'mtr',
+        ])->assertSessionHasErrors('challan_id');
+
+        $challan->refresh();
+        $this->assertSame('Updated Party Ltd', $challan->party_name);
+        $this->assertEquals(115, (float) $challan->quantity);
+
+        // POD can still be marked on the approved challan.
+        $this->post(route('textile.sales.challans.pod'), [
+            'challan_id' => $challan->id,
+        ])->assertSessionHasNoErrors();
+
+        $challan->refresh();
+        $this->assertSame('closed', $challan->status);
+    }
 }

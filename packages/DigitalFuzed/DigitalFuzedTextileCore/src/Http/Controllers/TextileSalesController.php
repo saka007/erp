@@ -251,6 +251,46 @@ class TextileSalesController extends Controller
         return back()->with('success', __('Challan created successfully.'));
     }
 
+    public function approveChallan(Request $request, TextileSalesService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('sales_challan_pod', 'challan_id');
+
+        $validated = $request->validate([
+            'challan_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $service->approveChallan((int) $validated['challan_id']);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['challan_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Challan approved successfully.'));
+    }
+
+    public function updateChallan(Request $request, TextileSalesService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('sales_challan_pod', 'challan_id');
+
+        $validated = $request->validate([
+            'challan_id' => ['required', 'integer', 'min:1'],
+            'party_name' => ['nullable', 'string', 'max:255'],
+            'lot_reference' => ['nullable', 'string', 'max:100'],
+            'quantity' => ['nullable', 'numeric', 'gt:0'],
+            'unit' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        try {
+            $service->updateChallan((int) $validated['challan_id'], $validated);
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['challan_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Challan updated successfully.'));
+    }
+
     public function markPod(Request $request, TextileSalesService $service)
     {
         $this->authorizeTextileAccess();

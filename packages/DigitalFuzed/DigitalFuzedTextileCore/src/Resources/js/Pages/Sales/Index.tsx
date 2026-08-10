@@ -19,6 +19,7 @@ import { buildUnitOptions, formatTextileLabel } from '@/components/textile/texti
 import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 import { formatCurrency } from '@/utils/helpers';
 import { QuotationEditDialog, type QuotationEditRecord } from './components/QuotationEditDialog';
+import { ChallanEditDialog, type ChallanEditRecord } from './components/ChallanEditDialog';
 import { PageProps } from '@/types';
 
 interface WorkflowDocument {
@@ -139,6 +140,7 @@ export default function Index({
     const [openStep, setOpenStep] = useState<string | null>(null);
     const [editingQuotation, setEditingQuotation] = useState<QuotationEditRecord | null>(null);
     const [creatingQuotation, setCreatingQuotation] = useState(false);
+    const [editingChallan, setEditingChallan] = useState<ChallanEditRecord | null>(null);
 
     const salesOrderForm = useForm({
         source_reference_type: '',
@@ -195,6 +197,26 @@ export default function Index({
     const releaseDispatch = (id: number) => {
         router.post(route('textile.sales.dispatches.release'), { dispatch_id: id }, { preserveScroll: true });
     };
+
+    const approveChallan = (id: number) => {
+        router.post(route('textile.sales.challans.approve'), { challan_id: id }, { preserveScroll: true });
+    };
+
+    const challanWorkflowColumns = createTextileWorkflowColumns(t, {
+        actions: createTextileWorkflowActions([
+            {
+                statuses: textileActionableStatuses.draft,
+                actions: [
+                    { label: t('Approve'), icon: Check, onClick: (row) => approveChallan(row.id) },
+                    {
+                        label: t('Edit'),
+                        icon: FileEdit,
+                        onClick: (row) => setEditingChallan(row as unknown as ChallanEditRecord),
+                    },
+                ],
+            },
+        ]),
+    });
 
     return (
         <AuthenticatedLayout
@@ -544,7 +566,7 @@ export default function Index({
                                             <TextileDataTableSection
                                                 title={t('Challan Records')}
                                                 data={challans}
-                                                columns={createTextileWorkflowColumns(t)}
+                                                columns={challanWorkflowColumns}
                                                 emptyState={<NoRecordsFound icon={ScrollText} title={t('No challans found')} description={t('Create challans for released dispatches.')} />}
                                             />}
                                         </div>
@@ -601,7 +623,7 @@ export default function Index({
                                             <TextileDataTableSection
                                                 title={t('Challan Records')}
                             data={challans}
-                            columns={createTextileWorkflowColumns(t)}
+                            columns={challanWorkflowColumns}
                             emptyState={<NoRecordsFound icon={ClipboardCheck} title={t('No challans found')} description={t('Create challans for released dispatches.')} />}
                         />}
                                             {activeChallanStepId === 'mark-pod' &&
@@ -747,6 +769,13 @@ export default function Index({
                         setEditingQuotation(null);
                         setCreatingQuotation(false);
                     }}
+                />
+            )}
+            {editingChallan && (
+                <ChallanEditDialog
+                    challan={editingChallan}
+                    unitOptions={unitOptions}
+                    onClose={() => setEditingChallan(null)}
                 />
             )}
         </AuthenticatedLayout>

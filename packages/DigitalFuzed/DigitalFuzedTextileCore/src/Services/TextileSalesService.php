@@ -387,6 +387,34 @@ class TextileSalesService
         ]);
     }
 
+    public function approveChallan(int $challanId): TextileWorkflowDocument
+    {
+        $challan = $this->findTenantDocument($challanId, 'challan');
+
+        if ($challan->status !== 'draft') {
+            throw new RuntimeException('Only draft challan can be approved.');
+        }
+
+        return $this->workflowService->transitionStatus($challan->id, 'approved');
+    }
+
+    public function updateChallan(int $challanId, array $payload = []): TextileWorkflowDocument
+    {
+        $challan = $this->findTenantDocument($challanId, 'challan');
+
+        if ($challan->status !== 'draft') {
+            throw new RuntimeException('Only draft challan can be edited.');
+        }
+
+        $challan->party_name = $payload['party_name'] ?? $challan->party_name;
+        $challan->lot_reference = $payload['lot_reference'] ?? $challan->lot_reference;
+        $challan->quantity = $payload['quantity'] ?? $challan->quantity;
+        $challan->unit = $payload['unit'] ?? $challan->unit;
+        $challan->save();
+
+        return $challan->refresh();
+    }
+
     public function markPod(int $challanId, array $payload = []): TextileWorkflowDocument
     {
         $challan = $this->findTenantDocument($challanId, 'challan');
