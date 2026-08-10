@@ -109,7 +109,7 @@ export default function Documents({ documents, items, stats }: { documents: Docu
 
     return (
         <AuthenticatedLayout
-            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('Product Setup') }, { label: t('Product Documents') }]}
+            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('Products') }, { label: t('Product Documents') }]}
             pageTitle={t('Product Documents')}
         >
             <Head title={t('Product Documents')} />

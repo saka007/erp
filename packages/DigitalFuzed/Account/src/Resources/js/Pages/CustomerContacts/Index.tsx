@@ -98,7 +98,7 @@ export default function Index({ contacts, customers }: { contacts: ContactRow[];
 
     return (
         <AuthenticatedLayout
-            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('CRM Setup') }, { label: t('Customer Contacts') }]}
+            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('CRM & Suppliers') }, { label: t('Customer Contacts') }]}
             pageTitle={t('Customer Contacts')}
         >
             <Head title={t('Customer Contacts')} />

@@ -58,7 +58,7 @@ export default function Index({ snapshots, vendors }: { snapshots: SnapshotRow[]
 
     return (
         <AuthenticatedLayout
-            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('Supplier Setup') }, { label: t('Vendor Performance') }]}
+            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('CRM & Suppliers') }, { label: t('Vendor Performance') }]}
             pageTitle={t('Vendor Performance')}
         >
             <Head title={t('Vendor Performance')} />

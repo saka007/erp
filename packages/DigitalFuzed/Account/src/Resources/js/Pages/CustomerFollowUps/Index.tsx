@@ -114,7 +114,7 @@ export default function Index({
 
     return (
         <AuthenticatedLayout
-            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('CRM Setup') }, { label: t('Customer Follow Ups') }]}
+            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('CRM & Suppliers') }, { label: t('Customer Follow Ups') }]}
             pageTitle={t('Customer Follow Ups')}
         >
             <Head title={t('Customer Follow Ups')} />

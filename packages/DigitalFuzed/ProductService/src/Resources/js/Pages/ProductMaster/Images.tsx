@@ -93,7 +93,7 @@ export default function Images({ images, items, stats }: { images: ImageRow[]; i
 
     return (
         <AuthenticatedLayout
-            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('Product Setup') }, { label: t('Product Images') }]}
+            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('Products') }, { label: t('Product Images') }]}
             pageTitle={t('Product Images')}
         >
             <Head title={t('Product Images')} />

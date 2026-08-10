@@ -82,7 +82,7 @@ export default function Index({ categories }: { categories: CustomerCategory[] }
 
     return (
         <AuthenticatedLayout
-            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('CRM Setup') }, { label: t('Customer Categories') }]}
+            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('CRM & Suppliers') }, { label: t('Customer Categories') }]}
             pageTitle={t('Customer Categories')}
         >
             <Head title={t('Customer Categories')} />

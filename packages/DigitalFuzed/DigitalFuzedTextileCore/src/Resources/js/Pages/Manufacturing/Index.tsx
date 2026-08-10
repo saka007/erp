@@ -1473,7 +1473,7 @@ export default function Index({
                                     options={resolvedShedTypeOptions}
                                     includeEmpty
                                     emptyLabel={t('Select shed type')}
-                                    helperText={t('Shed types are managed from Master Setup > Loom Setup > Shed Types.')}
+                                    helperText={t('Shed types are managed from Master Setup > Manufacturing > Shed Types.')}
                                     required
                                 />
                                 <Field label={t('Width')} type="number" value={loomMasterForm.data.width} onChange={(v) => loomMasterForm.setData('width', v)} required />
@@ -1499,7 +1499,7 @@ export default function Index({
                                     options={resolvedLoomStatusOptions}
                                     includeEmpty
                                     emptyLabel={t('Select loom status')}
-                                    helperText={t('Loom statuses are managed from Master Setup > Loom Setup > Loom Statuses.')}
+                                    helperText={t('Loom statuses are managed from Master Setup > Manufacturing > Loom Statuses.')}
                                     required
                                 />
                                 <SelectField
@@ -1550,7 +1550,7 @@ export default function Index({
                                     options={resolvedBreakdownReasonOptions}
                                     includeEmpty
                                     emptyLabel={t('Select reason')}
-                                    helperText={t('Breakdown reasons are managed from Master Setup > Loom Setup > Breakdown Reasons.')}
+                                    helperText={t('Breakdown reasons are managed from Master Setup > Manufacturing > Breakdown Reasons.')}
                                     required
                                 />
                                 <Field label={t('Downtime Hours')} type="number" value={loomBreakdownForm.data.downtime_hours} onChange={(v) => loomBreakdownForm.setData('downtime_hours', v)} required />
@@ -1611,7 +1611,7 @@ export default function Index({
                                     options={resolvedMaintenanceTypeOptions}
                                     includeEmpty
                                     emptyLabel={t('Select maintenance type')}
-                                    helperText={t('Maintenance types are managed from Master Setup > Loom Setup > Maintenance Types.')}
+                                    helperText={t('Maintenance types are managed from Master Setup > Manufacturing > Maintenance Types.')}
                                     required
                                 />
                                 <Field label={t('Maintenance Hours')} type="number" value={loomMaintenanceForm.data.maintenance_hours} onChange={(v) => loomMaintenanceForm.setData('maintenance_hours', v)} required />
@@ -2437,7 +2437,7 @@ export default function Index({
                                 <SelectField label={t('Shift')} value={machineDowntimeForm.data.planned_shift} onChange={(v) => machineDowntimeForm.setData('planned_shift', v)} options={resolvedShiftOptions} required />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
-                                <SelectField label={t('Downtime Reason')} value={machineDowntimeForm.data.downtime_reason} onChange={(v) => machineDowntimeForm.setData('downtime_reason', v)} options={resolvedBreakdownReasonOptions} includeEmpty emptyLabel={t('Select reason')} helperText={t('Downtime reasons reuse Loom Setup > Breakdown Reasons.')} required />
+                                <SelectField label={t('Downtime Reason')} value={machineDowntimeForm.data.downtime_reason} onChange={(v) => machineDowntimeForm.setData('downtime_reason', v)} options={resolvedBreakdownReasonOptions} includeEmpty emptyLabel={t('Select reason')} helperText={t('Downtime reasons reuse Manufacturing > Breakdown Reasons.')} required />
                                 <Field label={t('Downtime Hours')} type="number" value={machineDowntimeForm.data.downtime_hours} onChange={(v) => machineDowntimeForm.setData('downtime_hours', v)} required />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
@@ -2495,8 +2495,8 @@ export default function Index({
                                 <Field label={t('Width')} type="number" value={greyFabricRollForm.data.width} onChange={(v) => greyFabricRollForm.setData('width', v)} required />
                             </div>
                             <div className="grid grid-cols-3 gap-3">
-                                <SelectField label={t('Defects')} value={greyFabricRollForm.data.defects.join(',')} onChange={(v) => greyFabricRollForm.setData('defects', v ? v.split(',').map((item) => item.trim()).filter(Boolean) : [])} options={resolvedFabricDefectOptions} includeEmpty emptyLabel={t('Select defects')} helperText={t('Defects are managed from Beam and Cost Setup > Fabric Defects.')} />
-                                <SelectField label={t('Grade')} value={greyFabricRollForm.data.grade} onChange={(v) => greyFabricRollForm.setData('grade', v)} options={resolvedFabricGradeOptions} includeEmpty emptyLabel={t('Select grade')} helperText={t('Grades are managed from Beam and Cost Setup > Fabric Grades.')} required />
+                                <SelectField label={t('Defects')} value={greyFabricRollForm.data.defects.join(',')} onChange={(v) => greyFabricRollForm.setData('defects', v ? v.split(',').map((item) => item.trim()).filter(Boolean) : [])} options={resolvedFabricDefectOptions} includeEmpty emptyLabel={t('Select defects')} helperText={t('Defects are managed from Master Setup > Quality > Fabric Defects.')} />
+                                <SelectField label={t('Grade')} value={greyFabricRollForm.data.grade} onChange={(v) => greyFabricRollForm.setData('grade', v)} options={resolvedFabricGradeOptions} includeEmpty emptyLabel={t('Select grade')} helperText={t('Grades are managed from Master Setup > Manufacturing > Fabric Grades.')} required />
                                 <SelectField label={t('Warehouse')} value={greyFabricRollForm.data.warehouse} onChange={(v) => greyFabricRollForm.setData('warehouse', v)} options={resolvedWarehouseOptions} includeEmpty emptyLabel={t('Select warehouse')} required />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
@@ -2524,8 +2524,8 @@ export default function Index({
                                 <Field label={t('Width')} type="number" value={greyFabricRollUpdateForm.data.width} onChange={(v) => greyFabricRollUpdateForm.setData('width', v)} />
                             </div>
                             <div className="grid grid-cols-3 gap-3">
-                                <SelectField label={t('Defects')} value={greyFabricRollUpdateForm.data.defects.join(',')} onChange={(v) => greyFabricRollUpdateForm.setData('defects', v ? v.split(',').map((item) => item.trim()).filter(Boolean) : [])} options={resolvedFabricDefectOptions} includeEmpty emptyLabel={t('Select defects')} helperText={t('Defects are managed from Beam and Cost Setup > Fabric Defects.')} />
-                                <SelectField label={t('Grade')} value={greyFabricRollUpdateForm.data.grade} onChange={(v) => greyFabricRollUpdateForm.setData('grade', v)} options={resolvedFabricGradeOptions} includeEmpty emptyLabel={t('Select grade')} helperText={t('Grades are managed from Beam and Cost Setup > Fabric Grades.')} />
+                                <SelectField label={t('Defects')} value={greyFabricRollUpdateForm.data.defects.join(',')} onChange={(v) => greyFabricRollUpdateForm.setData('defects', v ? v.split(',').map((item) => item.trim()).filter(Boolean) : [])} options={resolvedFabricDefectOptions} includeEmpty emptyLabel={t('Select defects')} helperText={t('Defects are managed from Master Setup > Quality > Fabric Defects.')} />
+                                <SelectField label={t('Grade')} value={greyFabricRollUpdateForm.data.grade} onChange={(v) => greyFabricRollUpdateForm.setData('grade', v)} options={resolvedFabricGradeOptions} includeEmpty emptyLabel={t('Select grade')} helperText={t('Grades are managed from Master Setup > Manufacturing > Fabric Grades.')} />
                                 <SelectField label={t('Warehouse')} value={greyFabricRollUpdateForm.data.warehouse} onChange={(v) => greyFabricRollUpdateForm.setData('warehouse', v)} options={resolvedWarehouseOptions} includeEmpty emptyLabel={t('Select warehouse')} />
                             </div>
                             <div className="grid grid-cols-2 gap-3">

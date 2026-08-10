@@ -1,7 +1,7 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Factory, Plus, Pencil, ArchiveX } from 'lucide-react';
+import { Factory, Plus, Pencil, ArchiveX, Hash, Zap } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -166,6 +166,44 @@ export default function Index({ master, records, masterDomain = null, masterDoma
         || master === 'freight-types';
     const title = masterDomainLabel ? `${masterDomainLabel} ${config.title}` : config.title;
     const [editingId, setEditingId] = useState<number | null>(null);
+
+    const isSourceMaster = master === 'source-types' || master === 'source-actions';
+    const domainOptions = [
+        { key: 'global', label: t('Global') },
+        { key: 'manufacturing', label: t('Manufacturing') },
+        { key: 'inventory', label: t('Inventory') },
+        { key: 'procurement', label: t('Procurement') },
+        { key: 'sales', label: t('Sales') },
+        { key: 'processing', label: t('Processing') },
+        { key: 'quality', label: t('Quality') },
+        { key: 'dispatch', label: t('Dispatch') },
+        { key: 'packing', label: t('Packing') },
+        { key: 'transport', label: t('Transport') },
+    ];
+    const activeDomain = domainAwareMaster && masterDomain ? masterDomain : 'global';
+
+    const switchDomain = (domain: string) => {
+        if (!domainAwareMaster) {
+            return;
+        }
+        router.get(
+            route(`textile.master-domains.${master}.index`, { domain }),
+            {},
+            { preserveState: true, replace: true }
+        );
+    };
+
+    const switchMasterType = (nextMaster: 'source-types' | 'source-actions') => {
+        if (nextMaster === master) {
+            return;
+        }
+        router.get(
+            route(`textile.master-domains.${nextMaster}.index`, { domain: activeDomain }),
+            {},
+            { preserveState: true, replace: true }
+        );
+    };
+
     const { data, setData, post, processing, reset } = useForm({ name: '', code: '', description: '', grade: '', parameters: '', steps: '', from_unit: '', to_unit: '', factor: '' });
     const { data: editData, setData: setEditData, post: postEdit, processing: editing, reset: resetEdit } = useForm({ record_id: '', name: '', code: '', description: '', grade: '', parameters: '', steps: '', from_unit: '', to_unit: '', factor: '' });
 
@@ -256,6 +294,42 @@ export default function Index({ master, records, masterDomain = null, masterDoma
     return (
         <AuthenticatedLayout breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t(title) }]} pageTitle={t(title)}>
             <Head title={t(title)} />
+            {domainAwareMaster ? (
+                <div className="mb-6 flex flex-wrap items-center gap-3">
+                    {isSourceMaster ? (
+                        <div className="flex items-center gap-1 rounded-lg border border-border p-1">
+                            <button
+                                type="button"
+                                onClick={() => switchMasterType('source-types')}
+                                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${master === 'source-types' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                            >
+                                <Hash className="h-3.5 w-3.5" />
+                                {t('Source Types')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => switchMasterType('source-actions')}
+                                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${master === 'source-actions' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                            >
+                                <Zap className="h-3.5 w-3.5" />
+                                {t('Source Actions')}
+                            </button>
+                        </div>
+                    ) : null}
+                    <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border p-1">
+                        {domainOptions.map((option) => (
+                            <button
+                                key={option.key}
+                                type="button"
+                                onClick={() => switchDomain(option.key)}
+                                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeDomain === option.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            ) : null}
             <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
                 <TextileFormCard title={t(`New ${config.title.slice(0, -1)}`)} icon={Factory} contentClassName="p-5 space-y-6">
                         <form onSubmit={submit} className="space-y-4">{fields}<Button type="submit" disabled={processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Create')}</Button></form>

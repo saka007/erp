@@ -109,7 +109,7 @@ export default function Variants({ variants, items, stats }: { variants: Variant
 
     return (
         <AuthenticatedLayout
-            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('Product Setup') }, { label: t('Product Variants') }]}
+            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('Products') }, { label: t('Product Variants') }]}
             pageTitle={t('Product Variants')}
         >
             <Head title={t('Product Variants')} />

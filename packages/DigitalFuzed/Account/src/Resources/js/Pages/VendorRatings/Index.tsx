@@ -108,7 +108,7 @@ export default function Index({ ratings, vendors }: { ratings: RatingRow[]; vend
 
     return (
         <AuthenticatedLayout
-            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('Supplier Setup') }, { label: t('Vendor Ratings') }]}
+            breadcrumbs={[{ label: t('Textile') }, { label: t('Master Setup') }, { label: t('CRM & Suppliers') }, { label: t('Vendor Ratings') }]}
             pageTitle={t('Vendor Ratings')}
         >
             <Head title={t('Vendor Ratings')} />

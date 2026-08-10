@@ -370,7 +370,7 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
         order: 261,
         children: [
                     {
-                        title: t('Core Setup'),
+                        title: t('Core Config'),
                         icon: Settings,
                         children: [
                             {
@@ -418,10 +418,16 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                                 href: route('textile.party-branches.index'),
                                 icon: Building2,
                             },
+                            {
+                                title: t('Source Types & Actions'),
+                                href: route('textile.master-domains.source-types.index', { domain: 'manufacturing' }),
+                                icon: Workflow,
+                                adminOnly: true,
+                            },
                         ],
                     },
                     {
-                        title: t('Manufacturing Source Setup'),
+                        title: t('Manufacturing'),
                         icon: Cog,
                         children: [
                             {
@@ -434,24 +440,6 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                                 href: route('account.vendors.index', { supplier_type: 'powerloom' }),
                                 icon: Factory,
                             },
-                            {
-                                title: t('Source Types'),
-                                href: route('textile.master-domains.source-types.index', { domain: 'manufacturing' }),
-                                icon: Hash,
-                                adminOnly: true,
-                            },
-                            {
-                                title: t('Source Actions'),
-                                href: route('textile.master-domains.source-actions.index', { domain: 'manufacturing' }),
-                                icon: Zap,
-                                adminOnly: true,
-                            },
-                        ],
-                    },
-                    {
-                        title: t('Loom Setup'),
-                        icon: Box,
-                        children: [
                             {
                                 title: t('Machine Types'),
                                 href: route('textile.master-domains.machine-types.index', { domain: 'manufacturing' }),
@@ -477,26 +465,10 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                                 href: route('textile.master-domains.maintenance-types.index', { domain: 'manufacturing' }),
                                 icon: Hammer,
                             },
-                        ],
-                    },
-                    {
-                        title: t('Beam and Cost Setup'),
-                        icon: Landmark,
-                        children: [
                             {
                                 title: t('Cost Types'),
                                 href: route('textile.master-domains.cost-types.index', { domain: 'manufacturing' }),
                                 icon: BadgeDollarSign,
-                            },
-                            {
-                                title: t('Inspection Results'),
-                                href: route('textile.master-domains.inspection-results.index', { domain: 'manufacturing' }),
-                                icon: CircleCheckBig,
-                            },
-                            {
-                                title: t('Fabric Defects'),
-                                href: route('textile.master-domains.fabric-defects.index', { domain: 'manufacturing' }),
-                                icon: CircleX,
                             },
                             {
                                 title: t('Fabric Grades'),
@@ -506,75 +478,9 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                         ],
                     },
                     {
-                        title: t('Inventory Setup'),
-                        icon: PackageOpen,
-                        children: [
-                            {
-                                title: t('Source Types'),
-                                href: route('textile.master-domains.source-types.index', { domain: 'inventory' }),
-                                icon: Hash,
-                                adminOnly: true,
-                            },
-                            {
-                                title: t('Source Actions'),
-                                href: route('textile.master-domains.source-actions.index', { domain: 'inventory' }),
-                                icon: Zap,
-                                adminOnly: true,
-                            },
-                        ],
-                    },
-                    {
-                        title: t('Sales Setup'),
-                        icon: BadgePercent,
-                        children: [
-                            {
-                                title: t('Source Types'),
-                                href: route('textile.master-domains.source-types.index', { domain: 'sales' }),
-                                icon: Hash,
-                                adminOnly: true,
-                            },
-                            {
-                                title: t('Source Actions'),
-                                href: route('textile.master-domains.source-actions.index', { domain: 'sales' }),
-                                icon: Zap,
-                                adminOnly: true,
-                            },
-                        ],
-                    },
-                    {
-                        title: t('Processing Setup'),
-                        icon: FlaskRound,
-                        children: [
-                            {
-                                title: t('Source Types'),
-                                href: route('textile.master-domains.source-types.index', { domain: 'processing' }),
-                                icon: Hash,
-                                adminOnly: true,
-                            },
-                            {
-                                title: t('Source Actions'),
-                                href: route('textile.master-domains.source-actions.index', { domain: 'processing' }),
-                                icon: Zap,
-                                adminOnly: true,
-                            },
-                        ],
-                    },
-                    {
-                        title: t('Quality Setup'),
+                        title: t('Quality'),
                         icon: Shield,
                         children: [
-                            {
-                                title: t('Source Types'),
-                                href: route('textile.master-domains.source-types.index', { domain: 'quality' }),
-                                icon: Hash,
-                                adminOnly: true,
-                            },
-                            {
-                                title: t('Source Actions'),
-                                href: route('textile.master-domains.source-actions.index', { domain: 'quality' }),
-                                icon: Zap,
-                                adminOnly: true,
-                            },
                             {
                                 title: t('Inspection Results'),
                                 href: route('textile.master-domains.inspection-results.index', { domain: 'quality' }),
@@ -588,39 +494,9 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                         ],
                     },
                     {
-                        title: t('Packing Setup'),
-                        icon: Barcode,
-                        children: [
-                            {
-                                title: t('Source Types'),
-                                href: route('textile.master-domains.source-types.index', { domain: 'packing' }),
-                                icon: Hash,
-                                adminOnly: true,
-                            },
-                            {
-                                title: t('Source Actions'),
-                                href: route('textile.master-domains.source-actions.index', { domain: 'packing' }),
-                                icon: Zap,
-                                adminOnly: true,
-                            },
-                        ],
-                    },
-                    {
-                        title: t('Dispatch Setup'),
+                        title: t('Dispatch & Transport'),
                         icon: MapPinned,
                         children: [
-                            {
-                                title: t('Source Types'),
-                                href: route('textile.master-domains.source-types.index', { domain: 'dispatch' }),
-                                icon: Hash,
-                                adminOnly: true,
-                            },
-                            {
-                                title: t('Source Actions'),
-                                href: route('textile.master-domains.source-actions.index', { domain: 'dispatch' }),
-                                icon: Zap,
-                                adminOnly: true,
-                            },
                             {
                                 title: t('Truck Numbers'),
                                 href: route('textile.master-domains.dispatch-truck-numbers.index', { domain: 'dispatch' }),
@@ -656,12 +532,6 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                                 href: route('textile.master-domains.dispatch-eway-bills.index', { domain: 'dispatch' }),
                                 icon: ReceiptText,
                             },
-                        ],
-                    },
-                    {
-                        title: t('Transport Setup'),
-                        icon: Bus,
-                        children: [
                             {
                                 title: t('Fuel Types'),
                                 href: route('textile.master-domains.fuel-types.index', { domain: 'transport' }),
@@ -673,14 +543,14 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                                 icon: Banknote,
                             },
                             {
-                                title: t('Maintenance Types'),
+                                title: t('Transport Maintenance Types'),
                                 href: route('textile.master-domains.maintenance-types.index', { domain: 'transport' }),
                                 icon: Wrench,
                             },
                         ],
                     },
                     {
-                        title: t('CRM Setup'),
+                        title: t('CRM & Suppliers'),
                         icon: Users,
                         children: [
                             {
@@ -708,12 +578,6 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                                 href: route('account.customer-documents.index'),
                                 icon: FolderOpen,
                             },
-                        ],
-                    },
-                    {
-                        title: t('Supplier Setup'),
-                        icon: Store,
-                        children: [
                             {
                                 title: t('Transport Vendors'),
                                 href: route('account.vendors.index', { supplier_type: 'transport' }),
@@ -732,7 +596,7 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                         ],
                     },
                     {
-                        title: t('Product Setup'),
+                        title: t('Products'),
                         icon: PackageSearch,
                         children: [
                             {
