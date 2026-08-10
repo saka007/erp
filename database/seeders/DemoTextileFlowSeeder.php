@@ -96,6 +96,7 @@ class DemoTextileFlowSeeder extends Seeder
     private function seedVendors(int $companyId): void
     {
         $attributes = [
+            'supplier_type' => 'yarn',
             'contact_person_name' => 'Rajesh Kumar',
             'contact_person_email' => 'rajesh@shreeyarn.com',
             'primary_email' => 'sales@shreeyarn.com',
