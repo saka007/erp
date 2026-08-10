@@ -118,6 +118,12 @@ export default function Index({
     const resolvedPartyOptions = partyOptions.map((value) => ({ value, label: value }));
     const resolvedLotReferenceOptions = lotReferenceOptions.map((value) => ({ value, label: value }));
     const resolvedUnitOptions = buildUnitOptions(unitOptions);
+    const selectedSupplierCredit = (() => {
+        const match = suppliers.find((supplier) => supplier.name === requisitionForm.data.party_name);
+        return match && match.credit_enabled
+            ? { days: match.credit_days ?? 0 }
+            : null;
+    })();
 
     const allDocuments = [...requisitions, ...rfqs, ...purchaseOrders, ...grns, ...incomingQcs, ...supplierClaims];
     const draftCount = allDocuments.filter((row) => row.status === 'draft').length;
@@ -275,6 +281,11 @@ export default function Index({
                                                 disabled={resolvedPartyOptions.length === 0}
                                                 disabledReason={t('No party options available yet. Create vendor profile first.')}
                                             />
+                                            {selectedSupplierCredit ? (
+                                                <p className="text-xs text-emerald-600 font-medium">
+                                                    {t('Credit Terms')}: {t('Payment allowed within')} {selectedSupplierCredit.days} {t('days')}
+                                                </p>
+                                            ) : null}
                                             <SelectField
                                                 label={t('Lot Reference')}
                                                 value={requisitionForm.data.lot_reference}

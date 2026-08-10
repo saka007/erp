@@ -17,6 +17,8 @@ export interface SupplierSummary {
     contact_mobile?: string | null;
     primary_email?: string | null;
     credit_limit?: string | null;
+    credit_days?: number | null;
+    credit_enabled?: boolean;
     payment_terms?: string | null;
     currency_code?: string | null;
     doc_count: number;
@@ -135,6 +137,12 @@ export function SupplierSummaryCard({ supplier }: { supplier?: SupplierSummary |
                             <dt className="text-muted-foreground">Credit Limit</dt>
                             <dd className="font-medium">{supplier.credit_limit ? Number(supplier.credit_limit).toLocaleString() : '—'}</dd>
                         </div>
+                        {supplier.credit_enabled ? (
+                            <div className="flex items-center justify-between gap-2">
+                                <dt className="text-muted-foreground">Credit Terms</dt>
+                                <dd className="font-medium text-emerald-700">{supplier.credit_days ?? 0} days</dd>
+                            </div>
+                        ) : null}
                         <div className="flex items-center justify-between gap-2">
                             <dt className="text-muted-foreground">Orders</dt>
                             <dd className="font-medium">{supplier.doc_count}</dd>

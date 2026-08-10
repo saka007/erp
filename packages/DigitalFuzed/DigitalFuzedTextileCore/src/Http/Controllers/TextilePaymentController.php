@@ -47,6 +47,7 @@ class TextilePaymentController extends Controller
         $validated = $request->validate([
             'party_type' => ['required', Rule::in([TextilePaymentReminderService::PARTY_SUPPLIER, TextilePaymentReminderService::PARTY_BUYER])],
             'party_id' => ['required', 'integer'],
+            'credit_enabled' => ['required', 'boolean'],
             'credit_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
             'reminder_enabled' => ['required', 'boolean'],

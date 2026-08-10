@@ -24,6 +24,10 @@ class Vendor extends Model
         'payment_terms',
         'currency_code',
         'credit_limit',
+        'credit_days',
+        'credit_enabled',
+        'reminder_enabled',
+        'branch_id',
         'billing_address',
         'shipping_address',
         'same_as_billing',
@@ -41,6 +45,8 @@ class Vendor extends Model
             'same_as_billing' => 'boolean',
             'is_active' => 'boolean',
             'credit_limit' => 'decimal:2',
+            'credit_enabled' => 'boolean',
+            'reminder_enabled' => 'boolean',
         ];
     }
 

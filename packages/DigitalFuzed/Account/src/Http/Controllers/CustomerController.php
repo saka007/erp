@@ -71,6 +71,8 @@ class CustomerController extends Controller
             $customer->tax_number = $validated['tax_number'] ?? null;
             $customer->payment_terms = $validated['payment_terms'] ?? null;
             $customer->credit_limit = isset($validated['credit_limit']) ? (float) $validated['credit_limit'] : null;
+            $customer->credit_days = isset($validated['credit_days']) ? (int) $validated['credit_days'] : null;
+            $customer->credit_enabled = (bool) ($validated['credit_enabled'] ?? false);
             $customer->default_rate = isset($validated['default_rate']) ? (float) $validated['default_rate'] : null;
             $customer->currency_code = isset($validated['currency_code']) ? strtoupper((string) $validated['currency_code']) : null;
             $customer->customer_category_id = $this->resolveCustomerCategoryId($validated['customer_category_id'] ?? null);
@@ -104,6 +106,8 @@ class CustomerController extends Controller
             $customer->tax_number = $validated['tax_number'] ?? null;
             $customer->payment_terms = $validated['payment_terms'] ?? null;
             $customer->credit_limit = isset($validated['credit_limit']) ? (float) $validated['credit_limit'] : null;
+            $customer->credit_days = isset($validated['credit_days']) ? (int) $validated['credit_days'] : null;
+            $customer->credit_enabled = (bool) ($validated['credit_enabled'] ?? false);
             $customer->default_rate = isset($validated['default_rate']) ? (float) $validated['default_rate'] : null;
             $customer->currency_code = isset($validated['currency_code']) ? strtoupper((string) $validated['currency_code']) : null;
             $customer->customer_category_id = $this->resolveCustomerCategoryId($validated['customer_category_id'] ?? null);

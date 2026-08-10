@@ -20,6 +20,10 @@ class Customer extends Model
         'tax_number',
         'payment_terms',
         'credit_limit',
+        'credit_days',
+        'credit_enabled',
+        'reminder_enabled',
+        'branch_id',
         'default_rate',
         'currency_code',
         'customer_category_id',
@@ -38,6 +42,8 @@ class Customer extends Model
         'billing_address' => 'array',
         'shipping_address' => 'array',
         'same_as_billing' => 'boolean',
+        'credit_enabled' => 'boolean',
+        'reminder_enabled' => 'boolean',
     ];
 
     protected static function boot()

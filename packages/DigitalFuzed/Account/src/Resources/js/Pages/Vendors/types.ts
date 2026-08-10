@@ -25,6 +25,8 @@ export interface Vendor {
     payment_terms?: string;
     currency_code: string;
     credit_limit?: number;
+    credit_days?: number;
+    credit_enabled?: boolean;
     billing_address: Address;
     shipping_address: Address;
     same_as_billing: boolean;
@@ -42,6 +44,9 @@ export interface CreateVendorFormData {
     contact_person_mobile: string;
     tax_number: string;
     payment_terms: string;
+    credit_limit?: number;
+    credit_days?: number;
+    credit_enabled?: boolean;
     billing_address: Address;
     shipping_address: Address;
     same_as_billing: boolean;

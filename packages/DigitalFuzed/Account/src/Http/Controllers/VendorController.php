@@ -67,6 +67,9 @@ class VendorController extends Controller
             $vendor->contact_person_mobile = $validated['contact_person_mobile'] ?? null;
             $vendor->tax_number = $validated['tax_number'] ?? null;
             $vendor->payment_terms = $validated['payment_terms'] ?? null;
+            $vendor->credit_limit = isset($validated['credit_limit']) ? (float) $validated['credit_limit'] : null;
+            $vendor->credit_days = isset($validated['credit_days']) ? (int) $validated['credit_days'] : null;
+            $vendor->credit_enabled = (bool) ($validated['credit_enabled'] ?? false);
             $vendor->billing_address = $validated['billing_address'];
             $vendor->shipping_address = $validated['same_as_billing'] ? $validated['billing_address'] : $validated['shipping_address'];
             $vendor->same_as_billing = $validated['same_as_billing'] ?? false;
@@ -94,6 +97,9 @@ class VendorController extends Controller
             $vendor->contact_person_mobile = $validated['contact_person_mobile'] ?? null;
             $vendor->tax_number = $validated['tax_number'] ?? null;
             $vendor->payment_terms = $validated['payment_terms'] ?? null;
+            $vendor->credit_limit = isset($validated['credit_limit']) ? (float) $validated['credit_limit'] : null;
+            $vendor->credit_days = isset($validated['credit_days']) ? (int) $validated['credit_days'] : null;
+            $vendor->credit_enabled = (bool) ($validated['credit_enabled'] ?? false);
             $vendor->billing_address = $validated['billing_address'];
             $vendor->shipping_address = $validated['same_as_billing'] ? $validated['billing_address'] : $validated['shipping_address'];
             $vendor->same_as_billing = $validated['same_as_billing'] ?? false;

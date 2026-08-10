@@ -19,7 +19,7 @@ import { CalendarDays, Package } from 'lucide-react';
 
 interface EditProps {
     quotation: Quotation;
-    customers: Array<{id: number; name: string; email: string}>;
+    customers: Array<{id: number; name: string; email: string; credit_days?: number | null; credit_enabled?: boolean}>;
     warehouses: Array<{id: number; name: string; address: string}>;
     default_warehouse_id?: number | null;
     quotation_types?: Array<{value: string; label: string}>;
@@ -194,6 +194,14 @@ export default function Edit() {
                                         </SelectContent>
                                     </Select>
                                     <InputError message={errors.customer_id} />
+                                    {data.customer_id ? (() => {
+                                        const customer = customers.find((row) => String(row.id) === data.customer_id);
+                                        return customer?.credit_enabled ? (
+                                            <p className="text-xs text-emerald-600 font-medium mt-1">
+                                                {t('Credit Terms')}: {t('Payment allowed within')} {customer.credit_days ?? 0} {t('days')}
+                                            </p>
+                                        ) : null;
+                                    })() : null}
                                 </div>
 
                                 <div>

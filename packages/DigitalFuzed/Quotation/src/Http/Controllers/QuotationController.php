@@ -737,6 +737,8 @@ class QuotationController extends Controller
                 'id'    => $userId,
                 'name'  => $customer->company_name ?: ($customer->contact_person_name ?: 'Customer ' . $customer->id),
                 'email' => $customer->contact_person_email ?: '',
+                'credit_days' => $customer->credit_days !== null ? (int) $customer->credit_days : null,
+                'credit_enabled' => (bool) ($customer->credit_enabled ?? false),
             ];
         })->values()->all();
     }

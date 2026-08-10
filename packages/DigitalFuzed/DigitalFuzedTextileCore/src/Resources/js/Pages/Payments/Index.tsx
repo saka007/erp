@@ -40,6 +40,7 @@ interface VendorRow {
     direction: 'pay' | 'receive';
     credit_days?: number | null;
     credit_limit?: number | null;
+    credit_enabled?: boolean;
     reminder_enabled: boolean;
     branch_id?: number | null;
     branch_name?: string | null;
@@ -70,6 +71,7 @@ interface PartyMaster {
     party_email?: string | null;
     credit_days?: number | null;
     credit_limit?: number | null;
+    credit_enabled?: boolean;
     reminder_enabled: boolean;
     branch_id?: number | null;
 }
@@ -138,6 +140,7 @@ export default function Index({
         party_key: '',
         credit_days: '',
         credit_limit: '',
+        credit_enabled: false,
         reminder_enabled: true,
         branch_id: '',
     });
@@ -150,6 +153,7 @@ export default function Index({
             party_key: partyKey,
             credit_days: party?.credit_days != null ? String(party.credit_days) : '',
             credit_limit: party?.credit_limit != null ? String(party.credit_limit) : '',
+            credit_enabled: party?.credit_enabled ?? false,
             reminder_enabled: party?.reminder_enabled ?? true,
             branch_id: party?.branch_id != null ? String(party.branch_id) : '',
         });
@@ -299,6 +303,15 @@ export default function Index({
                                                         onChange={(value: string) => creditForm.setData('credit_limit', value)}
                                                     />
                                                 </div>
+                                                <label className="flex items-center gap-2 text-sm">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={creditForm.data.credit_enabled}
+                                                        onChange={(e) => creditForm.setData('credit_enabled', e.target.checked)}
+                                                        className="h-4 w-4 rounded border-gray-300 text-emerald-600"
+                                                    />
+                                                    {t('Credit enabled for this party (allow payment within credit days)')}
+                                                </label>
                                                 <SelectField
                                                     label={t('Branch')}
                                                     value={creditForm.data.branch_id}
@@ -352,6 +365,15 @@ export default function Index({
                                                         )),
                                                     },
                                                     { key: 'credit_days', header: t('Credit Days'), render: (row) => row.credit_days ?? '-' },
+                                                    {
+                                                        key: 'credit_enabled',
+                                                        header: t('Credit'),
+                                                        render: (row) => (row.credit_enabled ? (
+                                                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">{t('On')}</span>
+                                                        ) : (
+                                                            <span className="text-gray-400">{t('Off')}</span>
+                                                        )),
+                                                    },
                                                     {
                                                         key: 'reminder_enabled',
                                                         header: t('Reminders'),

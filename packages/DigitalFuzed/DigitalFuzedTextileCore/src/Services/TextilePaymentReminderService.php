@@ -188,6 +188,7 @@ class TextilePaymentReminderService
         }
 
         $party->fill([
+            'credit_enabled' => (bool) ($payload['credit_enabled'] ?? false),
             'credit_days' => $payload['credit_days'] !== null && $payload['credit_days'] !== '' ? (int) $payload['credit_days'] : null,
             'credit_limit' => $payload['credit_limit'] !== null && $payload['credit_limit'] !== '' ? (float) $payload['credit_limit'] : null,
             'reminder_enabled' => (bool) $payload['reminder_enabled'],
@@ -310,6 +311,7 @@ class TextilePaymentReminderService
                 'party_type' => self::PARTY_SUPPLIER,
                 'party_name' => $vendor->company_name,
                 'party_email' => $vendor->contact_person_email ?: $vendor->primary_email,
+                'credit_enabled' => (bool) ($vendor->credit_enabled ?? false),
                 'credit_days' => $vendor->credit_days,
                 'credit_limit' => $vendor->credit_limit !== null ? (float) $vendor->credit_limit : null,
                 'reminder_enabled' => (bool) ($vendor->reminder_enabled ?? true),
@@ -334,6 +336,7 @@ class TextilePaymentReminderService
             'party_type' => self::PARTY_BUYER,
             'party_name' => $customer->company_name,
             'party_email' => $customer->contact_person_email,
+            'credit_enabled' => (bool) ($customer->credit_enabled ?? false),
             'credit_days' => $customer->credit_days,
             'credit_limit' => $customer->credit_limit !== null ? (float) $customer->credit_limit : null,
             'reminder_enabled' => (bool) ($customer->reminder_enabled ?? true),
@@ -375,7 +378,12 @@ class TextilePaymentReminderService
                 ->first();
         }
 
-        return $party?->credit_days;
+        // Credit only applies when the party has explicitly opted into it.
+        if ($party === null || ! (bool) ($party->credit_enabled ?? false)) {
+            return 0;
+        }
+
+        return $party->credit_days;
     }
 
     private function branchName(?int $branchId, ?int $tenantId): ?string
@@ -476,6 +484,7 @@ class TextilePaymentReminderService
             'party_email' => $partyType === self::PARTY_SUPPLIER
                 ? ($party->contact_person_email ?: $party->primary_email)
                 : $party->contact_person_email,
+            'credit_enabled' => (bool) ($party->credit_enabled ?? false),
             'credit_days' => $party->credit_days !== null ? (int) $party->credit_days : null,
             'credit_limit' => $party->credit_limit !== null ? (float) $party->credit_limit : null,
             'reminder_enabled' => (bool) ($party->reminder_enabled ?? true),
@@ -493,6 +502,7 @@ class TextilePaymentReminderService
             'party_name' => $row['party_name'],
             'party_email' => $row['party_email'],
             'direction' => $direction,
+            'credit_enabled' => (bool) ($row['credit_enabled'] ?? false),
             'credit_days' => $row['credit_days'] !== null ? (int) $row['credit_days'] : null,
             'credit_limit' => $row['credit_limit'] !== null ? (float) $row['credit_limit'] : null,
             'reminder_enabled' => (bool) $row['reminder_enabled'],

@@ -39,6 +39,8 @@ interface CustomerOption {
     material_ownership?: string | null;
     billing_mode?: string | null;
     default_rate?: number | null;
+    credit_days?: number | null;
+    credit_enabled?: boolean;
 }
 
 interface QuotationRecord {
@@ -283,6 +285,11 @@ export default function Index({
                                             <div><span className="text-muted-foreground">{t('Operating Model')}</span><p className="font-medium">{formatTextileLabel(customer.operating_model || '-')}</p></div>
                                             <div><span className="text-muted-foreground">{t('Material Ownership')}</span><p className="font-medium">{formatTextileLabel(customer.material_ownership || '-')}</p></div>
                                             <div><span className="text-muted-foreground">{t('Billing Mode')}</span><p className="font-medium">{formatTextileLabel(customer.billing_mode || '-')}</p></div>
+                                            {customer.credit_enabled ? (
+                                                <div className="col-span-3 rounded-md bg-emerald-50 px-3 py-2 text-emerald-700">
+                                                    <span className="font-medium">{t('Credit Terms')}:</span> {t('Payment allowed within')} {customer.credit_days ?? 0} {t('days')}
+                                                </div>
+                                            ) : null}
                                         </div> : null;
                                     })() : null}
                                     <div className="space-y-2">

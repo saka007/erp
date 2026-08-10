@@ -115,6 +115,40 @@ export default function Edit({ vendor, onSuccess }: EditVendorProps) {
                         <InputError message={errors.payment_terms} />
                     </div>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <Label htmlFor="credit_limit">{t('Credit Limit')}</Label>
+                        <Input
+                            id="credit_limit"
+                            type="number"
+                            value={data.credit_limit ?? ''}
+                            onChange={(e) => setData('credit_limit', e.target.value ? Number(e.target.value) : undefined)}
+                            placeholder={t('Enter credit limit')}
+                        />
+                        <InputError message={errors.credit_limit} />
+                    </div>
+                    <div>
+                        <Label htmlFor="credit_days">{t('Credit Days')}</Label>
+                        <Input
+                            id="credit_days"
+                            type="number"
+                            value={data.credit_days ?? ''}
+                            onChange={(e) => setData('credit_days', e.target.value ? Number(e.target.value) : undefined)}
+                            placeholder={t('e.g., 30')}
+                        />
+                        <InputError message={errors.credit_days} />
+                    </div>
+                    <div className="flex items-end pb-2">
+                        <div className="flex items-center space-x-2">
+                            <Checkbox
+                                id="credit_enabled"
+                                checked={data.credit_enabled}
+                                onCheckedChange={(checked) => setData('credit_enabled', !!checked)}
+                            />
+                            <Label htmlFor="credit_enabled">{t('Credit Enabled')}</Label>
+                        </div>
+                    </div>
+                </div>
                 <div>
                     <Label htmlFor="billing_name">{t('Billing Name')}</Label>
                     <Input

@@ -248,10 +248,32 @@ class TextileProcurementService
             return $grn;
         }
 
+        $invoiceDate = now()->toDateString();
+
+        // Credit terms: the vendor's credit_days apply only when the vendor has
+        // explicitly opted into credit (credit_enabled). Otherwise the invoice
+        // is due on the invoice date (pay on delivery).
+        $dueDate = $invoiceDate;
+        $paymentTerms = null;
+
+        if (class_exists(\Workdo\Account\Models\Vendor::class)) {
+            $vendor = \Workdo\Account\Models\Vendor::query()
+                ->where(function ($query) use ($vendorId) {
+                    $query->where('user_id', $vendorId)->orWhere('id', $vendorId);
+                })
+                ->where('created_by', $grn->created_by)
+                ->first();
+
+            if ($vendor && (bool) ($vendor->credit_enabled ?? false) && (int) ($vendor->credit_days ?? 0) > 0) {
+                $dueDate = \Carbon\Carbon::parse($invoiceDate)->addDays((int) $vendor->credit_days)->toDateString();
+                $paymentTerms = sprintf('Net %d', (int) $vendor->credit_days);
+            }
+        }
+
         $invoice = PurchaseInvoice::query()->create([
             'invoice_number' => sprintf('TX-GRN-%s', str_pad((string) $grn->id, 6, '0', STR_PAD_LEFT)),
-            'invoice_date' => now()->toDateString(),
-            'due_date' => now()->addDays(15)->toDateString(),
+            'invoice_date' => $invoiceDate,
+            'due_date' => $dueDate,
             'vendor_id' => $vendorId,
             'warehouse_id' => $warehouseId,
             'subtotal' => $amount,
@@ -262,7 +284,7 @@ class TextileProcurementService
             'debit_note_applied' => 0,
             'balance_amount' => $amount,
             'status' => 'draft',
-            'payment_terms' => null,
+            'payment_terms' => $paymentTerms,
             'notes' => sprintf('Draft invoice from GRN %s (%s).', $grn->id, $grn->document_number),
             'creator_id' => $grn->creator_id,
             'created_by' => $grn->created_by,

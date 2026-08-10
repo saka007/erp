@@ -501,6 +501,8 @@ class TextileProcurementController extends Controller
                     'contact_mobile' => $vendor->contact_person_mobile,
                     'primary_email' => $vendor->primary_email,
                     'credit_limit' => $vendor->credit_limit,
+                    'credit_days' => $vendor->credit_days,
+                    'credit_enabled' => (bool) ($vendor->credit_enabled ?? false),
                     'payment_terms' => $vendor->payment_terms,
                     'currency_code' => $vendor->currency_code,
                     'doc_count' => $vendorStats?->doc_count ?? 0,
