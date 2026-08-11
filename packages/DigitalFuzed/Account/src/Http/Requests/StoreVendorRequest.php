@@ -34,6 +34,7 @@ class StoreVendorRequest extends FormRequest
             'credit_limit' => 'nullable|numeric|min:0',
             'credit_days' => 'nullable|integer|min:0|max:3650',
             'credit_enabled' => 'nullable|boolean',
+            'reminder_enabled' => 'nullable|boolean',
             'billing_address' => 'required|array',
             'billing_address.name' => 'required|string|max:255',
             'billing_address.address_line_1' => 'required|string|max:255',

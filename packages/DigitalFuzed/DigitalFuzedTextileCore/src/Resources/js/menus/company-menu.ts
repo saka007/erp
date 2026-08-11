@@ -96,12 +96,6 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
         order: 260,
         children: [
             {
-                title: t('Parties'),
-                href: route('textile.parties.index'),
-                capability: 'payments',
-                icon: Users,
-            },
-            {
                 title: t('Procurement'),
                 href: route('textile.procurement.index'),
                 capability: 'procurement',

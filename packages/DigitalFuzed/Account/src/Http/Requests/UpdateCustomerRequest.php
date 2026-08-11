@@ -33,6 +33,7 @@ class UpdateCustomerRequest extends FormRequest
             'credit_limit' => 'nullable|numeric|min:0',
             'credit_days' => 'nullable|integer|min:0|max:3650',
             'credit_enabled' => 'nullable|boolean',
+            'reminder_enabled' => 'nullable|boolean',
             'default_rate' => 'nullable|numeric|min:0',
             'currency_code' => 'nullable|string|max:10',
             'customer_category_id' => 'nullable|integer|min:1',

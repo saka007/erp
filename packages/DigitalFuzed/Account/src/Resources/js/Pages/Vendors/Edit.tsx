@@ -184,13 +184,23 @@ export default function Edit({ vendor, items = [], onSuccess }: EditVendorProps)
                         <InputError message={errors.credit_days} />
                     </div>
                     <div className="flex items-end pb-2">
-                        <div className="flex items-center space-x-2">
-                            <Checkbox
-                                id="credit_enabled"
-                                checked={data.credit_enabled}
-                                onCheckedChange={(checked) => setData('credit_enabled', !!checked)}
-                            />
-                            <Label htmlFor="credit_enabled">{t('Credit Enabled')}</Label>
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    id="credit_enabled"
+                                    checked={data.credit_enabled}
+                                    onCheckedChange={(checked) => setData('credit_enabled', !!checked)}
+                                />
+                                <Label htmlFor="credit_enabled">{t('Credit Enabled')}</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    id="reminder_enabled"
+                                    checked={data.reminder_enabled}
+                                    onCheckedChange={(checked) => setData('reminder_enabled', !!checked)}
+                                />
+                                <Label htmlFor="reminder_enabled">{t('Payment Reminders')}</Label>
+                            </div>
                         </div>
                     </div>
                 </div>

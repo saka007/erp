@@ -78,6 +78,7 @@ class VendorController extends Controller
             $vendor->credit_limit = isset($validated['credit_limit']) ? (float) $validated['credit_limit'] : null;
             $vendor->credit_days = isset($validated['credit_days']) ? (int) $validated['credit_days'] : null;
             $vendor->credit_enabled = (bool) ($validated['credit_enabled'] ?? false);
+            $vendor->reminder_enabled = (bool) ($validated['reminder_enabled'] ?? false);
             $vendor->billing_address = $validated['billing_address'];
             $vendor->shipping_address = $validated['same_as_billing'] ? $validated['billing_address'] : $validated['shipping_address'];
             $vendor->same_as_billing = $validated['same_as_billing'] ?? false;
@@ -110,6 +111,7 @@ class VendorController extends Controller
             $vendor->credit_limit = isset($validated['credit_limit']) ? (float) $validated['credit_limit'] : null;
             $vendor->credit_days = isset($validated['credit_days']) ? (int) $validated['credit_days'] : null;
             $vendor->credit_enabled = (bool) ($validated['credit_enabled'] ?? false);
+            $vendor->reminder_enabled = (bool) ($validated['reminder_enabled'] ?? false);
             $vendor->billing_address = $validated['billing_address'];
             $vendor->shipping_address = $validated['same_as_billing'] ? $validated['billing_address'] : $validated['shipping_address'];
             $vendor->same_as_billing = $validated['same_as_billing'] ?? false;

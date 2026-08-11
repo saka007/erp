@@ -22,6 +22,7 @@ export interface Customer {
   credit_limit?: number;
   credit_days?: number;
   credit_enabled?: boolean;
+  reminder_enabled?: boolean;
   default_rate?: number;
   currency_code?: string;
   operating_model?: string;
@@ -85,6 +86,7 @@ export interface CustomerFormData {
   credit_limit?: number;
   credit_days?: number;
   credit_enabled?: boolean;
+  reminder_enabled?: boolean;
   default_rate?: number;
   currency_code?: string;
   operating_model?: string;

@@ -27,6 +27,7 @@ export interface Vendor {
     credit_limit?: number;
     credit_days?: number;
     credit_enabled?: boolean;
+    reminder_enabled?: boolean;
     billing_address: Address;
     shipping_address: Address;
     same_as_billing: boolean;
@@ -56,6 +57,7 @@ export interface CreateVendorFormData {
     credit_limit?: number;
     credit_days?: number;
     credit_enabled?: boolean;
+    reminder_enabled?: boolean;
     billing_address: Address;
     shipping_address: Address;
     same_as_billing: boolean;
