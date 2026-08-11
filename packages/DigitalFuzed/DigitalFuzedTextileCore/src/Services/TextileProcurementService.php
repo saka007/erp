@@ -6,6 +6,7 @@ use App\Models\PurchaseInvoice;
 use App\Models\User;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
+use DigitalFuzed\TextileCore\Support\TextileWarehouseResolver;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Services\TextileMovementService;
 use Illuminate\Support\Facades\Schema;
@@ -242,6 +243,10 @@ class TextileProcurementService
         $sourceMetadata = is_array($sourceDocument?->metadata) ? $sourceDocument->metadata : [];
         $metadataVendorId = isset($sourceMetadata['vendor_id']) ? (int) $sourceMetadata['vendor_id'] : 0;
         $warehouseId = isset($sourceMetadata['warehouse_id']) ? (int) $sourceMetadata['warehouse_id'] : null;
+        // GRN/PO metadata may not carry a warehouse — fall back to the tenant's
+        // active-branch warehouse (or first active warehouse) so the generated
+        // invoice can be posted without a warehouse_id NULL crash.
+        $warehouseId = TextileWarehouseResolver::resolve($warehouseId, (int) $grn->created_by);
         $amount = (float) ($sourceMetadata['invoice_amount'] ?? 0);
 
         // The requisition stores the Vendor.id (account vendors table). Purchase

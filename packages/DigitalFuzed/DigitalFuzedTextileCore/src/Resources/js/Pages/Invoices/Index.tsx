@@ -1,18 +1,24 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
+import { useState } from 'react';
 import {
     BadgeCheck,
     Banknote,
     CheckCircle2,
     CircleDollarSign,
     Clock,
+    Download,
+    Edit as EditIcon,
+    Eye,
     FileEdit,
+    FileText,
     ListChecks,
     Receipt,
     ReceiptText,
     Send,
     ShoppingBag,
     ShoppingCart,
+    Trash2,
     Workflow,
 } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
@@ -20,6 +26,9 @@ import { TextileDataTableCard } from '@/components/textile/textile-data-table-ca
 import { TextileSection } from '@/components/textile/textile-section';
 import { TextileWorkspace } from '@/components/textile/textile-workspace';
 import { getTextileWorkspace } from '@/components/textile/textile-workspaces';
+import { Button } from '@/components/ui/button';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency } from '@/utils/helpers';
 import { PageProps } from '@/types';
 
@@ -108,6 +117,141 @@ export default function Index({
         );
     };
 
+    const [deleteTarget, setDeleteTarget] = useState<{ id: number; routeName: string } | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const invoiceActions = (row: InvoiceRow, kind: 'sales' | 'purchase') => {
+        const permissions = auth.user?.permissions || [];
+        const paramName = kind === 'sales' ? 'sales_invoice' : 'purchase_invoice';
+        const printRoute = kind === 'sales' ? 'sales-invoices.print' : 'purchase-invoices.print';
+        const showRoute = kind === 'sales' ? 'sales-invoices.show' : 'purchase-invoices.show';
+        const postRoute = kind === 'sales' ? 'sales-invoices.post' : 'purchase-invoices.post';
+        const editRoute = kind === 'sales' ? 'sales-invoices.edit' : 'purchase-invoices.edit';
+        const destroyRoute = kind === 'sales' ? 'sales-invoices.destroy' : 'purchase-invoices.destroy';
+        const canPrint = permissions.includes(`${kind === 'sales' ? 'print-sales-invoices' : 'print-purchase-invoices'}`);
+        const canView = permissions.includes(`${kind === 'sales' ? 'view-sales-invoices' : 'view-purchase-invoices'}`);
+        const canPost = permissions.includes(`${kind === 'sales' ? 'post-sales-invoices' : 'post-purchase-invoices'}`);
+        const canEdit = permissions.includes(`${kind === 'sales' ? 'edit-sales-invoices' : 'edit-purchase-invoices'}`);
+        const canDelete = permissions.includes(`${kind === 'sales' ? 'delete-sales-invoices' : 'delete-purchase-invoices'}`);
+
+        return (
+            <div className="flex gap-1">
+                <TooltipProvider>
+                    {canPrint && (
+                        <Tooltip delayDuration={0}>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => window.open(route(printRoute, { [paramName]: row.id }) + '?download=pdf', '_blank')}
+                                    className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700"
+                                >
+                                    <Download className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>{t('Download PDF')}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    )}
+                    {canView && (
+                        <Tooltip delayDuration={0}>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => router.get(route(showRoute, { [paramName]: row.id }))}
+                                    className="h-8 w-8 p-0 text-green-600 hover:text-green-700"
+                                >
+                                    <Eye className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>{t('View')}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    )}
+                    {row.status === 'draft' && (
+                        <>
+                            {canPost && (
+                                <Tooltip delayDuration={0}>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => router.post(route(postRoute, { [paramName]: row.id }))}
+                                            className="h-8 w-8 p-0 text-purple-600 hover:text-purple-700"
+                                        >
+                                            <FileText className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{t('Post invoice to finalize and create journal entries')}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            )}
+                            {canEdit && (
+                                <Tooltip delayDuration={0}>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => router.visit(route(editRoute, { [paramName]: row.id }))}
+                                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700"
+                                        >
+                                            <EditIcon className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{t('Edit')}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            )}
+                            {canDelete && (
+                                <Tooltip delayDuration={0}>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setDeleteTarget({ id: row.id, routeName: destroyRoute })}
+                                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{t('Delete')}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            )}
+                        </>
+                    )}
+                </TooltipProvider>
+            </div>
+        );
+    };
+
+    const actionsColumn = (kindForRow: (row: InvoiceRow) => 'sales' | 'purchase') => ({
+        key: 'actions',
+        header: t('Actions'),
+        render: (_value: unknown, row: InvoiceRow) => invoiceActions(row, kindForRow(row)),
+    });
+
+    const confirmDelete = () => {
+        if (!deleteTarget) {
+            return;
+        }
+
+        setIsDeleting(true);
+        router.delete(route(deleteTarget.routeName, { [deleteTarget.routeName.includes('sales') ? 'sales_invoice' : 'purchase_invoice']: deleteTarget.id }), {
+            onSuccess: () => {
+                setDeleteTarget(null);
+                setIsDeleting(false);
+            },
+            onError: () => setIsDeleting(false),
+        });
+    };
+
     const sharedColumns = (kind: 'sales' | 'purchase') => [
         { key: 'invoice_number', header: t('Invoice'), render: (_value: unknown, row: InvoiceRow) => invoiceNumberLink(row, kind) },
         { key: 'invoice_date', header: t('Date'), render: (_value: unknown, row: InvoiceRow) => formatDate(row.invoice_date) },
@@ -119,7 +263,21 @@ export default function Index({
         { key: 'balance_amount', header: t('Balance'), render: (_value: unknown, row: InvoiceRow) => formatCurrency(row.balance_amount) },
         { key: 'status', header: t('Status'), render: (_value: unknown, row: InvoiceRow) => <StatusBadge status={row.status} /> },
         { key: 'due_date', header: t('Due Date'), render: (_value: unknown, row: InvoiceRow) => formatDate(row.due_date) },
+        ...(hasAnyInvoicePermission ? [actionsColumn(() => kind)] : []),
     ];
+
+    const hasAnyInvoicePermission = (auth.user?.permissions || []).some((permission: string) => [
+        'view-sales-invoices',
+        'edit-sales-invoices',
+        'delete-sales-invoices',
+        'post-sales-invoices',
+        'print-sales-invoices',
+        'view-purchase-invoices',
+        'edit-purchase-invoices',
+        'delete-purchase-invoices',
+        'post-purchase-invoices',
+        'print-purchase-invoices',
+    ].includes(permission));
 
     return (
         <AuthenticatedLayout
@@ -258,6 +416,7 @@ export default function Index({
                                                 { key: 'total_amount', header: t('Total'), render: (_value: unknown, row: InvoiceRow) => formatCurrency(row.total_amount) },
                                                 { key: 'balance_amount', header: t('Balance'), render: (_value: unknown, row: InvoiceRow) => formatCurrency(row.balance_amount) },
                                                 { key: 'status', header: t('Status'), render: (_value: unknown, row: InvoiceRow) => <StatusBadge status={row.status} /> },
+                                                ...(hasAnyInvoicePermission ? [actionsColumn((row) => row.kind === 'purchase' ? 'purchase' : 'sales')] : []),
                                             ]}
                                         />
                                     }
@@ -305,6 +464,17 @@ export default function Index({
                     }
                 }}
             </TextileWorkspace>
+
+            <ConfirmationDialog
+                open={deleteTarget !== null}
+                onOpenChange={(open) => { if (!open) { setDeleteTarget(null); } }}
+                title={t('Delete Invoice')}
+                message={t('Are you sure you want to delete this invoice? This action cannot be undone.')}
+                confirmText={isDeleting ? t('Deleting...') : t('Delete')}
+                cancelText={t('Cancel')}
+                variant="destructive"
+                onConfirm={confirmDelete}
+            />
         </AuthenticatedLayout>
     );
 }

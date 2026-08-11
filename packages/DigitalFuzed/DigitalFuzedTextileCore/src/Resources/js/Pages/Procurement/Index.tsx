@@ -76,6 +76,7 @@ export default function Index({
     lotReferenceOptions,
     suppliers,
     items,
+    warehouses,
     recentActivity,
 }: {
     requisitions: WorkflowDocument[];
@@ -90,6 +91,7 @@ export default function Index({
     lotReferenceOptions: string[];
     suppliers: SupplierSummary[];
     items: ProductItem[];
+    warehouses: Array<{ id: number; name: string; address?: string | null; branch_id?: number | null }>;
     recentActivity: ActivityItem[];
 }) {
     const { t } = useTranslation();
@@ -121,6 +123,7 @@ export default function Index({
         expected_date: '',
         remarks: '',
         warehouse: '',
+        warehouse_id: '',
     });
 
     const rfqForm = useForm({ requisition_id: '' });
@@ -333,7 +336,7 @@ export default function Index({
                                 <form className="space-y-4" onSubmit={(e) => {
                                     e.preventDefault();
                                     requisitionForm.post(route('textile.procurement.requisitions.store'), {
-                                        onSuccess: () => requisitionForm.reset('party_name', 'vendor_id', 'lot_reference', 'quantity', 'product_service_item_id', 'rate', 'required_for', 'expected_date', 'remarks', 'warehouse'),
+                                        onSuccess: () => requisitionForm.reset('party_name', 'vendor_id', 'lot_reference', 'quantity', 'product_service_item_id', 'rate', 'required_for', 'expected_date', 'remarks', 'warehouse', 'warehouse_id'),
                                     });
                                 }}>
                                     <TextileFormErrors errors={requisitionForm.errors} />
@@ -426,7 +429,20 @@ export default function Index({
                                                     {t('Expected Amount')}: {requisitionAmount.toFixed(2)}
                                                 </p>
                                             ) : null}
-                                            {canSelectAnyWarehouse ? (
+                                            {warehouses.length > 0 ? (
+                                                <SelectField
+                                                    label={t('Warehouse')}
+                                                    value={requisitionForm.data.warehouse_id}
+                                                    onChange={(v) => requisitionForm.setData('warehouse_id', v)}
+                                                    options={warehouses.map((warehouse) => ({
+                                                        value: String(warehouse.id),
+                                                        label: warehouse.address ? `${warehouse.name} (${warehouse.address})` : warehouse.name,
+                                                    }))}
+                                                    includeEmpty
+                                                    emptyLabel={t('Select receiving warehouse')}
+                                                    helperText={t('Warehouse is scoped to the active branch. The GRN purchase invoice will be posted against this warehouse.')}
+                                                />
+                                            ) : canSelectAnyWarehouse ? (
                                                 <Field label={t('Warehouse')} value={requisitionForm.data.warehouse} onChange={(v) => requisitionForm.setData('warehouse', v)} />
                                             ) : null}
                                             <Field label={t('Expected Date')} type="date" value={requisitionForm.data.expected_date} onChange={(v) => requisitionForm.setData('expected_date', v)} />

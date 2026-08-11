@@ -50,8 +50,32 @@ class TextileProcurementController extends Controller
             'lotReferenceOptions' => $this->lotReferenceOptions(),
             'suppliers' => $this->supplierSummaries(),
             'items' => $this->items(),
+            'warehouses' => $this->warehouses(),
             'recentActivity' => $this->recentActivity(),
         ]);
+    }
+
+    /**
+     * Branch-scoped warehouses for the current user (used by the requisition
+     * form so the user can pick the receiving warehouse per branch).
+     */
+    protected function warehouses(): array
+    {
+        if (! Schema::hasTable('warehouses')) {
+            return [];
+        }
+
+        return $this->scopedWarehouseQuery(Auth::user())
+            ->select('id', 'name', 'address', 'branch_id')
+            ->get()
+            ->map(fn ($warehouse) => [
+                'id' => (int) $warehouse->id,
+                'name' => $warehouse->name,
+                'address' => $warehouse->address,
+                'branch_id' => $warehouse->branch_id ? (int) $warehouse->branch_id : null,
+            ])
+            ->values()
+            ->all();
     }
 
     public function storeRequisition(Request $request, TextileProcurementService $service)
@@ -73,6 +97,7 @@ class TextileProcurementController extends Controller
             'expected_date' => ['nullable', 'date'],
             'remarks' => ['nullable', 'string', 'max:500'],
             'warehouse' => ['nullable', 'string', 'max:100'],
+            'warehouse_id' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $rate = isset($validated['rate']) ? (float) $validated['rate'] : null;
@@ -97,6 +122,7 @@ class TextileProcurementController extends Controller
                     'expected_date' => $validated['expected_date'] ?? null,
                     'remarks' => $validated['remarks'] ?? null,
                     'warehouse' => $validated['warehouse'] ?? null,
+                    'warehouse_id' => ! empty($validated['warehouse_id']) ? (int) $validated['warehouse_id'] : null,
                     'vendor_id' => ! empty($validated['vendor_id']) ? (int) $validated['vendor_id'] : null,
                     'product_service_item_id' => $product?->id ?? null,
                     'item_name' => $product?->name ?? null,

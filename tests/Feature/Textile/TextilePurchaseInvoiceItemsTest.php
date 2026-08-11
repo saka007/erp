@@ -8,15 +8,18 @@ use App\Models\PurchaseInvoice;
 use App\Models\PurchaseInvoiceItem;
 use App\Models\User;
 use App\Models\UserActiveModule;
+use App\Models\Warehouse;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Services\TextileProcurementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 use Workdo\Account\Models\Vendor;
 use Workdo\Hrm\Models\Branch;
 use Workdo\ProductService\Models\ProductServiceItem;
 use Workdo\ProductService\Models\ProductServiceUnit;
+use Workdo\ProductService\Models\WarehouseStock;
 
 class TextilePurchaseInvoiceItemsTest extends TestCase
 {
@@ -132,6 +135,159 @@ class TextilePurchaseInvoiceItemsTest extends TestCase
         $this->assertSame(0, $invoice->items()->count());
     }
 
+    public function test_grn_generated_invoice_can_be_posted_without_warehouse_id_crash(): void
+    {
+        $company = $this->enableTextileModule();
+        $branch = Branch::create(['branch_name' => 'PI Branch WH', 'creator_id' => $company->id, 'created_by' => $company->id]);
+        $this->actingAs($company)->withSession(['active_branch_id' => $branch->id]);
+
+        $warehouse = Warehouse::create([
+            'name' => 'Main Warehouse',
+            'address' => 'Plot 12, GIDC',
+            'city' => 'Ahmedabad',
+            'zip_code' => '382445',
+            'branch_id' => $branch->id,
+            'is_active' => true,
+            'creator_id' => $company->id,
+            'created_by' => $company->id,
+        ]);
+
+        $vendor = $this->makeVendor($company);
+        $this->linkVendorUser($vendor);
+        $product = $this->makeProduct($company, 'YRN-PI-WH-001');
+
+        // Requisition now carries warehouse_id so the metadata chain keeps it.
+        $this->actingAs($company)
+            ->post(route('textile.procurement.requisitions.store'), [
+                'party_name' => $vendor->company_name,
+                'vendor_id' => $vendor->id,
+                'quantity' => 100,
+                'unit' => 'kg',
+                'product_service_item_id' => $product->id,
+                'rate' => 170,
+                'warehouse_id' => $warehouse->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $requisition = $this->latestDocument($company->id, 'purchase_requisition');
+        $this->assertSame((int) $warehouse->id, (int) ($requisition->metadata['warehouse_id'] ?? null));
+
+        $this->actingAs($company)->post(route('textile.procurement.requisitions.approve'), ['requisition_id' => $requisition->id])->assertSessionHasNoErrors();
+
+        $this->actingAs($company)->post(route('textile.procurement.purchase-orders.store'), [
+            'source_type' => 'requisition',
+            'source_id' => $requisition->id,
+        ])->assertSessionHasNoErrors();
+
+        $purchaseOrder = $this->latestDocument($company->id, 'purchase_order');
+
+        $this->actingAs($company)->post(route('textile.procurement.purchase-orders.approve'), ['purchase_order_id' => $purchaseOrder->id])->assertSessionHasNoErrors();
+
+        $this->actingAs($company)->post(route('textile.procurement.grns.store'), ['purchase_order_id' => $purchaseOrder->id])->assertSessionHasNoErrors();
+
+        $grn = $this->latestDocument($company->id, 'grn');
+
+        $this->actingAs($company)->post(route('textile.procurement.grns.release'), ['grn_id' => $grn->id])->assertSessionHasNoErrors();
+
+        $invoice = PurchaseInvoice::query()
+            ->where('created_by', $company->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($invoice);
+        $this->assertSame((int) $warehouse->id, (int) $invoice->warehouse_id);
+
+        // Posting must not crash with a NULL warehouse_id constraint violation.
+        $this->actingAs($company)
+            ->post(route('purchase-invoices.post', $invoice->id))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('posted', $invoice->fresh()->status);
+
+        $stock = WarehouseStock::where('warehouse_id', $warehouse->id)
+            ->where('product_id', $product->id)
+            ->first();
+        $this->assertNotNull($stock);
+        $this->assertEquals(100, (int) $stock->quantity);
+    }
+
+    public function test_listener_falls_back_to_branch_warehouse_when_invoice_has_no_warehouse(): void
+    {
+        $company = $this->enableTextileModule();
+        $branch = Branch::create(['branch_name' => 'PI Branch WH2', 'creator_id' => $company->id, 'created_by' => $company->id]);
+        $this->actingAs($company)->withSession(['active_branch_id' => $branch->id]);
+
+        $warehouse = Warehouse::create([
+            'name' => 'Branch Warehouse',
+            'address' => 'Shed 7, MIDC',
+            'city' => 'Pune',
+            'zip_code' => '411014',
+            'branch_id' => $branch->id,
+            'is_active' => true,
+            'creator_id' => $company->id,
+            'created_by' => $company->id,
+        ]);
+
+        $vendor = $this->makeVendor($company);
+        $this->linkVendorUser($vendor);
+        $product = $this->makeProduct($company, 'YRN-PI-WH-002');
+
+        // Legacy requisition WITHOUT warehouse_id → invoice carries NULL.
+        $this->actingAs($company)
+            ->post(route('textile.procurement.requisitions.store'), [
+                'party_name' => $vendor->company_name,
+                'vendor_id' => $vendor->id,
+                'quantity' => 50,
+                'unit' => 'kg',
+                'product_service_item_id' => $product->id,
+                'rate' => 170,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $requisition = $this->latestDocument($company->id, 'purchase_requisition');
+
+        $this->actingAs($company)->post(route('textile.procurement.requisitions.approve'), ['requisition_id' => $requisition->id])->assertSessionHasNoErrors();
+
+        $this->actingAs($company)->post(route('textile.procurement.purchase-orders.store'), [
+            'source_type' => 'requisition',
+            'source_id' => $requisition->id,
+        ])->assertSessionHasNoErrors();
+
+        $purchaseOrder = $this->latestDocument($company->id, 'purchase_order');
+
+        $this->actingAs($company)->post(route('textile.procurement.purchase-orders.approve'), ['purchase_order_id' => $purchaseOrder->id])->assertSessionHasNoErrors();
+
+        $this->actingAs($company)->post(route('textile.procurement.grns.store'), ['purchase_order_id' => $purchaseOrder->id])->assertSessionHasNoErrors();
+
+        $grn = $this->latestDocument($company->id, 'grn');
+
+        $this->actingAs($company)->post(route('textile.procurement.grns.release'), ['grn_id' => $grn->id])->assertSessionHasNoErrors();
+
+        $invoice = PurchaseInvoice::query()
+            ->where('created_by', $company->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($invoice);
+
+        // Legacy requisition had no warehouse, so the invoice generation
+        // resolved the tenant's active-branch warehouse automatically.
+        $this->assertSame((int) $warehouse->id, (int) $invoice->warehouse_id);
+
+        // Posting must not crash and must stock the resolved warehouse.
+        $this->actingAs($company)
+            ->post(route('purchase-invoices.post', $invoice->id))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('posted', $invoice->fresh()->status);
+
+        $stock = WarehouseStock::where('warehouse_id', $warehouse->id)
+            ->where('product_id', $product->id)
+            ->first();
+        $this->assertNotNull($stock);
+        $this->assertEquals(50, (int) $stock->quantity);
+    }
+
     private function latestDocument(int $tenantId, string $type): TextileWorkflowDocument
     {
         return TextileWorkflowDocument::query()
@@ -234,6 +390,14 @@ class TextilePurchaseInvoiceItemsTest extends TestCase
         ]);
 
         $company->assignRole($role);
+
+        // Grant the invoice post permission so the GRN-generated invoice can be
+        // posted in the warehouse regression tests.
+        Permission::firstOrCreate(
+            ['name' => 'post-purchase-invoices', 'guard_name' => 'web'],
+            ['module' => 'purchase-invoices', 'label' => 'Post Purchase Invoices', 'add_on' => 'general']
+        );
+        $company->givePermissionTo('post-purchase-invoices');
 
         return $company;
     }

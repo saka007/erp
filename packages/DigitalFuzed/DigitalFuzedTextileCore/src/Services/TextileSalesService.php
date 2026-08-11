@@ -7,6 +7,7 @@ use App\Models\SalesInvoiceItem;
 use App\Models\User;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
+use DigitalFuzed\TextileCore\Support\TextileWarehouseResolver;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Models\TextileReservation;
 use DigitalFuzed\TextileInventory\Services\TextileAvailabilityService;
@@ -609,6 +610,10 @@ class TextileSalesService
 
         $subtotal = round($rate * $quantity, 2);
         $warehouseId = isset($metadata['warehouse_id']) ? (int) $metadata['warehouse_id'] : null;
+        // Challan metadata may not carry a warehouse — fall back to the tenant's
+        // active-branch warehouse (or first active warehouse) so the generated
+        // sales invoice can be posted and stock decremented correctly.
+        $warehouseId = TextileWarehouseResolver::resolve($warehouseId, (int) $challan->created_by);
 
         $invoice = SalesInvoice::query()->create([
             'invoice_number' => sprintf('TX-CHL-%s', str_pad((string) $challan->id, 6, '0', STR_PAD_LEFT)),
