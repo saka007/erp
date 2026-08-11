@@ -1395,6 +1395,38 @@ Progress note (2026-08-04):
 - **Tests**: `tests/Feature/Textile/TextilePriceListPrefillTest.php` — 4 cases (19 assertions): requisition carries vendor price-list rate + invoice_amount; requisition without rate keeps legacy null behaviour; sales order resolves rate from customer price list (`rate_source: customer_price_list`); sales order respects submitted rate over the price list (`rate_source: manual`). `php artisan test tests/Feature/Textile tests/Feature/Account/VendorCustomerPriceListTest.php tests/Feature/Account/CustomerPriceListTest.php` → 105 passed (1717 assertions). `npm run build` pass.
 - **Verified on production** (browser, company login): requisition for Shree Yarn Traders — product options listed his 6 price-list rates (Combed Yarn 40s @ 170.00), selecting the product auto-filled rate 170, qty 100 showed "Expected Amount: 17000.00", submit created PURCHASE REQUISITION 000003 (Draft) with Item Combed Yarn 40s, Rate 170, Amount 17000 persisted. Sales order form for Metro Fashions — product options listed her price-list rates (Combed Yarn 40s @ 221.40), selecting auto-filled rate 221.4 (full sales-order submit requires an available takha lot; test lots were consumed by earlier orders — pre-existing flow, backend path covered by feature tests). Deployed by rsync (one file at a time — multi-file rsync silently skips; see repo memory), caches rebuilt, PHP-FPM restarted, health check 307.
 
+## Invoice unification — all invoice types managed from one place (START HERE for invoice work)
+
+**Goal**: every operational textile flow must produce a real invoice that is managed from a single Invoice Hub, instead of invoices being scattered across core menus or missing entirely.
+
+### Gap analysis (verified 2026-08-11)
+- **Sales (takha/challan flow)**: POD on a challan sets `invoice_ready: true` in metadata but **no `SalesInvoice` is ever created**. The challan metadata chain (SO → allocation → dispatch → challan) already carries `customer_id`, `party_name`, `rate`, `rate_source`, `item_name`, `item_sku`, `product_service_item_id`, `warehouse` — everything needed to create an invoice with line items.
+- **Purchase (GRN flow)**: `TextileProcurementService::createPurchaseInvoiceFromGrn()` auto-creates a single-total draft `PurchaseInvoice` (`TX-GRN-%06d`) with **no line items** and no item/rate info.
+- **Job-work / processing (yarn → sizing vendor, processing outward/inward)**: **no invoice concept at all**. The core `SalesInvoiceController::getServices()` already returns `ProductServiceItem` with `type='service'`, so job-work invoices can be modelled as `type='service'` sales invoices.
+- **Takha → customer**: covered by the challan sales-invoice work (Phase 1).
+
+### Reuse targets (do NOT reinvent)
+- `App\Models\SalesInvoice` + `App\Models\SalesInvoiceItem` (items relation via `invoice_id`; `customer()` belongsTo User, `customerDetails()` belongsTo `Workdo\Account\Models\Customer` via `user_id`).
+- `App\Models\PurchaseInvoice` + `App\Models\PurchaseInvoiceItem`.
+- `App\Http\Controllers\SalesInvoiceController` — `calculateTotals()`, `createInvoiceItems()`, `getServices()`, post/print flows.
+- `App\Http\Controllers\PurchaseInvoiceController` — same patterns.
+- Customer → client User mapping: `QuotationController::customersForSelect()` pattern — `Workdo\Account\Models\Customer` with `user_id`; when null, `firstOrCreate` a `type='client'` user (email fallback `contact_person_email` else `customer{id}@<host>`), save `user_id`. `SalesInvoice.customer_id` must be a `users.id`.
+- Invoice numbering for textile-generated invoices: follow `TX-GRN-%06d` precedent (e.g. `TX-CHL-%06d`).
+
+### Phases (small vertical slices — one at a time)
+- [ ] **P-A: Sales invoice from challan** — `TextileSalesService::createSalesInvoiceFromChallan(int $challanId)`: find tenant challan, require status `approved|released|closed`, idempotent via challan metadata `sales_invoice_id`, resolve client user from challan customer, create `SalesInvoice` + `SalesInvoiceItem`(s) (rate from metadata, fallback customer price list → item sale price), store `sales_invoice_id`/`sales_invoice_number` in challan metadata, set `sales_invoice_created_now` attribute. Controller action `TextileSalesController::generateSalesInvoiceFromChallan` + POST route `textile.sales.invoices.generate`. UI: "Generate Invoice" row action on challan records in `Sales/Index.tsx` (challan & challan-pod sections); when invoice exists show its number linking to `sales-invoices.show`. Tests: `tests/Feature/Textile/TextileSalesInvoiceFromChallanTest.php` (happy path amount/rate/customer, idempotency, wrong-status rejection, rate fallback).
+- [ ] **P-B: Purchase invoice line items from GRN/PO** — upgrade `createPurchaseInvoiceFromGrn()` to create `PurchaseInvoiceItem` rows from PO/GRN metadata (`product_service_item_id`, `qty`, `unit`, `rate`, `invoice_amount`). Keep single-total fallback when no item data. Extend `PurchaseInvoice` creation with per-line `total` and keep totals consistent. UI: show line items on the generated invoice (core purchase invoice view already lists items). Tests: extend `TextilePriceListPrefillTest` or new purchase-invoice test.
+- [ ] **P-C: Job-work invoice from processing outward/inward** — in `TextileProcessingService` (or new `TextileJobWorkInvoiceService`), create `type='service'` `SalesInvoice` from a processing outward/inward document with the processing vendor as customer (`party_name`), rate from metadata/price list. Reuse `SalesInvoiceController::getServices()` product list for the service item. UI: "Generate Invoice" action on processing records + link to invoice view. Tests: new processing invoice test.
+- [ ] **P-D: Textile Invoice Hub page** — a single page under the Textile sidebar (menu + submenu + breadcrumb + page title, per navigation checklist) listing all invoices: tabs for Sales / Purchase / Job Work, each linking to the core invoice show/edit pages, showing status + amounts + party. Ship KPIs (total count, draft, posted, unpaid balance). Reuse `TextileWorkspace` + shared components (`textile-data-table-card`, etc.). Tests: index renders without 500 + correct scoping.
+
+### Acceptance checklist (mandatory before marking any phase `[x]`)
+- [ ] Backend creates the invoice inside a transaction with tenant scoping (`created_by = creatorId()`) and idempotency guard.
+- [ ] Line items carry product/service, quantity, unit, rate — never a bare total-only invoice for a new flow.
+- [ ] UI action is wired from the workflow page (row action / button), plus menu placement for the hub page.
+- [ ] Generated invoice number is visible on the workflow record and opens the core invoice view.
+- [ ] Feature tests cover happy path + idempotency + tenant isolation; `php artisan test tests/Feature/Textile` green.
+- [ ] `npm run build` green; deployed via one-file-at-a-time rsync (multi-file rsync silently skips — see repo memory) and verified in browser.
+
 ## Delivery order from here
 
 1. **P1 (completed Aug 2026)**: Inventory Redesign + Per-Role RBAC — Phase 3B. Restructure inventory into material-type-wise sub-menus (Yarn, Beam, Grey Fabric, Finished Fabric, Chemicals, Packing Materials) with auto-created lots. Add per-role capability overrides (owner sees all 111 items, manager sees 74 operational items). Verified: `npx tsc --noEmit`, `npm run build`, `php artisan test tests/Feature/Textile/TextileApprovalAdminTest.php`, and `php artisan db:seed --class=TextileRoleCapabilitySeeder --no-interaction --force`.

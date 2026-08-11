@@ -262,6 +262,15 @@ export default function Index({
         router.post(route('textile.sales.challans.approve'), { challan_id: id }, { preserveScroll: true });
     };
 
+    const generateChallanInvoice = (id: number) => {
+        router.post(route('textile.sales.invoices.generate'), { challan_id: id }, { preserveScroll: true });
+    };
+
+    const challanMetadata = (row: WorkflowDocument): Record<string, unknown> | null => {
+        const metadata = row.metadata ?? null;
+        return metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>) : null;
+    };
+
     const challanWorkflowColumns = createTextileWorkflowColumns(t, {
         actions: createTextileWorkflowActions([
             {
@@ -274,6 +283,38 @@ export default function Index({
                         onClick: (row) => setEditingChallan(row as unknown as ChallanEditRecord),
                     },
                 ],
+            },
+            {
+                statuses: ['approved', 'released', 'closed'],
+                actions: [
+                    {
+                        label: t('Generate Invoice'),
+                        icon: FileEdit,
+                        onClick: (row) => generateChallanInvoice(row.id),
+                        when: (row) => {
+                            const metadata = challanMetadata(row as unknown as WorkflowDocument);
+                            return !(metadata && 'sales_invoice_id' in metadata);
+                        },
+                    },
+                ],
+                noVisibleActionContent: (row) => {
+                    const metadata = challanMetadata(row as unknown as WorkflowDocument);
+                    const invoiceNumber = metadata && 'sales_invoice_number' in metadata
+                        ? String(metadata.sales_invoice_number)
+                        : null;
+                    const invoiceId = metadata && 'sales_invoice_id' in metadata ? metadata.sales_invoice_id : null;
+
+                    return invoiceNumber && invoiceId ? (
+                        <a
+                            href={route('sales-invoices.show', { salesInvoice: invoiceId })}
+                            className="text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:underline"
+                        >
+                            {t('Invoice')} {invoiceNumber}
+                        </a>
+                    ) : (
+                        <span className="text-muted-foreground">{t('Invoice generated')}</span>
+                    );
+                },
             },
         ]),
     });

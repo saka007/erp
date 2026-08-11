@@ -352,6 +352,30 @@ class TextileSalesController extends Controller
         return back()->with('success', __('POD marked successfully.'));
     }
 
+    public function generateSalesInvoiceFromChallan(Request $request, TextileSalesService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeCapability('sales_challan_pod', 'challan_id');
+
+        $validated = $request->validate([
+            'challan_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $challan = $service->createSalesInvoiceFromChallan((int) $validated['challan_id']);
+
+            if ((bool) ($challan->sales_invoice_created_now ?? false)) {
+                $message = __('Sales invoice generated from challan successfully.');
+            } else {
+                $message = __('Sales invoice already exists for this challan.');
+            }
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['challan_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', $message);
+    }
+
     private function documents(string $type)
     {
         $query = TextileWorkflowDocument::query()

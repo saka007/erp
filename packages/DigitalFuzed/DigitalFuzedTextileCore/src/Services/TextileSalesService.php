@@ -2,6 +2,9 @@
 
 namespace DigitalFuzed\TextileCore\Services;
 
+use App\Models\SalesInvoice;
+use App\Models\SalesInvoiceItem;
+use App\Models\User;
 use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
@@ -448,6 +451,203 @@ class TextileSalesService
         $this->workflowService->transitionStatus($challan->id, 'closed');
 
         return $pod;
+    }
+
+    /**
+     * Generate a core SalesInvoice (with line items) from a challan.
+     *
+     * The challan metadata chain (sales order -> allocation -> dispatch -> challan)
+     * carries customer_id (textile Customer id), rate, rate_source, item info and
+     * warehouse, so the invoice can be created with real line items.
+     */
+    public function createSalesInvoiceFromChallan(int $challanId): TextileWorkflowDocument
+    {
+        $challan = $this->findTenantDocument($challanId, 'challan');
+
+        if (! in_array($challan->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Challan must be approved or released before generating the sales invoice.');
+        }
+
+        $metadata = is_array($challan->metadata) ? $challan->metadata : [];
+        $existingInvoiceId = isset($metadata['sales_invoice_id']) ? (int) $metadata['sales_invoice_id'] : null;
+
+        if ($existingInvoiceId) {
+            $invoice = SalesInvoice::query()
+                ->where('id', $existingInvoiceId)
+                ->where('created_by', $challan->created_by)
+                ->first();
+
+            if ($invoice) {
+                $challan->setAttribute('sales_invoice_created_now', false);
+
+                return $challan;
+            }
+        }
+
+        if (! class_exists(\App\Models\SalesInvoice::class) || ! Schema::hasTable('sales_invoices')) {
+            throw new RuntimeException('Sales invoice module is not available.');
+        }
+
+        // Resolve the textile Customer for the challan party.
+        $customer = Customer::query()
+            ->where('created_by', $challan->created_by)
+            ->where(function ($query) use ($challan, $metadata) {
+                $query->where('id', isset($metadata['customer_id']) ? (int) $metadata['customer_id'] : 0)
+                    ->orWhere('company_name', trim((string) ($metadata['party_name'] ?? $challan->party_name)));
+            })
+            ->first();
+
+        $customerId = $customer?->user_id ? (int) $customer->user_id : null;
+
+        // Fallback: firstOrCreate a client user exactly like customersForSelect().
+        if ($customer && ! $customerId) {
+            $email = $customer->contact_person_email ?: 'customer' . $customer->id . '@' . str_replace(['https://', 'http://'], '', (string) config('app.url'));
+            $user = User::firstOrCreate(
+                ['email' => $email],
+                [
+                    'name'              => $customer->company_name ?: ($customer->contact_person_name ?: 'Customer ' . $customer->id),
+                    'password'          => \Illuminate\Support\Str::random(16),
+                    'type'              => 'client',
+                    'creator_id'        => $challan->creator_id,
+                    'created_by'        => $challan->created_by,
+                    'lang'              => 'en',
+                    'email_verified_at' => now(),
+                ]
+            );
+            $customer->user_id = $user->id;
+            $customer->save();
+            $customerId = (int) $user->id;
+        }
+
+        if (! $customerId) {
+            throw new RuntimeException('Challan customer has no linked client user. Set up the customer profile first.');
+        }
+
+        // Resolve the invoice rate.
+        $rate = isset($metadata['rate']) && $metadata['rate'] !== null && $metadata['rate'] !== '' ? (float) $metadata['rate'] : null;
+        $rateSource = isset($metadata['rate_source']) ? (string) $metadata['rate_source'] : null;
+
+        $productServiceItemId = isset($metadata['product_service_item_id']) ? (int) $metadata['product_service_item_id'] : null;
+        $itemName = $metadata['item_name'] ?? 'Takha / Woven Fabric';
+        $itemSku = $metadata['item_sku'] ?? null;
+
+        if ($rate === null && $productServiceItemId && $customer) {
+            // Fallback: per-customer price list, then item sale price.
+            if (Schema::hasTable('account_customer_price_lists')) {
+                $priceListRate = CustomerPriceList::query()
+                    ->where('created_by', $challan->created_by)
+                    ->where('customer_id', (int) $customer->id)
+                    ->where('product_service_item_id', $productServiceItemId)
+                    ->where('is_active', true)
+                    ->value('unit_price');
+
+                if ($priceListRate !== null) {
+                    $rate = (float) $priceListRate;
+                    $rateSource = 'customer_price_list';
+                }
+            }
+
+            if ($rate === null && $productServiceItemId) {
+                $salePrice = \Workdo\ProductService\Models\ProductServiceItem::query()
+                    ->where('id', $productServiceItemId)
+                    ->where('created_by', $challan->created_by)
+                    ->value('sale_price');
+
+                if ($salePrice !== null) {
+                    $rate = (float) $salePrice;
+                    $rateSource = 'item_sale_price';
+                }
+            }
+        }
+
+        if ($rate === null || $rate < 0) {
+            throw new RuntimeException('No rate available for the challan item. Set a rate on the sales order or customer price list first.');
+        }
+
+        $quantity = (float) $challan->quantity;
+        if ($quantity <= 0) {
+            throw new RuntimeException('Challan quantity must be greater than zero to generate an invoice.');
+        }
+
+        // Credit terms mirror the purchase side (TX-GRN): due on invoice date
+        // unless the customer has explicitly opted into credit.
+        $invoiceDate = now()->toDateString();
+        $dueDate = $invoiceDate;
+        $paymentTerms = null;
+
+        if ($customer && (bool) ($customer->credit_enabled ?? false) && (int) ($customer->credit_days ?? 0) > 0) {
+            $dueDate = \Carbon\Carbon::parse($invoiceDate)->addDays((int) $customer->credit_days)->toDateString();
+            $paymentTerms = sprintf('Net %d', (int) $customer->credit_days);
+        }
+
+        // Invoice line items require a product_service_item id. When the challan
+        // has no specific product (e.g. takha-only sales order without a selected
+        // item), fall back to a generic tenant-scoped "Takha / Woven Fabric" item
+        // so the invoice is never a bare total-only record.
+        if (! $productServiceItemId) {
+            $genericItem = \Workdo\ProductService\Models\ProductServiceItem::query()
+                ->where('created_by', $challan->created_by)
+                ->where('name', $itemName)
+                ->first();
+
+            if (! $genericItem) {
+                $genericItem = \Workdo\ProductService\Models\ProductServiceItem::query()->create([
+                    'name' => $itemName,
+                    'sku' => $itemSku ?: 'TX-GENERIC-' . $challan->id,
+                    'type' => 'product',
+                    'unit' => null,
+                    'purchase_price' => 0,
+                    'sale_price' => $rate,
+                    'is_active' => 1,
+                    'creator_id' => $challan->creator_id,
+                    'created_by' => $challan->created_by,
+                ]);
+            }
+
+            $productServiceItemId = (int) $genericItem->id;
+        }
+
+        $subtotal = round($rate * $quantity, 2);
+        $warehouseId = isset($metadata['warehouse_id']) ? (int) $metadata['warehouse_id'] : null;
+
+        $invoice = SalesInvoice::query()->create([
+            'invoice_number' => sprintf('TX-CHL-%s', str_pad((string) $challan->id, 6, '0', STR_PAD_LEFT)),
+            'invoice_date' => $invoiceDate,
+            'due_date' => $dueDate,
+            'customer_id' => $customerId,
+            'warehouse_id' => $warehouseId ?: null,
+            'subtotal' => $subtotal,
+            'tax_amount' => 0,
+            'discount_amount' => 0,
+            'total_amount' => $subtotal,
+            'paid_amount' => 0,
+            'balance_amount' => $subtotal,
+            'status' => 'draft',
+            'type' => 'product',
+            'payment_terms' => $paymentTerms,
+            'notes' => sprintf('Draft invoice from challan %s (%s). Item: %s.', $challan->id, $challan->document_number, $itemName),
+            'creator_id' => $challan->creator_id,
+            'created_by' => $challan->created_by,
+        ]);
+
+        SalesInvoiceItem::query()->create([
+            'invoice_id' => $invoice->id,
+            'product_id' => $productServiceItemId,
+            'quantity' => $quantity,
+            'unit_price' => $rate,
+            'discount_percentage' => 0,
+            'tax_percentage' => 0,
+        ]);
+
+        $metadata['sales_invoice_id'] = $invoice->id;
+        $metadata['sales_invoice_number'] = $invoice->invoice_number;
+        $metadata['sales_invoice_status'] = $invoice->status;
+        $metadata['sales_invoice_rate_source'] = $rateSource;
+        $challan->metadata = $metadata;
+        $challan->save();
+        $challan->setAttribute('sales_invoice_created_now', true);
+
+        return $challan;
     }
 
     protected function resolveCustomerProfile(array $payload): array

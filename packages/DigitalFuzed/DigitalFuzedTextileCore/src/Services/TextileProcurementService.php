@@ -8,6 +8,7 @@ use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileInventory\Services\TextileMovementService;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 class TextileProcurementService
@@ -239,14 +240,26 @@ class TextileProcurementService
             ->first();
 
         $sourceMetadata = is_array($sourceDocument?->metadata) ? $sourceDocument->metadata : [];
-        $vendorId = isset($sourceMetadata['vendor_id']) ? (int) $sourceMetadata['vendor_id'] : (int) ($grn->creator_id ?? $grn->created_by);
+        $metadataVendorId = isset($sourceMetadata['vendor_id']) ? (int) $sourceMetadata['vendor_id'] : 0;
         $warehouseId = isset($sourceMetadata['warehouse_id']) ? (int) $sourceMetadata['warehouse_id'] : null;
         $amount = (float) ($sourceMetadata['invoice_amount'] ?? 0);
 
-        if ($vendorId < 1 || !User::query()->whereKey($vendorId)->exists()) {
+        // The requisition stores the Vendor.id (account vendors table). Purchase
+        // invoices require a users.id, so resolve the vendor's linked user (or
+        // firstOrCreate a vendor user exactly like customersForSelect()).
+        $vendorId = $this->resolveVendorUserId($metadataVendorId, $grn->created_by, $grn->creator_id);
+
+        if ($vendorId < 1 || ! User::query()->whereKey($vendorId)->exists()) {
             $grn->setAttribute('purchase_invoice_created_now', false);
             return $grn;
         }
+
+        // Line item data rides the metadata chain (requisition -> PO -> GRN).
+        $rate = isset($metadata['rate']) && $metadata['rate'] !== null && $metadata['rate'] !== '' ? (float) $metadata['rate'] : null;
+        $productServiceItemId = isset($metadata['product_service_item_id']) ? (int) $metadata['product_service_item_id'] : null;
+        $itemName = $metadata['item_name'] ?? null;
+        $itemSku = $metadata['item_sku'] ?? null;
+        $quantity = (float) ($grn->quantity ?? 0);
 
         $invoiceDate = now()->toDateString();
 
@@ -289,6 +302,55 @@ class TextileProcurementService
             'creator_id' => $grn->creator_id,
             'created_by' => $grn->created_by,
         ]);
+
+        // Create a real line item whenever the GRN carries product + rate data so
+        // the invoice is never a bare total-only record. Falls back to a generic
+        // tenant-scoped item (like the sales side) when no specific product was
+        // selected; keeps the legacy single-total behaviour when no rate exists.
+        if ($rate !== null && $rate >= 0 && $quantity > 0) {
+            if (! $productServiceItemId && $itemName) {
+                $genericItem = \Workdo\ProductService\Models\ProductServiceItem::query()
+                    ->where('created_by', $grn->created_by)
+                    ->where('name', $itemName)
+                    ->first();
+
+                if (! $genericItem) {
+                    $genericItem = \Workdo\ProductService\Models\ProductServiceItem::query()->create([
+                        'name' => $itemName,
+                        'sku' => $itemSku ?: 'TX-GENERIC-' . $grn->id,
+                        'type' => 'product',
+                        'unit' => null,
+                        'purchase_price' => $rate,
+                        'sale_price' => 0,
+                        'is_active' => 1,
+                        'creator_id' => $grn->creator_id,
+                        'created_by' => $grn->created_by,
+                    ]);
+                }
+
+                $productServiceItemId = (int) $genericItem->id;
+            }
+
+            if ($productServiceItemId) {
+                \App\Models\PurchaseInvoiceItem::query()->create([
+                    'invoice_id' => $invoice->id,
+                    'product_id' => $productServiceItemId,
+                    'quantity' => $quantity,
+                    'unit_price' => $rate,
+                    'discount_percentage' => 0,
+                    'tax_percentage' => 0,
+                ]);
+
+                // Reconcile invoice totals with the actual line amount so the
+                // invoice never disagrees with its item rows.
+                $itemAmount = round($rate * $quantity, 2);
+                $invoice->update([
+                    'subtotal' => $itemAmount,
+                    'total_amount' => $itemAmount,
+                    'balance_amount' => $itemAmount,
+                ]);
+            }
+        }
 
         $metadata['purchase_invoice_id'] = $invoice->id;
         $metadata['purchase_invoice_number'] = $invoice->invoice_number;
@@ -479,5 +541,67 @@ class TextileProcurementService
         }
 
         return $document;
+    }
+
+    /**
+     * Resolve the users.id for a purchase invoice vendor.
+     *
+     * The textile requisition stores the Vendor.id (account vendors table).
+     * Core PurchaseInvoice.vendor_id must reference a users.id, so:
+     *  - if a Vendor row matches (by id or user_id), use its user_id;
+     *  - when the Vendor has no linked user yet, firstOrCreate a vendor user
+     *    exactly like QuotationController::customersForSelect() does for clients.
+     */
+    private function resolveVendorUserId(int $metadataVendorId, ?int $tenantId, ?int $creatorId): int
+    {
+        $tenantId = $tenantId ?: (auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id());
+
+        $vendor = null;
+        if (class_exists(\Workdo\Account\Models\Vendor::class) && Schema::hasTable('vendors')) {
+            $vendorQuery = \Workdo\Account\Models\Vendor::query()->where('created_by', $tenantId);
+
+            if ($metadataVendorId > 0) {
+                $vendorQuery->where(function ($query) use ($metadataVendorId) {
+                    $query->where('id', $metadataVendorId)->orWhere('user_id', $metadataVendorId);
+                });
+            }
+
+            $vendor = $vendorQuery->first();
+        }
+
+        if (! $vendor) {
+            // No vendor profile found: fall back to the legacy behaviour where the
+            // metadata vendor id was treated as a user id directly.
+            return $metadataVendorId > 0 ? $metadataVendorId : (int) ($creatorId ?? $tenantId);
+        }
+
+        if ((int) $vendor->user_id > 0) {
+            return (int) $vendor->user_id;
+        }
+
+        if (! class_exists(\App\Models\User::class)) {
+            return 0;
+        }
+
+        $email = $vendor->contact_person_email
+            ?: 'vendor' . $vendor->id . '@' . str_replace(['https://', 'http://'], '', (string) config('app.url'));
+
+        $user = User::firstOrCreate(
+            ['email' => $email],
+            [
+                'name'              => $vendor->company_name ?: ($vendor->contact_person_name ?: 'Vendor ' . $vendor->id),
+                'password'          => \Illuminate\Support\Str::random(16),
+                'type'              => 'vendor',
+                'creator_id'        => $creatorId ?: $tenantId,
+                'created_by'        => $tenantId,
+                'lang'              => 'en',
+                'email_verified_at' => now(),
+            ]
+        );
+
+        $vendor->user_id = $user->id;
+        $vendor->save();
+
+        return (int) $user->id;
     }
 }

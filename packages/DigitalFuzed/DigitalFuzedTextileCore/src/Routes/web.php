@@ -183,6 +183,7 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/sales/challans/approve', [TextileSalesController::class, 'approveChallan'])->name('textile.sales.challans.approve');
     Route::post('/textile/sales/challans/update', [TextileSalesController::class, 'updateChallan'])->name('textile.sales.challans.update');
     Route::post('/textile/sales/challans/pod', [TextileSalesController::class, 'markPod'])->name('textile.sales.challans.pod');
+    Route::post('/textile/sales/invoices/generate', [TextileSalesController::class, 'generateSalesInvoiceFromChallan'])->name('textile.sales.invoices.generate');
     Route::post('/textile/sales/quotations', [TextileSalesController::class, 'storeQuotation'])->name('textile.sales.quotations.store');
     Route::post('/textile/sales/quotations/{quotation}/update', [TextileSalesController::class, 'updateQuotation'])->name('textile.sales.quotations.update');
 
