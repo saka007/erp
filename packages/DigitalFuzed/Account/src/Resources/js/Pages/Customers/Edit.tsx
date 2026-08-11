@@ -9,16 +9,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import InputError from "@/components/ui/input-error";
 import { PhoneInputComponent } from "@/components/ui/phone-input";
 import { TextileSelectField as SelectField } from '@/components/textile/textile-select-field';
-import { Customer, CustomerCategoryOption, CustomerFormData } from './types';
+import { Plus, Trash2 } from "lucide-react";
+import { Customer, CustomerCategoryOption, CustomerFormData, CustomerPriceRow, CustomerPriceItem } from './types';
 import { BILLING_MODE_OPTIONS, MATERIAL_OWNERSHIP_OPTIONS, OPERATING_MODEL_OPTIONS } from './operating-profile-options';
 import { useFormFields } from '@/hooks/useFormFields';
 interface EditCustomerProps {
-    customer: Customer;
+    customer: Customer & { price_lists?: CustomerPriceRow[] };
     customerCategories: CustomerCategoryOption[];
+    items?: CustomerPriceItem[];
     onSuccess: () => void;
 }
 
-export default function Edit({ customer, customerCategories = [], onSuccess }: EditCustomerProps) {
+export default function Edit({ customer, customerCategories = [], items = [], onSuccess }: EditCustomerProps) {
     const { t } = useTranslation();
     const emptyAddress = {
         name: '',
@@ -29,13 +31,43 @@ export default function Edit({ customer, customerCategories = [], onSuccess }: E
         country: '',
         zip_code: ''
     };
+    const initialPriceLists: CustomerPriceRow[] = (customer.price_lists ?? []).map((row) => ({
+        id: row.id,
+        product_service_item_id: row.product_service_item_id,
+        unit_price: row.unit_price,
+        min_quantity: row.min_quantity ?? 1,
+        currency_code: row.currency_code ?? 'INR',
+        notes: row.notes ?? null,
+    }));
     const { data, setData, put, processing, errors } = useForm<CustomerFormData>({
         ...customer,
         billing_address: customer.billing_address || emptyAddress,
         shipping_address: customer.shipping_address || emptyAddress,
+        price_lists: initialPriceLists,
     });
 
     const formFields = useFormFields('customerEditFields', data, setData, errors, 'edit');
+    const updatePriceRow = (index: number, field: keyof CustomerPriceRow, value: string | number) => {
+        const rows = [...(data.price_lists ?? [])];
+        rows[index] = { ...rows[index], [field]: value };
+        setData('price_lists', rows);
+    };
+
+    const addPriceRow = () => {
+        setData('price_lists', [...(data.price_lists ?? []), {
+            product_service_item_id: '',
+            unit_price: '',
+            min_quantity: 1,
+            currency_code: 'INR',
+        }]);
+    };
+
+    const removePriceRow = (index: number) => {
+        const rows = [...(data.price_lists ?? [])];
+        rows.splice(index, 1);
+        setData('price_lists', rows);
+    };
+
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
         put(route('account.customers.update', customer.id), {
@@ -173,6 +205,82 @@ export default function Edit({ customer, customerCategories = [], onSuccess }: E
                     <p className="text-xs text-muted-foreground mt-1">{t('Auto-fills the rate in sales orders for this customer. You can still edit it per order.')}</p>
                     <InputError message={errors.default_rate} />
                 </div>
+
+                {/* Product Pricing */}
+                <div className="border rounded-lg p-4 space-y-3">
+                    <div>
+                        <Label className="text-base font-medium">{t('Product Pricing')}</Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            {t('Set default selling rates per product for this customer. These pre-fill when raising sales orders and stay editable per order.')}
+                        </p>
+                    </div>
+
+                    {items.length === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                            {t('No products available yet. Add products in the Product Master first.')}
+                        </p>
+                    )}
+
+                    {(data.price_lists ?? []).length === 0 && items.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                            {t('No rates set yet. Click "Add Product Rate" to set per-kg / per-unit rates for this customer.')}
+                        </p>
+                    )}
+
+                    <div className="space-y-2">
+                        {(data.price_lists ?? []).map((row, index) => (
+                            <div key={index} className="grid grid-cols-[1fr_120px_90px_auto] gap-2 items-center">
+                                <div>
+                                    <SelectField
+                                        label=""
+                                        value={row.product_service_item_id ? String(row.product_service_item_id) : ''}
+                                        onChange={(value) => updatePriceRow(index, 'product_service_item_id', value)}
+                                        options={items.map((item) => ({ value: String(item.id), label: `${item.name}${item.unit ? ` (${item.unit})` : ''}` }))}
+                                        includeEmpty
+                                        emptyLabel={t('Select product')}
+                                    />
+                                </div>
+                                <div>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={row.unit_price === '' ? '' : String(row.unit_price)}
+                                        onChange={(e) => updatePriceRow(index, 'unit_price', e.target.value)}
+                                        placeholder={t('Rate')}
+                                    />
+                                </div>
+                                <div>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={row.min_quantity === undefined || row.min_quantity === '' ? '' : String(row.min_quantity)}
+                                        onChange={(e) => updatePriceRow(index, 'min_quantity', e.target.value)}
+                                        placeholder={t('Min Qty')}
+                                    />
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removePriceRow(index)}
+                                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+
+                    {items.length > 0 && (
+                        <Button type="button" variant="outline" size="sm" onClick={addPriceRow}>
+                            <Plus className="h-4 w-4 mr-1" />
+                            {t('Add Product Rate')}
+                        </Button>
+                    )}
+                </div>
+
                 <div>
                     <SelectField
                         label={t('Customer Category')}

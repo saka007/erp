@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Workdo\Account\Models\Customer;
 use Workdo\Account\Models\CustomerCategory;
+use Workdo\Account\Models\CustomerPriceList;
+use Workdo\ProductService\Models\ProductServiceItem;
 use Workdo\Account\Http\Requests\StoreCustomerRequest;
 use Workdo\Account\Http\Requests\UpdateCustomerRequest;
 use Workdo\Account\Events\CreateCustomer;
@@ -20,7 +22,7 @@ class CustomerController extends Controller
     {
         if(Auth::user()->can('manage-customers')){
             $customers = Customer::query()
-                ->with(['user:id,name,avatar,is_disable', 'customerCategory:id,name'])
+                ->with(['user:id,name,avatar,is_disable', 'customerCategory:id,name', 'priceLists'])
                 ->where(function($q) {
                     if(Auth::user()->can('manage-any-customers')) {
                         $q->where('created_by', creatorId());
@@ -50,6 +52,12 @@ class CustomerController extends Controller
                     ->where('created_by', creatorId())
                     ->where('is_active', true)
                     ->select('id', 'name')
+                    ->orderBy('name')
+                    ->get(),
+                'items' => ProductServiceItem::query()
+                    ->where('created_by', creatorId())
+                    ->where('is_active', true)
+                    ->select('id', 'name', 'sku', 'unit', 'purchase_price', 'sale_price')
                     ->orderBy('name')
                     ->get(),
             ]);
@@ -87,6 +95,8 @@ class CustomerController extends Controller
             $customer->created_by = creatorId();
             $customer->save();
 
+            $this->syncPriceLists($request, $customer);
+
             CreateCustomer::dispatch($request, $customer);
 
             return redirect()->route('account.customers.index')->with('success', __('The customer has been created successfully.'));
@@ -120,6 +130,8 @@ class CustomerController extends Controller
             $customer->notes = $validated['notes'] ?? null;
             $customer->save();
 
+            $this->syncPriceLists($request, $customer);
+
             UpdateCustomer::dispatch($request, $customer);
 
             return back()->with('success', __('The customer details are updated successfully.'));
@@ -148,5 +160,71 @@ class CustomerController extends Controller
             ->where('created_by', creatorId())
             ->where('is_active', true)
             ->value('id');
+    }
+
+    /**
+     * Sync per-product pricing rows sent with the customer form.
+     * Rows sent are upserted; rows omitted are removed for this customer.
+     */
+    private function syncPriceLists($request, Customer $customer): void
+    {
+        $rows = $request->input('price_lists', []);
+
+        if (!is_array($rows)) {
+            return;
+        }
+
+        $keptItemIds = [];
+
+        foreach ($rows as $row) {
+            $itemId = (int) ($row['product_service_item_id'] ?? 0);
+            $unitPrice = (float) ($row['unit_price'] ?? 0);
+
+            if ($itemId <= 0 || $unitPrice < 0) {
+                continue;
+            }
+
+            // Only allow products that belong to this tenant
+            $resolved = ProductServiceItem::query()
+                ->where('id', $itemId)
+                ->where('created_by', creatorId())
+                ->value('id');
+
+            if (!$resolved) {
+                continue;
+            }
+
+            CustomerPriceList::updateOrCreate(
+                [
+                    'created_by' => creatorId(),
+                    'customer_id' => $customer->id,
+                    'product_service_item_id' => $resolved,
+                ],
+                [
+                    'unit_price' => $unitPrice,
+                    'currency_code' => strtoupper((string) ($row['currency_code'] ?? 'INR')),
+                    'min_quantity' => (float) ($row['min_quantity'] ?? 1),
+                    'is_active' => true,
+                    'notes' => isset($row['notes']) && trim((string) $row['notes']) !== '' ? trim((string) $row['notes']) : null,
+                    'creator_id' => Auth::id(),
+                ]
+            );
+
+            $keptItemIds[] = $resolved;
+        }
+
+        // Remove rows the user deleted from the form
+        if (count($keptItemIds) > 0) {
+            CustomerPriceList::query()
+                ->where('created_by', creatorId())
+                ->where('customer_id', $customer->id)
+                ->whereNotIn('product_service_item_id', $keptItemIds)
+                ->delete();
+        } else {
+            CustomerPriceList::query()
+                ->where('created_by', creatorId())
+                ->where('customer_id', $customer->id)
+                ->delete();
+        }
     }
 }

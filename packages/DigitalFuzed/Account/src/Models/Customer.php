@@ -84,6 +84,11 @@ class Customer extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function priceLists()
+    {
+        return $this->hasMany(CustomerPriceList::class, 'customer_id');
+    }
+
     public function customerCategory()
     {
         return $this->belongsTo(CustomerCategory::class, 'customer_category_id');

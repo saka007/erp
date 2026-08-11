@@ -55,6 +55,24 @@ export interface Customer {
   };
 }
 
+export interface CustomerPriceRow {
+    id?: number;
+    product_service_item_id: number | string;
+    unit_price: number | string;
+    min_quantity?: number | string;
+    currency_code?: string;
+    notes?: string | null;
+}
+
+export interface CustomerPriceItem {
+    id: number;
+    name: string;
+    sku: string;
+    unit?: string | null;
+    purchase_price?: string | number | null;
+    sale_price?: string | number | null;
+}
+
 export interface CustomerFormData {
   user_id?: number;
   customer_category_id?: number;
@@ -76,6 +94,7 @@ export interface CustomerFormData {
   shipping_address: Address;
   same_as_billing: boolean;
   notes?: string;
+  price_lists?: CustomerPriceRow[];
 }
 
 export interface CustomerCategoryOption {

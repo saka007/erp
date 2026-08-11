@@ -21,7 +21,7 @@ import { Pagination } from "@/components/ui/pagination";
 import Create from './Create';
 import Edit from './Edit';
 import View from './View';
-import { Customer, CustomerCategoryOption, User } from './types';
+import { Customer, CustomerCategoryOption, CustomerPriceItem, User } from './types';
 import { resolveBillingModeLabel, resolveMaterialOwnershipLabel, resolveOperatingModelLabel } from './operating-profile-options';
 import { usePageButtons } from '@/hooks/usePageButtons';
 interface CustomerFilters {
@@ -46,6 +46,7 @@ interface CustomersIndexProps {
     };
     users: User[];
     customerCategories: CustomerCategoryOption[];
+    items?: CustomerPriceItem[];
     auth: {
         user: {
             permissions: string[];
@@ -54,7 +55,7 @@ interface CustomersIndexProps {
 }
 
 export default function Index() {
-    const { customers, users, customerCategories, auth, is_demo } = usePage<CustomersIndexProps & { is_demo?: boolean }>().props;
+    const { customers, users, customerCategories, items, auth, is_demo } = usePage<CustomersIndexProps & { is_demo?: boolean }>().props;
     const { t } = useTranslation();
     const urlParams = new URLSearchParams(window.location.search);
 
@@ -609,6 +610,7 @@ export default function Index() {
                     <Edit
                         customer={modalState.data}
                         customerCategories={customerCategories}
+                        items={items ?? []}
                         onSuccess={closeModal}
                     />
                 )}

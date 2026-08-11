@@ -9,10 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import InputError from "@/components/ui/input-error";
 import { PhoneInputComponent } from "@/components/ui/phone-input";
-import { EditVendorProps, CreateVendorFormData } from './types';
+import { Plus, Trash2 } from "lucide-react";
+import { EditVendorProps, CreateVendorFormData, VendorPriceRow } from './types';
 import { SUPPLIER_TYPE_OPTIONS } from './supplier-types';
 
-export default function Edit({ vendor, onSuccess }: EditVendorProps) {
+export default function Edit({ vendor, items = [], onSuccess }: EditVendorProps) {
     const { t } = useTranslation();
     const emptyAddress = {
         name: '',
@@ -23,12 +24,42 @@ export default function Edit({ vendor, onSuccess }: EditVendorProps) {
         country: '',
         zip_code: ''
     };
+    const initialPriceLists: VendorPriceRow[] = (vendor.price_lists ?? []).map((row) => ({
+        id: row.id,
+        product_service_item_id: row.product_service_item_id,
+        unit_price: row.unit_price,
+        min_quantity: row.min_quantity ?? 1,
+        currency_code: row.currency_code ?? 'INR',
+        notes: row.notes ?? null,
+    }));
     const { data, setData, put, processing, errors } = useForm<CreateVendorFormData>({
         ...vendor,
         supplier_type: vendor.supplier_type || 'yarn',
         billing_address: vendor.billing_address || emptyAddress,
         shipping_address: vendor.shipping_address || emptyAddress,
+        price_lists: initialPriceLists,
     });
+
+    const updatePriceRow = (index: number, field: keyof VendorPriceRow, value: string | number) => {
+        const rows = [...(data.price_lists ?? [])];
+        rows[index] = { ...rows[index], [field]: value };
+        setData('price_lists', rows);
+    };
+
+    const addPriceRow = () => {
+        setData('price_lists', [...(data.price_lists ?? []), {
+            product_service_item_id: '',
+            unit_price: '',
+            min_quantity: 1,
+            currency_code: 'INR',
+        }]);
+    };
+
+    const removePriceRow = (index: number) => {
+        const rows = [...(data.price_lists ?? [])];
+        rows.splice(index, 1);
+        setData('price_lists', rows);
+    };
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -163,6 +194,90 @@ export default function Edit({ vendor, onSuccess }: EditVendorProps) {
                         </div>
                     </div>
                 </div>
+                {/* Product Pricing */}
+                <div className="border rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <Label className="text-base font-medium">{t('Product Pricing')}</Label>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {t('Set default rates per product for this vendor. These pre-fill when raising purchase orders and stay editable per order.')}
+                            </p>
+                        </div>
+                    </div>
+
+                    {items.length === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                            {t('No products available yet. Add products in the Product Master first.')}
+                        </p>
+                    )}
+
+                    {(data.price_lists ?? []).length === 0 && items.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                            {t('No rates set yet. Click "Add Product Rate" to set per-kg / per-unit rates for this vendor.')}
+                        </p>
+                    )}
+
+                    <div className="space-y-2">
+                        {(data.price_lists ?? []).map((row, index) => (
+                            <div key={index} className="grid grid-cols-[1fr_120px_90px_auto] gap-2 items-center">
+                                <div>
+                                    <Select
+                                        value={row.product_service_item_id ? String(row.product_service_item_id) : ''}
+                                        onValueChange={(value) => updatePriceRow(index, 'product_service_item_id', value)}
+                                    >
+                                        <SelectTrigger className="text-sm">
+                                            <SelectValue placeholder={t('Select product')} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {items.map((item) => (
+                                                <SelectItem key={item.id} value={String(item.id)}>
+                                                    {item.name} {item.unit ? `(${item.unit})` : ''}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={row.unit_price === '' ? '' : String(row.unit_price)}
+                                        onChange={(e) => updatePriceRow(index, 'unit_price', e.target.value)}
+                                        placeholder={t('Rate')}
+                                    />
+                                </div>
+                                <div>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={row.min_quantity === undefined || row.min_quantity === '' ? '' : String(row.min_quantity)}
+                                        onChange={(e) => updatePriceRow(index, 'min_quantity', e.target.value)}
+                                        placeholder={t('Min Qty')}
+                                    />
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removePriceRow(index)}
+                                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+
+                    {items.length > 0 && (
+                        <Button type="button" variant="outline" size="sm" onClick={addPriceRow}>
+                            <Plus className="h-4 w-4 mr-1" />
+                            {t('Add Product Rate')}
+                        </Button>
+                    )}
+                </div>
+
                 <div>
                     <Label htmlFor="billing_name">{t('Billing Name')}</Label>
                     <Input

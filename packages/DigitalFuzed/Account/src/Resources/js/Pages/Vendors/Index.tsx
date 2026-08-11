@@ -27,7 +27,7 @@ import { usePageButtons } from '@/hooks/usePageButtons';
 import { resolveSupplierTypeLabel, SUPPLIER_TYPE_OPTIONS } from './supplier-types';
 
 export default function Index() {
-    const { vendors, users, auth, is_demo } = usePage<any>().props;
+    const { vendors, users, items, auth, is_demo } = usePage<any>().props;
     const { t } = useTranslation();
     const urlParams = new URLSearchParams(window.location.search);
 
@@ -580,6 +580,7 @@ export default function Index() {
                 {modalState.mode === 'edit' && modalState.data && (
                     <Edit
                         vendor={modalState.data}
+                        items={items ?? []}
                         onSuccess={closeModal}
                     />
                 )}

@@ -35,6 +35,15 @@ export interface Vendor {
     created_at: string;
 }
 
+export interface VendorPriceRow {
+    id?: number;
+    product_service_item_id: number | string;
+    unit_price: number | string;
+    min_quantity?: number | string;
+    currency_code?: string;
+    notes?: string | null;
+}
+
 export interface CreateVendorFormData {
     user_id?: string;
     supplier_type: string;
@@ -51,6 +60,7 @@ export interface CreateVendorFormData {
     shipping_address: Address;
     same_as_billing: boolean;
     notes: string;
+    price_lists?: VendorPriceRow[];
 }
 
 export interface User {
@@ -73,8 +83,18 @@ export type VendorModalState = ModalState<Vendor>;
 export interface VendorsIndexProps {
     vendors: PaginatedVendors;
     users: User[];
+    items: VendorPriceItem[];
     auth: AuthContext;
     [key: string]: unknown;
+}
+
+export interface VendorPriceItem {
+    id: number;
+    name: string;
+    sku: string;
+    unit?: string | null;
+    purchase_price?: string | number | null;
+    sale_price?: string | number | null;
 }
 
 export interface CreateVendorProps {
@@ -84,6 +104,7 @@ export interface CreateVendorProps {
 }
 
 export interface EditVendorProps {
-    vendor: Vendor;
+    vendor: Vendor & { price_lists?: VendorPriceRow[] };
+    items: VendorPriceItem[];
     onSuccess: () => void;
 }

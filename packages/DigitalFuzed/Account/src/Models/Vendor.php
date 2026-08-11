@@ -55,6 +55,11 @@ class Vendor extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function priceLists()
+    {
+        return $this->hasMany(VendorPriceList::class, 'vendor_id');
+    }
+
     public function ratings()
     {
         return $this->hasMany(VendorRating::class);
