@@ -1,4 +1,5 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, LayoutDashboard, Navigation, Plus, Truck } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
@@ -161,6 +162,8 @@ export default function Index({
         eway_bill_number: '',
         notes: '',
     });
+    const [showTrackingOverrides, setShowTrackingOverrides] = useState(false);
+    const selectedTrackingPlan = approvedPlans.find((row) => String(row.id) === trackingForm.data.dispatch_plan_id) ?? null;
 
     const approvePlan = (id: number) => {
         router.post(route('textile.dispatch.plans.approve'), { dispatch_plan_id: id }, { preserveScroll: true });
@@ -261,37 +264,64 @@ export default function Index({
                                                 onSubmit={(event) => {
                                                     event.preventDefault();
                                                     trackingForm.post(route('textile.dispatch.trackings.store'), {
-                                                        onSuccess: () => trackingForm.reset('dispatch_plan_id', 'current_location', 'vehicle_id', 'driver_id', 'route_id', 'transport_vendor_id', 'lr_number', 'eway_bill_number', 'notes'),
+                                                        onSuccess: () => {
+                                                            trackingForm.reset('dispatch_plan_id', 'current_location', 'vehicle_id', 'driver_id', 'route_id', 'transport_vendor_id', 'lr_number', 'eway_bill_number', 'notes');
+                                                            setShowTrackingOverrides(false);
+                                                        },
                                                     });
                                                 }}
                                             >
                                                 <SelectField label={t('Approved Dispatch Plan')} value={trackingForm.data.dispatch_plan_id} onChange={(value: string) => trackingForm.setData('dispatch_plan_id', value)} options={createTextileWorkflowSelectOptions(approvedPlans)} includeEmpty emptyLabel={t('Select approved dispatch plan')} helperText={t('Only approved plans are listed.')} disabled={approvedPlans.length === 0} disabledReason={t('No approved dispatch plan found. Approve a dispatch plan first.')} required />
                                                 <SelectField label={t('Tracking Status')} value={trackingForm.data.tracking_status} onChange={(value: string) => trackingForm.setData('tracking_status', value)} options={resolvedTrackingStatusOptions} includeEmpty emptyLabel={t('Select tracking status')} required />
                                                 <Field label={t('Current Location')} value={trackingForm.data.current_location} onChange={(value: string) => trackingForm.setData('current_location', value)} />
-                                                {resolvedVehicleOptions.length > 0 && (
-                                                    <SelectField label={t('Vehicle')} value={trackingForm.data.vehicle_id} onChange={(value: string) => trackingForm.setData('vehicle_id', value)} options={resolvedVehicleOptions} includeEmpty emptyLabel={t('Select vehicle')} helperText={t('Managed from Master Setup > Dispatch Setup > Vehicles.')} />
+                                                {selectedTrackingPlan && (
+                                                    <div className="space-y-2 rounded-lg border bg-muted/40 p-3">
+                                                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Dispatch Plan Details')}</p>
+                                                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                                                            <span className="text-muted-foreground">{t('Vehicle')}</span>
+                                                            <span>{selectedTrackingPlan.metadata?.vehicle_number || '-'}</span>
+                                                            <span className="text-muted-foreground">{t('Driver')}</span>
+                                                            <span>{selectedTrackingPlan.metadata?.driver_name || '-'}</span>
+                                                            <span className="text-muted-foreground">{t('Route')}</span>
+                                                            <span>{selectedTrackingPlan.metadata?.route_name || '-'}</span>
+                                                            <span className="text-muted-foreground">{t('Transport Vendor')}</span>
+                                                            <span>{selectedTrackingPlan.metadata?.transport_vendor_name || '-'}</span>
+                                                            <span className="text-muted-foreground">{t('LR No')}</span>
+                                                            <span>{selectedTrackingPlan.metadata?.lr_number || '-'}</span>
+                                                            <span className="text-muted-foreground">{t('E-Way')}</span>
+                                                            <span>{selectedTrackingPlan.metadata?.eway_bill_number || '-'}</span>
+                                                        </div>
+                                                        <Button type="button" variant="ghost" className="h-auto p-0 text-xs text-muted-foreground hover:bg-transparent" onClick={() => setShowTrackingOverrides((value) => !value)}>
+                                                            {showTrackingOverrides ? t('Hide override fields') : t('Override vehicle/driver for this update (optional)')}
+                                                        </Button>
+                                                    </div>
                                                 )}
-                                                {resolvedDriverOptions.length > 0 && (
-                                                    <SelectField label={t('Driver')} value={trackingForm.data.driver_id} onChange={(value: string) => trackingForm.setData('driver_id', value)} options={resolvedDriverOptions} includeEmpty emptyLabel={t('Select driver')} helperText={t('Managed from Master Setup > Dispatch Setup > Drivers.')} />
+                                                {showTrackingOverrides && (
+                                                    <div className="space-y-3 rounded-lg border border-dashed p-3">
+                                                        {resolvedVehicleOptions.length > 0 && (
+                                                            <SelectField label={t('Vehicle')} value={trackingForm.data.vehicle_id} onChange={(value: string) => trackingForm.setData('vehicle_id', value)} options={resolvedVehicleOptions} includeEmpty emptyLabel={t('Select vehicle')} helperText={t('Leave empty to keep the plan vehicle.')} />
+                                                        )}
+                                                        {resolvedDriverOptions.length > 0 && (
+                                                            <SelectField label={t('Driver')} value={trackingForm.data.driver_id} onChange={(value: string) => trackingForm.setData('driver_id', value)} options={resolvedDriverOptions} includeEmpty emptyLabel={t('Select driver')} helperText={t('Leave empty to keep the plan driver.')} />
+                                                        )}
+                                                        {resolvedRouteOptions.length > 0 && (
+                                                            <SelectField label={t('Route')} value={trackingForm.data.route_id} onChange={(value: string) => trackingForm.setData('route_id', value)} options={resolvedRouteOptions} includeEmpty emptyLabel={t('Select route')} helperText={t('Leave empty to keep the plan route.')} />
+                                                        )}
+                                                        <SelectField
+                                                            label={t('Transport Vendor')}
+                                                            value={trackingForm.data.transport_vendor_id}
+                                                            onChange={(value: string) => trackingForm.setData('transport_vendor_id', value)}
+                                                            options={resolvedTransportVendorOptions}
+                                                            includeEmpty
+                                                            emptyLabel={resolvedTransportVendorOptions.length > 0 ? t('Select transport vendor') : t('Optional — no vendor selected')}
+                                                            helperText={t('Leave empty to keep the plan vendor.')}
+                                                        />
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <Field label={t('LR Number')} value={trackingForm.data.lr_number} onChange={(value: string) => trackingForm.setData('lr_number', value)} placeholder={t('e.g. LR-1001')} />
+                                                            <Field label={t('E-Way Bill')} value={trackingForm.data.eway_bill_number} onChange={(value: string) => trackingForm.setData('eway_bill_number', value)} placeholder={t('e.g. EWB-9001')} />
+                                                        </div>
+                                                    </div>
                                                 )}
-                                                {resolvedRouteOptions.length > 0 && (
-                                                    <SelectField label={t('Route')} value={trackingForm.data.route_id} onChange={(value: string) => trackingForm.setData('route_id', value)} options={resolvedRouteOptions} includeEmpty emptyLabel={t('Select route')} helperText={t('Managed from Master Setup > Dispatch Setup > Routes.')} />
-                                                )}
-                                                <SelectField
-                                                    label={t('Transport Vendor')}
-                                                    value={trackingForm.data.transport_vendor_id}
-                                                    onChange={(value: string) => trackingForm.setData('transport_vendor_id', value)}
-                                                    options={resolvedTransportVendorOptions}
-                                                    includeEmpty
-                                                    emptyLabel={resolvedTransportVendorOptions.length > 0 ? t('Select transport vendor') : t('Optional — no vendor selected')}
-                                                    helperText={resolvedTransportVendorOptions.length > 0
-                                                        ? t('Optional. Leave empty for own-vehicle dispatch.')
-                                                        : t('Optional. Leave empty for own-vehicle dispatch. To dispatch via a vendor, create one under Account > Vendors (supplier type Transport Vendor).')}
-                                                />
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <Field label={t('LR Number')} value={trackingForm.data.lr_number} onChange={(value: string) => trackingForm.setData('lr_number', value)} placeholder={t('e.g. LR-1001')} />
-                                                    <Field label={t('E-Way Bill')} value={trackingForm.data.eway_bill_number} onChange={(value: string) => trackingForm.setData('eway_bill_number', value)} placeholder={t('e.g. EWB-9001')} />
-                                                </div>
                                                 <Field label={t('Notes')} value={trackingForm.data.notes} onChange={(value: string) => trackingForm.setData('notes', value)} />
                                                 <Button type="submit" disabled={trackingForm.processing} className="w-full"><Plus className="mr-2 h-4 w-4" />{t('Post Tracking Update')}</Button>
                                             </form>

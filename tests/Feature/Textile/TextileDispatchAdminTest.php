@@ -207,12 +207,6 @@ class TextileDispatchAdminTest extends TestCase
                 'source_action' => 'tracking_update',
                 'tracking_status' => 'in_transit',
                 'current_location' => 'Surat Hub',
-                'vehicle_id' => $vehicleA->id,
-                'driver_id' => $driverA->id,
-                'route_id' => $routeA->id,
-                'transport_vendor_id' => $transportVendor->id,
-                'lr_number' => 'LR-1001',
-                'eway_bill_number' => 'EWB-9001',
             ])
             ->assertSessionHasNoErrors();
 
@@ -226,10 +220,18 @@ class TextileDispatchAdminTest extends TestCase
         $this->assertSame('draft', $tracking->status);
         $this->assertSame('in_transit', $tracking->metadata['tracking_status'] ?? null);
         $this->assertSame('Surat Hub', $tracking->metadata['current_location'] ?? null);
+        // Vehicle/driver/route/vendor/LR/e-way are inherited from the dispatch
+        // plan metadata (the tracking form no longer re-asks for them).
+        $this->assertSame($vehicleA->id, $tracking->metadata['vehicle_id'] ?? null);
+        $this->assertSame('GJ01-VH-7788', $tracking->metadata['vehicle_number'] ?? null);
+        $this->assertSame($driverA->id, $tracking->metadata['driver_id'] ?? null);
+        $this->assertSame('Ramesh Driver', $tracking->metadata['driver_name'] ?? null);
         $this->assertSame($routeA->id, $tracking->metadata['route_id'] ?? null);
         $this->assertSame('Surat to Ahmedabad', $tracking->metadata['route_name'] ?? null);
         $this->assertSame($transportVendor->id, $tracking->metadata['transport_vendor_id'] ?? null);
         $this->assertSame('Metro Transport Co', $tracking->metadata['transport_vendor_name'] ?? null);
+        $this->assertSame('LR-1001', $tracking->metadata['lr_number'] ?? null);
+        $this->assertSame('EWB-9001', $tracking->metadata['eway_bill_number'] ?? null);
 
         $this->actingAs($companyA)
             ->post(route('textile.dispatch.trackings.finalize'), [

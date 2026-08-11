@@ -1365,6 +1365,15 @@ Progress note (2026-08-04):
 - **Verified**: tsc 0 errors; build passed (`Index-BaI9S2pB.js`); full textile suite 97 passed (1655 assertions), dispatch filter 4 passed (104 assertions).
 - **Deployed manually** (rsync `--delete` removed the `build` symlink — post-deploy script must recreate it; first health check 500 was fixed by recreating `build` → `public/build` + `storage/media` symlinks and running caches as the app user). Health check HTTP 200; prod verified: `Index-BaI9S2pB.js` contains "Truck/container mode" helper text, controller has the `isContainer` derivation.
 
+## Dispatch tracking form inherits logistics from approved plan (deployed 2026-08-11)
+
+- User asked why Dispatch Tracking (`/textile/dispatch?section=tracking`) re-asks for Vehicle, Driver, Route, Transport Vendor, LR Number, and E-Way Bill when creating a tracking update — all of that was already captured on the approved dispatch plan.
+- `TextileDispatchService::createDispatchTracking` already inherits these from the plan (`$payload['vehicle_id'] ?? ($plan->metadata['vehicle_id'] ?? null)` and the same for driver/route/vendor/LR/e-way), so the form fields were pure UI duplication.
+- **Frontend (`Dispatch/Index.tsx`)**: tracking form now asks only **Approved Dispatch Plan → Tracking Status → Current Location → Notes**. When a plan is selected, a read-only **Dispatch Plan Details** box shows the plan's Vehicle/Driver/Route/Transport Vendor/LR/E-Way from `plan.metadata`. A collapsed **"Override vehicle/driver for this update (optional)"** toggle reveals the override selects for rare mid-route changes (transshipment/driver swap); helper text says "Leave empty to keep the plan …". `onSuccess` also resets the override state.
+- **Tests (`TextileDispatchAdminTest`)**: the tracking post now omits vehicle/driver/route/vendor/LR/e-way and asserts the tracking metadata inherits them from the plan (`vehicle_number=GJ01-VH-7788`, `driver_name=Ramesh Driver`, `route_name=Surat to Ahmedabad`, `transport_vendor_name=Metro Transport Co`, `lr_number=LR-1001`, `eway_bill_number=EWB-9001`). No backend change was needed.
+- **Verified**: tsc 0 errors; build passed (`Index-D30AHP_r.js` contains "Dispatch Plan Details" + "Override vehicle/driver"); dispatch filter 4 passed (110 assertions); full textile suite 97 passed (1661 assertions).
+- **Deployed manually** (same rsync pattern; `build` symlink recreated, caches as app user). Health check HTTP 200.
+
 ## Delivery order from here
 
 1. **P1 (completed Aug 2026)**: Inventory Redesign + Per-Role RBAC — Phase 3B. Restructure inventory into material-type-wise sub-menus (Yarn, Beam, Grey Fabric, Finished Fabric, Chemicals, Packing Materials) with auto-created lots. Add per-role capability overrides (owner sees all 111 items, manager sees 74 operational items). Verified: `npx tsc --noEmit`, `npm run build`, `php artisan test tests/Feature/Textile/TextileApprovalAdminTest.php`, and `php artisan db:seed --class=TextileRoleCapabilitySeeder --no-interaction --force`.
