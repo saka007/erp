@@ -44,6 +44,25 @@ interface PurchaseInvoiceRecord {
     status: string;
 }
 
+interface ProductItem {
+    id: number;
+    name: string;
+    sku?: string | null;
+    unit?: string | null;
+    purchase_price?: number | null;
+    sale_price?: number | null;
+}
+
+interface VendorPriceListEntry {
+    product_service_item_id: number;
+    product_name?: string | null;
+    product_sku?: string | null;
+    unit?: string | null;
+    unit_price?: number | null;
+    min_quantity?: number | null;
+    currency_code?: string | null;
+}
+
 export default function Index({
     requisitions,
     rfqs,
@@ -56,6 +75,7 @@ export default function Index({
     partyOptions,
     lotReferenceOptions,
     suppliers,
+    items,
     recentActivity,
 }: {
     requisitions: WorkflowDocument[];
@@ -69,6 +89,7 @@ export default function Index({
     partyOptions: string[];
     lotReferenceOptions: string[];
     suppliers: SupplierSummary[];
+    items: ProductItem[];
     recentActivity: ActivityItem[];
 }) {
     const { t } = useTranslation();
@@ -88,10 +109,13 @@ export default function Index({
 
     const requisitionForm = useForm({
         party_name: '',
+        vendor_id: '',
         lot_reference: '',
         quantity: '',
         unit: 'kg',
         requisition_type: 'yarn',
+        product_service_item_id: '',
+        rate: '',
         priority: 'medium',
         required_for: '',
         expected_date: '',
@@ -123,6 +147,52 @@ export default function Index({
         return match && match.credit_enabled
             ? { days: match.credit_days ?? 0 }
             : null;
+    })();
+
+    const selectedSupplier = suppliers.find((supplier) => supplier.name === requisitionForm.data.party_name) ?? null;
+    const selectedVendorPriceLists = selectedSupplier?.price_lists ?? [];
+    const resolvedProductOptions = (() => {
+        if (selectedVendorPriceLists.length > 0) {
+            return selectedVendorPriceLists.map((entry) => ({
+                value: String(entry.product_service_item_id),
+                label: `${entry.product_name ?? 'Product'}${entry.product_sku ? ` (${entry.product_sku})` : ''}${entry.unit_price != null ? ` @ ${Number(entry.unit_price).toFixed(2)}` : ''}`,
+            }));
+        }
+        return items.map((item) => ({
+            value: String(item.id),
+            label: `${item.name}${item.sku ? ` (${item.sku})` : ''}${item.purchase_price != null ? ` @ ${Number(item.purchase_price).toFixed(2)}` : ''}`,
+        }));
+    })();
+
+    const handleVendorChange = (value: string) => {
+        const vendor = suppliers.find((supplier) => supplier.name === value);
+        requisitionForm.setData((data) => ({
+            ...data,
+            party_name: value,
+            vendor_id: vendor ? String(vendor.id) : '',
+            product_service_item_id: '',
+            rate: '',
+        }));
+    };
+
+    const handleProductChange = (value: string) => {
+        const productId = Number(value);
+        const priceListEntry = selectedVendorPriceLists.find((entry) => entry.product_service_item_id === productId);
+        const product = items.find((item) => item.id === productId);
+        const prefilledRate = priceListEntry?.unit_price != null
+            ? String(priceListEntry.unit_price)
+            : (product?.purchase_price != null ? String(product.purchase_price) : '');
+        requisitionForm.setData((data) => ({
+            ...data,
+            product_service_item_id: value,
+            rate: prefilledRate,
+        }));
+    };
+
+    const requisitionAmount = (() => {
+        const quantity = Number(requisitionForm.data.quantity) || 0;
+        const rate = Number(requisitionForm.data.rate) || 0;
+        return quantity > 0 && rate > 0 ? quantity * rate : null;
     })();
 
     const allDocuments = [...requisitions, ...rfqs, ...purchaseOrders, ...grns, ...incomingQcs, ...supplierClaims];
@@ -263,7 +333,7 @@ export default function Index({
                                 <form className="space-y-4" onSubmit={(e) => {
                                     e.preventDefault();
                                     requisitionForm.post(route('textile.procurement.requisitions.store'), {
-                                        onSuccess: () => requisitionForm.reset('party_name', 'lot_reference', 'quantity', 'required_for', 'expected_date', 'remarks', 'warehouse'),
+                                        onSuccess: () => requisitionForm.reset('party_name', 'vendor_id', 'lot_reference', 'quantity', 'product_service_item_id', 'rate', 'required_for', 'expected_date', 'remarks', 'warehouse'),
                                     });
                                 }}>
                                     <TextileFormErrors errors={requisitionForm.errors} />
@@ -273,7 +343,7 @@ export default function Index({
                                             <SelectField
                                                 label={t('Supplier/Party')}
                                                 value={requisitionForm.data.party_name}
-                                                onChange={(v) => requisitionForm.setData('party_name', v)}
+                                                onChange={handleVendorChange}
                                                 options={resolvedPartyOptions}
                                                 includeEmpty
                                                 emptyLabel={t('Select supplier/party')}
@@ -328,6 +398,34 @@ export default function Index({
                                                 emptyLabel={t('Select unit')}
                                                 helperText={t('Units are derived from Unit Conversion master.')}
                                             />
+                                            <SelectField
+                                                label={t('Product')}
+                                                value={requisitionForm.data.product_service_item_id}
+                                                onChange={handleProductChange}
+                                                options={resolvedProductOptions}
+                                                includeEmpty
+                                                emptyLabel={t('Select product')}
+                                                helperText={selectedVendorPriceLists.length > 0
+                                                    ? t('Rate auto-fills from this supplier price list.')
+                                                    : t('Select supplier first to use their price list; otherwise base purchase price is suggested.')}
+                                                disabled={resolvedProductOptions.length === 0}
+                                                disabledReason={t('No products available. Create products in ProductService first.')}
+                                            />
+                                            <Field
+                                                label={t('Rate per Unit')}
+                                                type="number"
+                                                value={requisitionForm.data.rate}
+                                                onChange={(v) => requisitionForm.setData('rate', v)}
+                                                step="0.01"
+                                                helperText={selectedVendorPriceLists.length > 0
+                                                    ? t('Auto-filled from this supplier price list. Adjust if needed.')
+                                                    : t('Optional. Used to compute the expected purchase amount.')}
+                                            />
+                                            {requisitionAmount !== null ? (
+                                                <p className="text-xs font-medium text-emerald-600">
+                                                    {t('Expected Amount')}: {requisitionAmount.toFixed(2)}
+                                                </p>
+                                            ) : null}
                                             {canSelectAnyWarehouse ? (
                                                 <Field label={t('Warehouse')} value={requisitionForm.data.warehouse} onChange={(v) => requisitionForm.setData('warehouse', v)} />
                                             ) : null}
@@ -360,9 +458,12 @@ export default function Index({
                                             { key: 'document_number', header: t('Document') },
                                             { key: 'party_name', header: t('Party') },
                                             { key: 'lot_reference', header: t('Lot') },
+                                            { key: 'item_name', header: t('Item'), render: (_value: unknown, row: WorkflowDocument) => String(row.metadata?.item_name ?? '-') },
                                             { key: 'requisition_type', header: t('Type'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.requisition_type ?? 'general')) },
                                             { key: 'quantity', header: t('Qty') },
                                             { key: 'unit', header: t('Unit') },
+                                            { key: 'rate', header: t('Rate'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.rate != null ? String(row.metadata.rate) : '-' },
+                                            { key: 'invoice_amount', header: t('Amount'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.invoice_amount != null ? String(row.metadata.invoice_amount) : '-' },
                                             { key: 'priority', header: t('Priority'), render: (_value: unknown, row: WorkflowDocument) => formatTextileLabel(String(row.metadata?.priority ?? '-')) },
                                             { key: 'status', header: t('Status'), render: formatTextileLabel },
                                             {

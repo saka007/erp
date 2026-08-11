@@ -21,6 +21,15 @@ export interface SupplierSummary {
     credit_enabled?: boolean;
     payment_terms?: string | null;
     currency_code?: string | null;
+    price_lists?: Array<{
+        product_service_item_id: number;
+        product_name?: string | null;
+        product_sku?: string | null;
+        unit?: string | null;
+        unit_price?: number | null;
+        min_quantity?: number | null;
+        currency_code?: string | null;
+    }>;
     doc_count: number;
     total_quantity: number;
     last_purchase_at?: string | null;

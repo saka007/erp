@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use RuntimeException;
 use Workdo\Account\Models\Vendor;
+use Workdo\Account\Models\VendorPriceList;
+use Workdo\ProductService\Models\ProductServiceItem;
 
 class TextileProcurementController extends Controller
 {
@@ -47,6 +49,7 @@ class TextileProcurementController extends Controller
             'partyOptions' => $this->partyOptions(),
             'lotReferenceOptions' => $this->lotReferenceOptions(),
             'suppliers' => $this->supplierSummaries(),
+            'items' => $this->items(),
             'recentActivity' => $this->recentActivity(),
         ]);
     }
@@ -58,9 +61,12 @@ class TextileProcurementController extends Controller
 
         $validated = $request->validate([
             'party_name' => ['nullable', 'string', 'max:100'],
+            'vendor_id' => ['nullable', 'integer', 'min:1'],
             'lot_reference' => ['nullable', 'string', 'max:100'],
             'quantity' => ['required', 'numeric', 'gt:0'],
             'unit' => ['nullable', 'string', 'max:50'],
+            'product_service_item_id' => ['nullable', 'integer', 'min:1'],
+            'rate' => ['nullable', 'numeric', 'gte:0'],
             'requisition_type' => ['nullable', 'in:yarn,beam,grey_fabric,finished_fabric,chemical,packing_material,spare_part,service,general'],
             'priority' => ['nullable', 'string', 'max:20'],
             'required_for' => ['nullable', 'string', 'max:100'],
@@ -68,6 +74,19 @@ class TextileProcurementController extends Controller
             'remarks' => ['nullable', 'string', 'max:500'],
             'warehouse' => ['nullable', 'string', 'max:100'],
         ]);
+
+        $rate = isset($validated['rate']) ? (float) $validated['rate'] : null;
+        $quantity = (float) $validated['quantity'];
+        $invoiceAmount = $rate !== null ? round($rate * $quantity, 2) : null;
+
+        $product = null;
+        if (! empty($validated['product_service_item_id'])) {
+            $product = ProductServiceItem::query()
+                ->where('id', (int) $validated['product_service_item_id'])
+                ->where('created_by', creatorId())
+                ->select('id', 'name', 'sku', 'unit')
+                ->first();
+        }
 
         try {
             $service->createRequisition(array_merge($validated, [
@@ -78,6 +97,12 @@ class TextileProcurementController extends Controller
                     'expected_date' => $validated['expected_date'] ?? null,
                     'remarks' => $validated['remarks'] ?? null,
                     'warehouse' => $validated['warehouse'] ?? null,
+                    'vendor_id' => ! empty($validated['vendor_id']) ? (int) $validated['vendor_id'] : null,
+                    'product_service_item_id' => $product?->id ?? null,
+                    'item_name' => $product?->name ?? null,
+                    'item_sku' => $product?->sku ?? null,
+                    'rate' => $rate,
+                    'invoice_amount' => $invoiceAmount,
                 ],
             ]));
         } catch (RuntimeException $exception) {
@@ -505,6 +530,7 @@ class TextileProcurementController extends Controller
                     'credit_enabled' => (bool) ($vendor->credit_enabled ?? false),
                     'payment_terms' => $vendor->payment_terms,
                     'currency_code' => $vendor->currency_code,
+                    'price_lists' => $this->vendorPriceLists((int) $vendor->id),
                     'doc_count' => $vendorStats?->doc_count ?? 0,
                     'total_quantity' => $vendorStats?->total_quantity ?? 0,
                     'last_purchase_at' => $vendorStats?->last_purchase_at,
@@ -512,6 +538,54 @@ class TextileProcurementController extends Controller
             })
             ->sortByDesc('doc_count')
             ->values()
+            ->all();
+    }
+
+    private function vendorPriceLists(int $vendorId): array
+    {
+        if (! Schema::hasTable('account_vendor_price_lists')) {
+            return [];
+        }
+
+        return VendorPriceList::query()
+            ->with('product:id,name,sku,unit,purchase_price,sale_price')
+            ->where('created_by', creatorId())
+            ->where('vendor_id', $vendorId)
+            ->where('is_active', true)
+            ->get()
+            ->map(function ($priceList) {
+                $product = $priceList->product;
+
+                return [
+                    'product_service_item_id' => (int) $priceList->product_service_item_id,
+                    'product_name' => $product?->name ?? null,
+                    'product_sku' => $product?->sku ?? null,
+                    'unit' => $product?->unit ?? null,
+                    'unit_price' => $priceList->unit_price !== null ? (float) $priceList->unit_price : null,
+                    'min_quantity' => $priceList->min_quantity !== null ? (float) $priceList->min_quantity : null,
+                    'currency_code' => $priceList->currency_code,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function items(): array
+    {
+        return ProductServiceItem::query()
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->select('id', 'name', 'sku', 'unit', 'purchase_price', 'sale_price')
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($item) => [
+                'id' => (int) $item->id,
+                'name' => $item->name,
+                'sku' => $item->sku,
+                'unit' => $item->unit,
+                'purchase_price' => $item->purchase_price !== null ? (float) $item->purchase_price : null,
+                'sale_price' => $item->sale_price !== null ? (float) $item->sale_price : null,
+            ])
             ->all();
     }
 

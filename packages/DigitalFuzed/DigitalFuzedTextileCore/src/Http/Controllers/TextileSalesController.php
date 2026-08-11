@@ -19,6 +19,8 @@ use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use RuntimeException;
 use Workdo\Account\Models\Customer;
+use Workdo\Account\Models\CustomerPriceList;
+use Workdo\ProductService\Models\ProductServiceItem;
 use Workdo\Quotation\Http\Requests\StoreQuotationRequest;
 use Workdo\Quotation\Http\Requests\UpdateQuotationRequest;
 use Workdo\Quotation\Models\SalesQuotation;
@@ -53,6 +55,7 @@ class TextileSalesController extends Controller
             'unitOptions' => $this->unitOptions(),
             'partyOptions' => $this->partyOptions(),
             'lotReferenceOptions' => $this->lotReferenceOptions(),
+            'items' => $this->items(),
             'recentActivity' => $this->recentActivity(),
         ]);
     }
@@ -74,7 +77,8 @@ class TextileSalesController extends Controller
             'lot_reference' => ['nullable', 'string', 'max:100'],
             'quantity' => ['nullable', 'required_with:source_reference_id', 'numeric', 'gt:0'],
             'unit' => ['nullable', 'string', 'max:50'],
-            'rate' => ['nullable', 'required_without:source_reference_id', 'numeric', 'gte:0'],
+            'product_service_item_id' => ['nullable', 'integer', 'min:1'],
+            'rate' => ['nullable', 'numeric', 'gte:0'],
             'required_delivery_date' => ['nullable', 'required_without:source_reference_id', 'date'],
             'warehouse' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:500'],
@@ -82,10 +86,49 @@ class TextileSalesController extends Controller
 
         if (! empty($validated['customer_id']) && ! empty($validated['lot_selections'])) {
             $customer = Customer::query()->where('created_by', creatorId())->findOrFail((int) $validated['customer_id']);
+
+            // When a product is selected but no rate was provided, prefer its
+            // per-customer price list rate as the sales order rate.
+            // When a rate IS provided (the form always prefills and stays
+            // editable), the submitted rate is respected as-is.
+            $productItem = null;
+            if (! empty($validated['product_service_item_id'])) {
+                $productItem = ProductServiceItem::query()
+                    ->where('id', (int) $validated['product_service_item_id'])
+                    ->where('created_by', creatorId())
+                    ->select('id', 'name', 'sku', 'unit', 'purchase_price', 'sale_price')
+                    ->first();
+            }
+
+            $rate = isset($validated['rate']) ? (float) $validated['rate'] : null;
+            $rateSource = $rate !== null ? 'manual' : null;
+
+            if ($productItem !== null && $rate === null) {
+                $priceListRate = null;
+                if (Schema::hasTable('account_customer_price_lists')) {
+                    $priceListRate = CustomerPriceList::query()
+                        ->where('created_by', creatorId())
+                        ->where('customer_id', (int) $validated['customer_id'])
+                        ->where('product_service_item_id', (int) $validated['product_service_item_id'])
+                        ->where('is_active', true)
+                        ->value('unit_price');
+                }
+                if ($priceListRate !== null) {
+                    $rate = (float) $priceListRate;
+                    $rateSource = 'customer_price_list';
+                } elseif ($productItem->sale_price !== null) {
+                    $rate = (float) $productItem->sale_price;
+                    $rateSource = 'item_sale_price';
+                }
+            }
+
             $validated['party_name'] = $customer->company_name;
             $validated['metadata'] = [
-                'item_name' => 'Takha / Woven Fabric',
-                'rate' => (float) $validated['rate'],
+                'item_name' => $productItem?->name ?? 'Takha / Woven Fabric',
+                'item_sku' => $productItem?->sku ?? null,
+                'product_service_item_id' => $productItem?->id ?? null,
+                'rate' => $rate,
+                'rate_source' => $rateSource,
                 'required_delivery_date' => $validated['required_delivery_date'],
                 // Warehouse is always auto-derived from the user's active branch
                 // (single warehouse in scope); no manual selection in the form.
@@ -559,9 +602,58 @@ class TextileSalesController extends Controller
                     'default_rate' => $customer->default_rate !== null ? (float) $customer->default_rate : null,
                     'credit_days' => $customer->credit_days !== null ? (int) $customer->credit_days : null,
                     'credit_enabled' => (bool) ($customer->credit_enabled ?? false),
+                    'price_lists' => $this->customerPriceLists((int) $customer->id),
                 ];
             })
             ->values();
+    }
+
+    private function customerPriceLists(int $customerId): array
+    {
+        if (! Schema::hasTable('account_customer_price_lists')) {
+            return [];
+        }
+
+        return CustomerPriceList::query()
+            ->with('item:id,name,sku,unit,purchase_price,sale_price')
+            ->where('created_by', creatorId())
+            ->where('customer_id', $customerId)
+            ->where('is_active', true)
+            ->get()
+            ->map(function ($priceList) {
+                $item = $priceList->item;
+
+                return [
+                    'product_service_item_id' => (int) $priceList->product_service_item_id,
+                    'product_name' => $item?->name ?? null,
+                    'product_sku' => $item?->sku ?? null,
+                    'unit' => $item?->unit ?? null,
+                    'unit_price' => $priceList->unit_price !== null ? (float) $priceList->unit_price : null,
+                    'min_quantity' => $priceList->min_quantity !== null ? (float) $priceList->min_quantity : null,
+                    'currency_code' => $priceList->currency_code,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function items(): array
+    {
+        return ProductServiceItem::query()
+            ->where('created_by', creatorId())
+            ->where('is_active', true)
+            ->select('id', 'name', 'sku', 'unit', 'purchase_price', 'sale_price')
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($item) => [
+                'id' => (int) $item->id,
+                'name' => $item->name,
+                'sku' => $item->sku,
+                'unit' => $item->unit,
+                'purchase_price' => $item->purchase_price !== null ? (float) $item->purchase_price : null,
+                'sale_price' => $item->sale_price !== null ? (float) $item->sale_price : null,
+            ])
+            ->all();
     }
 
     private function activeBranchWarehouseName(): ?string

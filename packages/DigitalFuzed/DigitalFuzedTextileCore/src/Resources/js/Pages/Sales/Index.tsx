@@ -44,6 +44,24 @@ interface CustomerOption {
     default_rate?: number | null;
     credit_days?: number | null;
     credit_enabled?: boolean;
+    price_lists?: Array<{
+        product_service_item_id: number;
+        product_name?: string | null;
+        product_sku?: string | null;
+        unit?: string | null;
+        unit_price?: number | null;
+        min_quantity?: number | null;
+        currency_code?: string | null;
+    }>;
+}
+
+interface ProductItem {
+    id: number;
+    name: string;
+    sku?: string | null;
+    unit?: string | null;
+    purchase_price?: number | null;
+    sale_price?: number | null;
 }
 
 interface QuotationRecord {
@@ -110,6 +128,7 @@ export default function Index({
     unitOptions,
     partyOptions,
     lotReferenceOptions,
+    items,
     recentActivity,
 }: {
     salesOrders: WorkflowDocument[];
@@ -128,6 +147,7 @@ export default function Index({
     unitOptions: string[];
     partyOptions: string[];
     lotReferenceOptions: string[];
+    items: ProductItem[];
     recentActivity: ActivityItem[];
 }) {
     const { t } = useTranslation();
@@ -148,6 +168,7 @@ export default function Index({
         source_action: '',
         customer_id: '',
         lot_selections: [{ lot_reference: '', quantity: '' }],
+        product_service_item_id: '',
         rate: '',
         required_delivery_date: '',
         notes: '',
@@ -157,6 +178,45 @@ export default function Index({
         value: String(customer.id),
         label: `${customer.company_name} | ${customer.operating_model || '-'} | ${customer.material_ownership || '-'} | ${customer.billing_mode || '-'}${customer.default_rate != null ? ` | @ ${Number(customer.default_rate).toFixed(2)}` : ''}`,
     }));
+
+    const selectedCustomer = customers.find((row) => String(row.id) === salesOrderForm.data.customer_id) ?? null;
+    const selectedCustomerPriceLists = selectedCustomer?.price_lists ?? [];
+    const resolvedProductOptions = (() => {
+        if (selectedCustomerPriceLists.length > 0) {
+            return selectedCustomerPriceLists.map((entry) => ({
+                value: String(entry.product_service_item_id),
+                label: `${entry.product_name ?? 'Product'}${entry.product_sku ? ` (${entry.product_sku})` : ''}${entry.unit_price != null ? ` @ ${Number(entry.unit_price).toFixed(2)}` : ''}`,
+            }));
+        }
+        return items.map((item) => ({
+            value: String(item.id),
+            label: `${item.name}${item.sku ? ` (${item.sku})` : ''}${item.sale_price != null ? ` @ ${Number(item.sale_price).toFixed(2)}` : ''}`,
+        }));
+    })();
+
+    const handleCustomerChange = (value: string) => {
+        const selected = customers.find((row) => String(row.id) === value);
+        salesOrderForm.setData((data) => ({
+            ...data,
+            customer_id: value,
+            product_service_item_id: '',
+            rate: selected?.default_rate != null ? String(selected.default_rate) : data.rate,
+        }));
+    };
+
+    const handleProductChange = (value: string) => {
+        const productId = Number(value);
+        const priceListEntry = selectedCustomerPriceLists.find((entry) => entry.product_service_item_id === productId);
+        const product = items.find((item) => item.id === productId);
+        const prefilledRate = priceListEntry?.unit_price != null
+            ? String(priceListEntry.unit_price)
+            : (product?.sale_price != null ? String(product.sale_price) : salesOrderForm.data.rate);
+        salesOrderForm.setData((data) => ({
+            ...data,
+            product_service_item_id: value,
+            rate: prefilledRate,
+        }));
+    };
 
     const allocationForm = useForm({ sales_order_id: '' });
     const dispatchForm = useForm({ allocation_id: '' });
@@ -329,18 +389,11 @@ export default function Index({
                                     <SelectField
                                         label={t('Customer')}
                                         value={salesOrderForm.data.customer_id}
-                                        onChange={(value: string) => {
-                                            const selected = customers.find((row) => String(row.id) === value);
-                                            salesOrderForm.setData((data) => ({
-                                                ...data,
-                                                customer_id: value,
-                                                rate: selected?.default_rate != null ? String(selected.default_rate) : data.rate,
-                                            }));
-                                        }}
+                                        onChange={handleCustomerChange}
                                         options={customerOptions}
                                         includeEmpty
                                         emptyLabel={t('Select customer')}
-                                        helperText={t('Job-work-only customer profiles are blocked from sales-order flow. Rate auto-fills from the customer default rate and stays editable.')}
+                                        helperText={t('Job-work-only customer profiles are blocked from sales-order flow. Rate auto-fills from the customer price list and stays editable.')}
                                         disabled={customerOptions.length === 0}
                                         disabledReason={t('No customer profile found. Create customer profile first.')}
                                         error={salesOrderForm.errors.customer_id}
@@ -400,11 +453,27 @@ export default function Index({
                                             <p className="text-sm text-muted-foreground">{t('Order Quantity')}: {selectedTakhaQuantity.toFixed(2)} {selectedTakhaUnits.length === 1 ? selectedTakhaUnits[0] : ''}{selectedTakhaUnits.length > 1 ? ` · ${t('Mixed units not allowed')}` : ''}</p>
                                         </div>
                                     </div>
+                                    <SelectField
+                                        label={t('Product')}
+                                        value={salesOrderForm.data.product_service_item_id}
+                                        onChange={handleProductChange}
+                                        options={resolvedProductOptions}
+                                        includeEmpty
+                                        emptyLabel={t('Select product')}
+                                        helperText={selectedCustomerPriceLists.length > 0
+                                            ? t('Rate auto-fills from this customer price list.')
+                                            : t('Select customer first to use their price list; otherwise base sale price is suggested.')}
+                                        disabled={resolvedProductOptions.length === 0}
+                                        disabledReason={t('No products available. Create products in ProductService first.')}
+                                    />
                                     <Field label={t('Rate per Unit')} type="number" value={salesOrderForm.data.rate} onChange={(value: string) => salesOrderForm.setData('rate', value)} step="0.01" required helperText={(() => {
                                         const selected = customers.find((row) => String(row.id) === salesOrderForm.data.customer_id);
+                                        if (selectedCustomerPriceLists.length > 0) {
+                                            return t('Auto-filled from this customer price list. Adjust if needed.');
+                                        }
                                         return selected?.default_rate != null
                                             ? t('Auto-filled from this customer default rate. Adjust if needed.')
-                                            : t('No default rate set for this customer. You can add one in the customer profile.');
+                                            : t('No rate set for this customer. Add rates in the customer profile.');
                                     })()} />
                                     <Field label={t('Required Delivery Date')} type="date" value={salesOrderForm.data.required_delivery_date} onChange={(value: string) => salesOrderForm.setData('required_delivery_date', value)} required />
                                     <Field label={t('Notes')} value={salesOrderForm.data.notes} onChange={(value: string) => salesOrderForm.setData('notes', value)} />
