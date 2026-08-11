@@ -1348,6 +1348,14 @@ Progress note (2026-08-04):
 - **Test**: `test_approved_challan_is_available_as_dispatch_planning_source` (approved challan shows in dropdown + dispatch plan created from it; draft challan rejected with `source_id` error). Full textile suite 98 passed (1671 assertions); tsc 0 errors; build passed.
 - **Verified on prod**: `'approved', 'released', 'closed'` present in both deployed PHP files; `Index-C2cAnn8H.js` bundle contains "Approved Challan" and the new helper text.
 
+## Dispatch page left-rail workspace restructure (deployed 2026-08-11)
+
+- **Commit `36a2e7202`**: Dispatch page converted from top Tabs to the shared `TextileWorkspace` left-rail layout (same pattern as Sales and Inventory). Sidebar already had a single Dispatch item; the page now mirrors that with in-page sections: **Overview** (new — KPI cards + full dispatch plans table), **Dispatch Planning** (`?section=planning` — Create Dispatch Plan form + plans table with Approve Plan action), **Dispatch Tracking** (`?section=tracking` — tracking form + Tracking Records + POD Records). Sections are deep-linked via `?section=`, capability-filtered via `textileCapabilities`, and have per-section KPIs (Overview: Dispatch Plans/In Transit/Delivered/POD Records; others: Total/Draft/Approved/Released via `countSectionStatuses`).
+- **Workspace registry**: `resources/js/components/textile/textile-workspaces.ts` Dispatch workspace now has `sections: [overview, planning, tracking]` with icons LayoutDashboard/Truck/Gauge. `overview` was the only addition — the registry entry already existed.
+- **Aside**: `TextileInfoPanel` (Planning/Tracking/POD stages) + `MetricSummaryCard` "Dispatch Summary" (plans, tracking updates, in transit, delivered, POD records).
+- **Verified**: `npx tsc --noEmit` 0 errors; `npm run build` passed (`Index-Bm8zZIuO.js`, `textile-workspaces-DEhhWUg8.js`); `php artisan test --filter=TextileDispatch` 4 passed (100 assertions).
+- **Deployed manually** (GitHub Actions SSH to port 22 was timing out from the runner while local SSH worked): rsync with workflow exclusions + chown + composer install + migrate + caches + php-fpm/nginx restart. Health check HTTP 200; prod bundle verified (`Index-Bm8zZIuO.js` present with "Dispatch Planning", workspace registry has "Overview").
+
 ## Delivery order from here
 
 1. **P1 (completed Aug 2026)**: Inventory Redesign + Per-Role RBAC — Phase 3B. Restructure inventory into material-type-wise sub-menus (Yarn, Beam, Grey Fabric, Finished Fabric, Chemicals, Packing Materials) with auto-created lots. Add per-role capability overrides (owner sees all 111 items, manager sees 74 operational items). Verified: `npx tsc --noEmit`, `npm run build`, `php artisan test tests/Feature/Textile/TextileApprovalAdminTest.php`, and `php artisan db:seed --class=TextileRoleCapabilitySeeder --no-interaction --force`.
