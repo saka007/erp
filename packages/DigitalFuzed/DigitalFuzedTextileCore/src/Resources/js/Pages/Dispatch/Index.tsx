@@ -62,10 +62,7 @@ export default function Index({
     dispatchSourceFlags,
     sourceTypeOptions,
     sourceActionOptions,
-    dispatchModeOptions,
     trackingStatusOptions,
-    truckNumberOptions,
-    containerNumberOptions,
     vehicleOptions,
     driverOptions,
     routeOptions,
@@ -86,10 +83,7 @@ export default function Index({
     };
     sourceTypeOptions: string[];
     sourceActionOptions: string[];
-    dispatchModeOptions: string[];
     trackingStatusOptions: string[];
-    truckNumberOptions: string[];
-    containerNumberOptions: string[];
     vehicleOptions: EntityOption[];
     driverOptions: EntityOption[];
     routeOptions: EntityOption[];
@@ -123,10 +117,7 @@ export default function Index({
 
     const resolvedSourceTypeOptions = sourceTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedSourceActionOptions = sourceActionOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
-    const resolvedDispatchModeOptions = dispatchModeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
     const resolvedTrackingStatusOptions = trackingStatusOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }));
-    const resolvedTruckNumberOptions = truckNumberOptions.map((value) => ({ value, label: value }));
-    const resolvedContainerNumberOptions = containerNumberOptions.map((value) => ({ value, label: value }));
     const resolvedVehicleOptions = vehicleOptions.map((value) => ({ value: String(value.id), label: value.label }));
     const resolvedDriverOptions = driverOptions.map((value) => ({ value: String(value.id), label: value.label }));
     const resolvedRouteOptions = routeOptions.map((value) => ({ value: String(value.id), label: value.label }));
@@ -147,9 +138,6 @@ export default function Index({
         source_id: initialSourceId,
         source_reference_type: resolvedSourceTypeOptions[0]?.value ?? 'dispatch_plan',
         source_action: resolvedSourceActionOptions[0]?.value ?? 'dispatch_plan',
-        dispatch_mode: resolvedDispatchModeOptions[0]?.value ?? 'truck',
-        truck_number: '',
-        container_number: '',
         driver_id: '',
         vehicle_id: '',
         route_id: '',
@@ -351,7 +339,7 @@ export default function Index({
                                                 onSubmit={(event) => {
                                                     event.preventDefault();
                                                     planningForm.post(route('textile.dispatch.plans.store'), {
-                                                        onSuccess: () => planningForm.reset('source_type', 'source_id', 'truck_number', 'container_number', 'driver_id', 'vehicle_id', 'route_id', 'transport_vendor_id', 'lr_number', 'eway_bill_number', 'freight_amount', 'notes'),
+                                                        onSuccess: () => planningForm.reset('source_type', 'source_id', 'driver_id', 'vehicle_id', 'route_id', 'transport_vendor_id', 'lr_number', 'eway_bill_number', 'freight_amount', 'notes'),
                                                     });
                                                 }}
                                             >
@@ -391,21 +379,12 @@ export default function Index({
                                                 ) : (
                                                     <SelectField label={t('Approved Challan')} value={planningForm.data.source_id} onChange={(value: string) => planningForm.setData('source_id', value)} options={challanOptions} includeEmpty emptyLabel={t('Select approved challan')} helperText={t('Delivery challan is mandatory for sales dispatch planning.')} disabled={challanOptions.length === 0} disabledReason={t('No approved challan found. Approve a challan from Sales first.')} required />
                                                 )}
-                                                <SelectField label={t('Dispatch Mode')} value={planningForm.data.dispatch_mode} onChange={(value: string) => planningForm.setData('dispatch_mode', value)} options={resolvedDispatchModeOptions} includeEmpty emptyLabel={t('Select mode')} helperText={t('Truck and container dispatch are both supported.')} required />
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    {resolvedTruckNumberOptions.length > 0 && (
-                                                        <SelectField label={t('Truck Number')} value={planningForm.data.truck_number} onChange={(value: string) => planningForm.setData('truck_number', value)} options={resolvedTruckNumberOptions} includeEmpty emptyLabel={t('Select truck number')} helperText={t('Managed from Master Setup > Dispatch Setup > Truck Numbers.')} />
-                                                    )}
-                                                    {resolvedContainerNumberOptions.length > 0 && (
-                                                        <SelectField label={t('Container Number')} value={planningForm.data.container_number} onChange={(value: string) => planningForm.setData('container_number', value)} options={resolvedContainerNumberOptions} includeEmpty emptyLabel={t('Select container number')} helperText={t('Managed from Master Setup > Dispatch Setup > Container Numbers.')} />
-                                                    )}
-                                                </div>
                                                 <div className="grid grid-cols-2 gap-3">
                                                     {resolvedDriverOptions.length > 0 && (
                                                         <SelectField label={t('Driver')} value={planningForm.data.driver_id} onChange={(value: string) => planningForm.setData('driver_id', value)} options={resolvedDriverOptions} includeEmpty emptyLabel={t('Select driver')} helperText={t('Managed from Master Setup > Dispatch Setup > Drivers.')} />
                                                     )}
                                                     {resolvedVehicleOptions.length > 0 && (
-                                                        <SelectField label={t('Vehicle')} value={planningForm.data.vehicle_id} onChange={(value: string) => planningForm.setData('vehicle_id', value)} options={resolvedVehicleOptions} includeEmpty emptyLabel={t('Select vehicle')} helperText={t('Managed from Master Setup > Dispatch Setup > Vehicles.')} />
+                                                        <SelectField label={t('Vehicle')} value={planningForm.data.vehicle_id} onChange={(value: string) => planningForm.setData('vehicle_id', value)} options={resolvedVehicleOptions} includeEmpty emptyLabel={t('Select vehicle')} helperText={t('Truck/container mode and vehicle number are recorded automatically from the selected vehicle. Managed from Master Setup > Dispatch Setup > Vehicles.')} />
                                                     )}
                                                 </div>
                                                 {resolvedRouteOptions.length > 0 && (

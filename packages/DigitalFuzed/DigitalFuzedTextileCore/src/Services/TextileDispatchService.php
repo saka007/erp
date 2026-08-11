@@ -30,7 +30,7 @@ class TextileDispatchService
             'status' => 'draft',
             'metadata' => [
                 'source_type' => $sourceType,
-                'dispatch_mode' => $payload['dispatch_mode'],
+                'dispatch_mode' => $payload['dispatch_mode'] ?? 'truck',
                 'truck_number' => $payload['truck_number'] ?? null,
                 'container_number' => $payload['container_number'] ?? null,
                 'driver_id' => $payload['driver_id'] ?? null,

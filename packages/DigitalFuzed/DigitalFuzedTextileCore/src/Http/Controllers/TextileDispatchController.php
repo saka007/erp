@@ -40,10 +40,7 @@ class TextileDispatchController extends Controller
             'dispatchSourceFlags' => $this->dispatchSourceFlags(),
             'sourceTypeOptions' => $this->sourceTypeOptions(),
             'sourceActionOptions' => $this->sourceActionOptions(),
-            'dispatchModeOptions' => $this->dispatchModeOptions(),
             'trackingStatusOptions' => $this->trackingStatusOptions(),
-            'truckNumberOptions' => $this->truckNumberOptions(),
-            'containerNumberOptions' => $this->containerNumberOptions(),
             'vehicleOptions' => $this->vehicleOptions(),
             'driverOptions' => $this->driverOptions(),
             'routeOptions' => $this->routeOptions(),
@@ -62,7 +59,10 @@ class TextileDispatchController extends Controller
             'source_reference_type' => ['required', 'string', Rule::in($this->sourceTypeOptions())],
             'source_action' => ['required', 'string', Rule::in($this->sourceActionOptions())],
             'source_id' => ['required', 'integer', 'min:1'],
-            'dispatch_mode' => ['required', 'string', Rule::in($this->dispatchModeOptions())],
+            // dispatch_mode / truck_number / container_number are now derived
+            // from the selected vehicle (Vehicle entity's type + number), so the
+            // form no longer sends them. Kept nullable for backward compatibility.
+            'dispatch_mode' => ['nullable', 'string', Rule::in($this->dispatchModeOptions())],
             'truck_number' => ['nullable', 'string', Rule::in($this->truckNumberOptions())],
             'container_number' => ['nullable', 'string', Rule::in($this->containerNumberOptions())],
             'driver_id' => ['nullable', 'integer', Rule::in($this->driverIds())],
@@ -85,6 +85,15 @@ class TextileDispatchController extends Controller
         if (!empty($validated['vehicle_id'])) {
             $vehicle = TextileDispatchVehicle::query()->where('created_by', creatorId())->where('is_active', true)->findOrFail((int) $validated['vehicle_id']);
             $validated['vehicle_number'] = $vehicle->vehicle_number;
+
+            // Derive dispatch mode + truck/container number from the vehicle so
+            // the form only asks for the vehicle once (no redundant fields).
+            $isContainer = strtolower((string) $vehicle->vehicle_type) === 'container';
+            $validated['dispatch_mode'] = $isContainer ? 'container' : 'truck';
+            $validated['truck_number'] = $isContainer ? null : $vehicle->vehicle_number;
+            $validated['container_number'] = $isContainer ? ($vehicle->container_number ?: $vehicle->vehicle_number) : null;
+        } else {
+            $validated['dispatch_mode'] = $validated['dispatch_mode'] ?? 'truck';
         }
 
         if (!empty($validated['route_id'])) {

@@ -103,6 +103,20 @@ class TextileDispatchAdminTest extends TestCase
             'created_by' => $companyA->id,
         ]);
 
+        // Second company-A challan so the container plan has a distinct source
+        // (createDocument dedupes on source, so both plans cannot share challanA).
+        $challanA2 = TextileWorkflowDocument::create([
+            'document_type' => 'challan',
+            'document_number' => 'CHL-D-003',
+            'party_name' => 'Metro Textiles',
+            'lot_reference' => 'LOT-D-3',
+            'quantity' => 90,
+            'unit' => 'mtr',
+            'status' => 'released',
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+
         TextileWorkflowDocument::create([
             'document_type' => 'challan',
             'document_number' => 'CHL-D-002',
@@ -121,8 +135,6 @@ class TextileDispatchAdminTest extends TestCase
                 'source_id' => $challanA->id,
                 'source_reference_type' => 'dispatch_plan',
                 'source_action' => 'vehicle_assign',
-                'dispatch_mode' => 'truck',
-                'truck_number' => 'GJ01-TR-5555',
                 'driver_id' => $driverA->id,
                 'vehicle_id' => $vehicleA->id,
                 'route_id' => $routeA->id,
@@ -136,11 +148,9 @@ class TextileDispatchAdminTest extends TestCase
         $this->actingAs($companyA)
             ->post(route('textile.dispatch.plans.store'), [
                 'source_type' => 'challan',
-                'source_id' => $challanA->id,
+                'source_id' => $challanA2->id,
                 'source_reference_type' => 'dispatch_plan',
                 'source_action' => 'vehicle_assign',
-                'dispatch_mode' => 'container',
-                'container_number' => 'CONT-4455',
                 'driver_id' => $driverB->id,
                 'vehicle_id' => $vehicleB->id,
                 'route_id' => $routeA->id,
@@ -160,13 +170,27 @@ class TextileDispatchAdminTest extends TestCase
 
         $this->assertNotNull($truckPlan);
         $this->assertSame('draft', $truckPlan->status);
-        $this->assertSame('GJ01-TR-5555', $truckPlan->metadata['truck_number'] ?? null);
+        // Mode/truck/container are derived from the selected vehicle (vehicleA is
+        // a truck type, so truck_number = the vehicle's number).
+        $this->assertSame('truck', $truckPlan->metadata['dispatch_mode'] ?? null);
+        $this->assertSame('GJ01-VH-7788', $truckPlan->metadata['truck_number'] ?? null);
         $this->assertSame($routeA->id, $truckPlan->metadata['route_id'] ?? null);
         $this->assertSame('Surat to Ahmedabad', $truckPlan->metadata['route_name'] ?? null);
         $this->assertSame($transportVendor->id, $truckPlan->metadata['transport_vendor_id'] ?? null);
         $this->assertSame('Metro Transport Co', $truckPlan->metadata['transport_vendor_name'] ?? null);
         $this->assertSame('LR-1001', $truckPlan->metadata['lr_number'] ?? null);
         $this->assertSame('EWB-9001', $truckPlan->metadata['eway_bill_number'] ?? null);
+
+        // Container mode is derived from the container-type vehicle (vehicleB).
+        $containerPlan = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'dispatch_plan')
+            ->whereJsonContains('metadata->dispatch_mode', 'container')
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($containerPlan);
+        $this->assertSame('container', $containerPlan->metadata['dispatch_mode'] ?? null);
+        $this->assertSame('MH12-VH-9988', $containerPlan->metadata['container_number'] ?? null);
 
         $this->actingAs($companyA)
             ->post(route('textile.dispatch.plans.approve'), [
@@ -350,8 +374,6 @@ class TextileDispatchAdminTest extends TestCase
                 'source_id' => $jobWorkOutward->id,
                 'source_reference_type' => 'dispatch_plan',
                 'source_action' => 'vehicle_assign',
-                'dispatch_mode' => 'truck',
-                'truck_number' => 'GJ01-TR-5555',
                 'driver_id' => $driver->id,
                 'vehicle_id' => $vehicle->id,
                 'route_id' => $route->id,
@@ -380,8 +402,6 @@ class TextileDispatchAdminTest extends TestCase
                 'source_id' => $yarnDispatch->id,
                 'source_reference_type' => 'dispatch_plan',
                 'source_action' => 'vehicle_assign',
-                'dispatch_mode' => 'truck',
-                'truck_number' => 'GJ01-TR-5555',
                 'driver_id' => $driver->id,
                 'vehicle_id' => $vehicle->id,
                 'route_id' => $route->id,
@@ -410,8 +430,6 @@ class TextileDispatchAdminTest extends TestCase
                 'source_id' => $draftJobWorkOutward->id,
                 'source_reference_type' => 'dispatch_plan',
                 'source_action' => 'vehicle_assign',
-                'dispatch_mode' => 'truck',
-                'truck_number' => 'GJ01-TR-5555',
                 'driver_id' => $driver->id,
                 'vehicle_id' => $vehicle->id,
                 'route_id' => $route->id,
@@ -425,8 +443,6 @@ class TextileDispatchAdminTest extends TestCase
                 'source_id' => $inHouseWarpPlan->id,
                 'source_reference_type' => 'dispatch_plan',
                 'source_action' => 'vehicle_assign',
-                'dispatch_mode' => 'truck',
-                'truck_number' => 'GJ01-TR-5555',
                 'driver_id' => $driver->id,
                 'vehicle_id' => $vehicle->id,
                 'route_id' => $route->id,
@@ -440,7 +456,6 @@ class TextileDispatchAdminTest extends TestCase
                 'source_id' => $jobWorkOutward->id,
                 'source_reference_type' => 'dispatch_plan',
                 'source_action' => 'vehicle_assign',
-                'dispatch_mode' => 'truck',
             ])
             ->assertSessionHasErrors('source_id');
 
@@ -543,8 +558,6 @@ class TextileDispatchAdminTest extends TestCase
                 'source_id' => $approvedChallan->id,
                 'source_reference_type' => 'dispatch_plan',
                 'source_action' => 'vehicle_assign',
-                'dispatch_mode' => 'truck',
-                'truck_number' => 'GJ01-TR-5555',
                 'driver_id' => $driver->id,
                 'vehicle_id' => $vehicle->id,
                 'route_id' => $route->id,
@@ -579,8 +592,6 @@ class TextileDispatchAdminTest extends TestCase
                 'source_id' => $draftChallan->id,
                 'source_reference_type' => 'dispatch_plan',
                 'source_action' => 'vehicle_assign',
-                'dispatch_mode' => 'truck',
-                'truck_number' => 'GJ01-TR-5555',
                 'driver_id' => $driver->id,
                 'vehicle_id' => $vehicle->id,
                 'route_id' => $route->id,
