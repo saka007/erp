@@ -26,6 +26,7 @@ use DigitalFuzed\TextileCore\Http\Controllers\TextileDispatchRouteController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileTransportController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileMaintenanceController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileFinanceController;
+use DigitalFuzed\TextileCore\Http\Controllers\TextileInvoiceController;
 use DigitalFuzed\TextileCore\Http\Controllers\TextileReportsController;
 
 Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->group(function () {
@@ -222,6 +223,7 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/maintenance/spare-part-usages', [TextileMaintenanceController::class, 'storeSparePartUsage'])->name('textile.maintenance.spare-part-usages.store');
     Route::post('/textile/maintenance/maintenance-costs', [TextileMaintenanceController::class, 'storeMaintenanceCost'])->name('textile.maintenance.maintenance-costs.store');
     Route::get('/textile/finance', [TextileFinanceController::class, 'index'])->name('textile.finance.index');
+    Route::get('/textile/invoices', [TextileInvoiceController::class, 'index'])->name('textile.invoices.index');
     Route::post('/textile/finance/machine-costs', [TextileFinanceController::class, 'storeMachineCost'])->name('textile.finance.machine-costs.store');
     Route::post('/textile/finance/power-costs', [TextileFinanceController::class, 'storePowerCost'])->name('textile.finance.power-costs.store');
     Route::post('/textile/finance/chemical-costs', [TextileFinanceController::class, 'storeChemicalCost'])->name('textile.finance.chemical-costs.store');

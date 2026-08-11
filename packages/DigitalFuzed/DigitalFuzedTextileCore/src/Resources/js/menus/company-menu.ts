@@ -114,6 +114,12 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                 icon: ShoppingBag,
             },
             {
+                title: t('Invoices'),
+                href: route('textile.invoices.index'),
+                capability: 'invoices',
+                icon: ReceiptText,
+            },
+            {
                 title: t('Manufacturing'),
                 href: route('textile.manufacturing.index'),
                 capability: 'manufacturing',

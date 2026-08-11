@@ -271,6 +271,18 @@ export const textileWorkspaces: TextileWorkspace[] = [
             { id: 'reminders', label: 'Reminders', icon: BellRing },
         ],
     },
+    {
+        id: 'invoices',
+        title: 'Invoices',
+        routeName: 'textile.invoices.index',
+        capability: 'invoices',
+        sections: [
+            { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+            { id: 'sales', label: 'Sales Invoices', icon: ShoppingBag, capability: 'invoices' },
+            { id: 'purchase', label: 'Purchase Invoices', icon: ShoppingCart, capability: 'invoices' },
+            { id: 'job-work', label: 'Job Work Invoices', icon: Workflow, capability: 'invoices' },
+        ],
+    },
 ];
 
 export function getTextileWorkspace(id: string): TextileWorkspace | undefined {

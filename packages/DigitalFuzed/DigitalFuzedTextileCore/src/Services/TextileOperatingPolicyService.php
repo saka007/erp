@@ -213,6 +213,7 @@ class TextileOperatingPolicyService
             'manufacturing_maintenance' => false,
             'transport_operations' => false,
             'maintenance_operations' => false,
+            'invoices' => false,
         ];
 
         foreach ($activeProfiles as $profile) {
@@ -271,6 +272,7 @@ class TextileOperatingPolicyService
         $capabilities['transport_operations'] = (($settings[self::SETTING_HAS_TRANSPORT_OWN] ?? false) || ($settings[self::SETTING_HAS_TRANSPORT_VENDOR] ?? false));
         $capabilities['maintenance_operations'] = $settings[self::SETTING_HAS_MAINTENANCE] ?? false;
         $capabilities['payments'] = $settings[self::SETTING_HAS_PAYMENT_REMINDERS] ?? false;
+        $capabilities['invoices'] = $capabilities['sales'] || $capabilities['procurement'] || $capabilities['payments'];
 
         return $capabilities;
     }
