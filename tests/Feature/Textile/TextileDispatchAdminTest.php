@@ -458,6 +458,136 @@ class TextileDispatchAdminTest extends TestCase
             ->assertSee('LOT-YD-1');
     }
 
+    public function test_approved_challan_is_available_as_dispatch_planning_source(): void
+    {
+        AddOn::create([
+            'module' => 'TextileCore',
+            'name' => 'Textile Core',
+            'package_name' => 'textile-core',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        $companyA = $this->company();
+
+        $this->seedDispatchMasters($companyA->id);
+
+        $driver = TextileDispatchDriver::create([
+            'name' => 'Ramesh Driver',
+            'driver_source' => 'vendor',
+            'phone' => '9000000001',
+            'license_number' => 'DL-001',
+            'is_active' => true,
+            'created_by' => $companyA->id,
+            'creator_id' => $companyA->id,
+        ]);
+
+        $vehicle = TextileDispatchVehicle::create([
+            'vehicle_number' => 'GJ01-VH-7788',
+            'vehicle_type' => 'truck',
+            'is_active' => true,
+            'created_by' => $companyA->id,
+            'creator_id' => $companyA->id,
+        ]);
+
+        $route = TextileDispatchRoute::create([
+            'route_name' => 'Surat to Ahmedabad',
+            'origin_location' => 'Surat',
+            'destination_location' => 'Ahmedabad',
+            'is_active' => true,
+            'created_by' => $companyA->id,
+            'creator_id' => $companyA->id,
+        ]);
+
+        // Approved challan (e.g. after the Sales Approve action) must be
+        // eligible for dispatch planning.
+        $approvedChallan = TextileWorkflowDocument::create([
+            'document_type' => 'challan',
+            'document_number' => 'CHL-APR-001',
+            'party_name' => 'Metro Textiles',
+            'lot_reference' => 'LOT-APR-1',
+            'quantity' => 140,
+            'unit' => 'mtr',
+            'status' => 'approved',
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+
+        // Draft challan must not be available as a dispatch source.
+        TextileWorkflowDocument::create([
+            'document_type' => 'challan',
+            'document_number' => 'CHL-DRAFT-001',
+            'party_name' => 'Draft Buyer',
+            'lot_reference' => 'LOT-DRAFT-1',
+            'quantity' => 60,
+            'unit' => 'mtr',
+            'status' => 'draft',
+            'creator_id' => $companyA->id,
+            'created_by' => $companyA->id,
+        ]);
+
+        // The approved challan shows in the dispatch page (dropdown source),
+        // while the draft challan is excluded.
+        $this->actingAs($companyA)
+            ->get(route('textile.dispatch.index'))
+            ->assertOk()
+            ->assertSee('LOT-APR-1')
+            ->assertSee('Metro Textiles')
+            ->assertDontSee('LOT-DRAFT-1');
+
+        // Dispatch plan can be created from an approved challan.
+        $this->actingAs($companyA)
+            ->post(route('textile.dispatch.plans.store'), [
+                'source_type' => 'challan',
+                'source_id' => $approvedChallan->id,
+                'source_reference_type' => 'dispatch_plan',
+                'source_action' => 'vehicle_assign',
+                'dispatch_mode' => 'truck',
+                'truck_number' => 'GJ01-TR-5555',
+                'driver_id' => $driver->id,
+                'vehicle_id' => $vehicle->id,
+                'route_id' => $route->id,
+                'lr_number' => 'LR-1003',
+                'eway_bill_number' => 'EWB-9003',
+                'freight_amount' => 8500,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $plan = TextileWorkflowDocument::query()
+            ->where('created_by', $companyA->id)
+            ->where('document_type', 'dispatch_plan')
+            ->whereJsonContains('metadata->source_type', 'challan')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($plan);
+        $this->assertSame('Metro Textiles', $plan->party_name);
+        $this->assertSame('LOT-APR-1', $plan->lot_reference);
+        $this->assertSame('challan', $plan->metadata['source_type'] ?? null);
+        $this->assertSame($approvedChallan->id, $plan->metadata['source_document_id'] ?? null);
+
+        // Draft challan must be rejected as a dispatch source.
+        $draftChallan = TextileWorkflowDocument::query()
+            ->where('document_type', 'challan')
+            ->where('status', 'draft')
+            ->first();
+
+        $this->actingAs($companyA)
+            ->post(route('textile.dispatch.plans.store'), [
+                'source_type' => 'challan',
+                'source_id' => $draftChallan->id,
+                'source_reference_type' => 'dispatch_plan',
+                'source_action' => 'vehicle_assign',
+                'dispatch_mode' => 'truck',
+                'truck_number' => 'GJ01-TR-5555',
+                'driver_id' => $driver->id,
+                'vehicle_id' => $vehicle->id,
+                'route_id' => $route->id,
+            ])
+            ->assertSessionHasErrors('source_id');
+    }
+
     private function company(): User
     {
         $plan = Plan::create([

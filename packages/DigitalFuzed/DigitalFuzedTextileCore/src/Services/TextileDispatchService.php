@@ -57,7 +57,7 @@ class TextileDispatchService
         return match ($sourceType) {
             'job_work_outward' => $this->findDispatchSource($sourceId, 'job_work_outward', ['released', 'closed'], 'Job-work outward must be released before dispatch planning.'),
             'yarn_dispatch' => $this->findDispatchSource($sourceId, 'warp_plan', ['approved', 'released', 'closed'], 'Yarn dispatch plan must be approved before dispatch planning.', 'yarn_dispatch'),
-            default => $this->findDispatchSource($sourceId, 'challan', ['released', 'closed'], 'Challan must be released before dispatch planning.'),
+            default => $this->findDispatchSource($sourceId, 'challan', ['approved', 'released', 'closed'], 'Challan must be approved before dispatch planning.'),
         };
     }
 

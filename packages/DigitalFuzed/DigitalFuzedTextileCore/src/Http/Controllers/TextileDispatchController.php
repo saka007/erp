@@ -33,7 +33,7 @@ class TextileDispatchController extends Controller
         return Inertia::render('DigitalFuzedTextileCore/Dispatch/Index', [
             'dispatchPlans' => $this->documents('dispatch_plan'),
             'dispatchTrackings' => $this->documents('dispatch_tracking'),
-            'challans' => $this->documents('challan')->filter(fn (TextileWorkflowDocument $row) => in_array($row->status, ['released', 'closed'], true))->values(),
+            'challans' => $this->documents('challan')->filter(fn (TextileWorkflowDocument $row) => in_array($row->status, ['approved', 'released', 'closed'], true))->values(),
             'jobWorkOutwards' => $this->documents('job_work_outward')->filter(fn (TextileWorkflowDocument $row) => in_array($row->status, ['released', 'closed'], true))->values(),
             'yarnDispatches' => $this->documents('warp_plan')->filter(fn (TextileWorkflowDocument $row) => $row->source_action === 'yarn_dispatch' && in_array($row->status, ['approved', 'released', 'closed'], true))->values(),
             'pods' => $this->documents('pod'),

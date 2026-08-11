@@ -251,14 +251,15 @@ export default function Index({
                                             </div>
                                         </div>
                                     )}
-                                    <SelectField label={t('Source Type')} value={planningForm.data.source_reference_type} onChange={(value: string) => planningForm.setData('source_reference_type', value)} options={resolvedSourceTypeOptions} includeEmpty emptyLabel={t('Select source type')} helperText={t('Source types are managed from Master Setup > Dispatch Setup > Source Types.')} required />
-                                    <SelectField label={t('Source Action')} value={planningForm.data.source_action} onChange={(value: string) => planningForm.setData('source_action', value)} options={resolvedSourceActionOptions} includeEmpty emptyLabel={t('Select source action')} helperText={t('Source actions are managed from Master Setup > Dispatch Setup > Source Actions.')} required />
+                                    <p className="text-xs text-muted-foreground">
+                                        {t('Source type and action are recorded automatically. Just pick the dispatch source above.')}
+                                    </p>
                                     {planningForm.data.source_type === 'job_work_outward' ? (
                                         <SelectField label={t('Released Job-Work Outward')} value={planningForm.data.source_id} onChange={(value: string) => planningForm.setData('source_id', value)} options={jobWorkOutwardOptions} includeEmpty emptyLabel={t('Select released job-work outward')} helperText={t('Yarn issue to weaver / processing vendor dispatch.')} disabled={jobWorkOutwardOptions.length === 0} disabledReason={t('No released job-work outward found. Release one from Processing first.')} required />
                                     ) : planningForm.data.source_type === 'yarn_dispatch' ? (
                                         <SelectField label={t('Approved Yarn Dispatch Plan')} value={planningForm.data.source_id} onChange={(value: string) => planningForm.setData('source_id', value)} options={yarnDispatchOptions} includeEmpty emptyLabel={t('Select approved yarn dispatch plan')} helperText={t('Yarn dispatch to sizing vendor tracking.')} disabled={yarnDispatchOptions.length === 0} disabledReason={t('No approved yarn dispatch plan found. Create one from Manufacturing first.')} required />
                                     ) : (
-                                        <SelectField label={t('Released Challan')} value={planningForm.data.source_id} onChange={(value: string) => planningForm.setData('source_id', value)} options={challanOptions} includeEmpty emptyLabel={t('Select released challan')} helperText={t('Delivery challan is mandatory for sales dispatch planning.')} disabled={challanOptions.length === 0} disabledReason={t('No released challan found. Release challan from Sales first.')} required />
+                                        <SelectField label={t('Approved Challan')} value={planningForm.data.source_id} onChange={(value: string) => planningForm.setData('source_id', value)} options={challanOptions} includeEmpty emptyLabel={t('Select approved challan')} helperText={t('Delivery challan is mandatory for sales dispatch planning.')} disabled={challanOptions.length === 0} disabledReason={t('No approved challan found. Approve a challan from Sales first.')} required />
                                     )}
                                     <SelectField label={t('Dispatch Mode')} value={planningForm.data.dispatch_mode} onChange={(value: string) => planningForm.setData('dispatch_mode', value)} options={resolvedDispatchModeOptions} includeEmpty emptyLabel={t('Select mode')} helperText={t('Truck and container dispatch are both supported.')} required />
                                     <div className="grid grid-cols-2 gap-3">
@@ -324,7 +325,7 @@ export default function Index({
                                     { key: 'eway_bill_number', header: t('E-Way'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.eway_bill_number || '-' },
                                     { key: 'freight_amount', header: t('Freight'), render: (_value: unknown, row: WorkflowDocument) => row.metadata?.freight_amount ?? '-' },
                                 ]}
-                                emptyState={<NoRecordsFound icon={Truck} title={t('No dispatch plans found')} description={t('Create dispatch plans from released challans, job-work outward, or yarn dispatch.')} />}
+                                emptyState={<NoRecordsFound icon={Truck} title={t('No dispatch plans found')} description={t('Create dispatch plans from approved challans, job-work outward, or yarn dispatch.')} />}
                             />
                         </div>
                     </TabsContent>
@@ -342,7 +343,6 @@ export default function Index({
                                     }}
                                 >
                                     <SelectField label={t('Approved Dispatch Plan')} value={trackingForm.data.dispatch_plan_id} onChange={(value: string) => trackingForm.setData('dispatch_plan_id', value)} options={createTextileWorkflowSelectOptions(approvedPlans)} includeEmpty emptyLabel={t('Select approved dispatch plan')} helperText={t('Only approved plans are listed.')} disabled={approvedPlans.length === 0} disabledReason={t('No approved dispatch plan found. Approve a dispatch plan first.')} required />
-                                    <SelectField label={t('Source Action')} value={trackingForm.data.source_action} onChange={(value: string) => trackingForm.setData('source_action', value)} options={resolvedSourceActionOptions} includeEmpty emptyLabel={t('Select source action')} helperText={t('Source actions are managed from Master Setup > Dispatch Setup > Source Actions.')} required />
                                     <SelectField label={t('Tracking Status')} value={trackingForm.data.tracking_status} onChange={(value: string) => trackingForm.setData('tracking_status', value)} options={resolvedTrackingStatusOptions} includeEmpty emptyLabel={t('Select tracking status')} required />
                                     <Field label={t('Current Location')} value={trackingForm.data.current_location} onChange={(value: string) => trackingForm.setData('current_location', value)} />
                                     {resolvedVehicleOptions.length > 0 && (
