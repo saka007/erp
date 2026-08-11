@@ -1017,12 +1017,9 @@ UI Verification (Domain 18)
 
 | Feature | Menu/Submenu | Direct URL |
 |---|---|---|
-| Dispatch Planning | Daily Operations > Dispatch > Dispatch Planning | `/textile/dispatch?section=planning` |
-| Truck Dispatch | Daily Operations > Dispatch > Truck Dispatch | `/textile/dispatch?section=planning&mode=truck` |
-| Container Dispatch | Daily Operations > Dispatch > Container Dispatch | `/textile/dispatch?section=planning&mode=container` |
-| Dispatch Tracking | Daily Operations > Dispatch > Dispatch Tracking | `/textile/dispatch?section=tracking` |
-| Delivery Challan | Daily Operations > Dispatch > Delivery Challan | `/textile/sales?section=challan-pod` |
-| POD | Daily Operations > Dispatch > POD | `/textile/sales?section=challan-pod` |
+| Dispatch workspace (Planning + Tracking tabs) | Daily Operations > Dispatch (single item; tabs inside page) | `/textile/dispatch` |
+| Dispatch Planning tab | (tab inside Dispatch page) | `/textile/dispatch?section=planning` |
+| Dispatch Tracking tab | (tab inside Dispatch page) | `/textile/dispatch?section=tracking` |
 | Dispatch Source Types | Master Setup > Dispatch Setup > Source Types | `/textile/master-setup/dispatch/source-types` |
 | Dispatch Source Actions | Master Setup > Dispatch Setup > Source Actions | `/textile/master-setup/dispatch/source-actions` |
 | Dispatch Truck Numbers | Master Setup > Dispatch Setup > Truck Numbers | `/textile/master-setup/dispatch/dispatch-truck-numbers` |
@@ -1342,6 +1339,14 @@ Progress note (2026-08-04):
 - **Create Challan step in Allocation/Dispatch section**: the `allocation-dispatch` section of the Sales screen now has a third step **Create Challan** (after Create Dispatch) so the dispatch → challan flow is continuous — no need to switch to the separate Challan/POD tab. It reuses the existing `challanForm` + `textile.sales.challans.store` route and `releasedDispatches` options; the Challan/POD section still handles POD marking + challan records. Verified: `npx tsc --noEmit` 0 errors, `npm run build` passed, textile suite 96 passed (1643 assertions).
 - **Challan row actions (Approve + Edit)**: both Challan Records tables (in the Allocation/Dispatch and Challan/POD sections) now have an **Actions** column with **Approve** and **Edit** buttons for `draft` challans. Approve transitions draft → approved (`textile.sales.challans.approve` → `TextileSalesService@approveChallan`); Edit opens a small `ChallanEditDialog` (party/lot/qty/unit) that submits to `textile.sales.challans.update` → `TextileSalesService@updateChallan` (only draft, mirrors quotation rule). Approved challans reject edits server-side; POD marking still works from an approved challan (draft → approved → released → closed). Test: `test_challans_can_be_approved_and_edited_inline_from_records`. Full textile suite 97 passed (1659 assertions); tsc 0 errors; build passed.
 - **Verified on prod**: `textile.sales.quotations.store` route present, `storeQuotation` method present, `QuotationEditDialog` wired in `Index.tsx`. Pending final UI check by user on prod.
+
+## Dispatch UX simplification + approved challan dispatch source (deployed 2026-08-11)
+
+- **Commit `b6dda2fb5`, run 31445951245**: the Dispatch sidebar submenu was flattened into a single **Daily Operations > Dispatch** menu item (like Sales/Procurement/Inventory). The page already renders Planning/Tracking as tabs, so the old submenus were redundant: "Dispatch Planning", "Truck Dispatch" (`?mode=truck`), "Container Dispatch" (`?mode=container`), "Dispatch Tracking" were all just deep-links to the same page's tabs/mode filter, and "Delivery Challan" + "POD" wrongly pointed to the Sales page's `challan-pod` section. Removed unused icon imports (ListChecks, MapPin, FileSignature, Stamp).
+- **Approved challans now eligible for dispatch planning**: the "Released Challan" dropdown (planning source) only listed challans with status `released`/`closed`, so a challan approved via the new Sales Approve action (e.g. CHALLAN-000001, status `approved`) never appeared. `TextileDispatchController@index` challans filter and `TextileDispatchService::resolveDispatchSource` now accept `['approved', 'released', 'closed']`; UI label updated to **Approved Challan** with helper text "Approve a challan from Sales first".
+- **Source Type / Source Action dropdowns removed** from Dispatch planning and tracking forms — they were confusing and are now recorded automatically from the chosen dispatch source; helper text added.
+- **Test**: `test_approved_challan_is_available_as_dispatch_planning_source` (approved challan shows in dropdown + dispatch plan created from it; draft challan rejected with `source_id` error). Full textile suite 98 passed (1671 assertions); tsc 0 errors; build passed.
+- **Verified on prod**: `'approved', 'released', 'closed'` present in both deployed PHP files; `Index-C2cAnn8H.js` bundle contains "Approved Challan" and the new helper text.
 
 ## Delivery order from here
 
