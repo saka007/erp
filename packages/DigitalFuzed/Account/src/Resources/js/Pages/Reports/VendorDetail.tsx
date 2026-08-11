@@ -66,11 +66,11 @@ export default function VendorDetail() {
         <AuthenticatedLayout
             breadcrumbs={[
                 { label: t('Accounting'), url: route('account.index') },
-                { label: t('Vendors'), url: route('account.vendors.index') },
+                { label: t('Vendors'), url: route('vendors.index') },
                 { label: t('Vendor Detail') }
             ]}
             pageTitle={t('Vendor Detail')}
-            backUrl={route('account.vendors.index')}
+            backUrl={route('vendors.index')}
         >
             <Head title={t('Vendor Detail')} />
 

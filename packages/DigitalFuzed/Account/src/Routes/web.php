@@ -34,6 +34,8 @@ use Workdo\Account\Models\AccountType;
 Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:Account'])->group(function () {
     Route::get('/dashboard/account', [DashboardController::class, 'index'])->name('account.index');
     Route::resource('account/vendors', VendorController::class, ['as' => 'account']);
+    // SEO-friendly alias for the vendor management page (/vendors).
+    Route::get('/vendors', [VendorController::class, 'index'])->name('vendors.index');
     Route::prefix('account/vendor-ratings')->name('account.vendor-ratings.')->group(function () {
         Route::get('/', [VendorRatingController::class, 'index'])->name('index');
         Route::post('/', [VendorRatingController::class, 'store'])->name('store');

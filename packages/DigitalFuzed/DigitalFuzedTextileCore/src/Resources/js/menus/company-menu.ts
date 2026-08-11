@@ -396,12 +396,12 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                         children: [
                             {
                                 title: t('Sizing Vendors'),
-                                href: route('account.vendors.index', { supplier_type: 'sizing' }),
+                                href: route('vendors.index', { supplier_type: 'sizing' }),
                                 icon: Store,
                             },
                             {
                                 title: t('Powerloom Vendors'),
-                                href: route('account.vendors.index', { supplier_type: 'powerloom' }),
+                                href: route('vendors.index', { supplier_type: 'powerloom' }),
                                 icon: Factory,
                             },
                             {
@@ -518,6 +518,11 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                         icon: Users,
                         children: [
                             {
+                                title: t('Vendors Management'),
+                                href: route('vendors.index'),
+                                icon: Store,
+                            },
+                            {
                                 title: t('Customer Categories'),
                                 href: route('account.customer-categories.index'),
                                 icon: UsersRound,
@@ -544,7 +549,7 @@ export const textileCoreCompanyMenu = (t: (key: string) => string) => [
                             },
                             {
                                 title: t('Transport Vendors'),
-                                href: route('account.vendors.index', { supplier_type: 'transport' }),
+                                href: route('vendors.index', { supplier_type: 'transport' }),
                                 icon: Warehouse,
                             },
                             {

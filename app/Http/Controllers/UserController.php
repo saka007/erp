@@ -34,6 +34,10 @@ class UserController extends Controller
                         $q->whereRaw('1 = 0');
                     }
                 })
+                // The Users page is for internal organisation members (HRM side).
+                // Vendor/client/doctor/student/parent users are external parties
+                // managed via their own masters (Vendors, Customers, etc.).
+                ->whereNotIn('type', ['client', 'vendor', 'doctor', 'student', 'parent'])
                 ->when(request('name'), fn($q) => $q->where('name', 'like', '%' . request('name') . '%'))
                 ->when(request('email'), fn($q) => $q->where('email', 'like', '%' . request('email') . '%'))
                 ->when(request('role'), fn($q) => $q->join('model_has_roles', 'users.id', '=', 'model_has_roles.model_id')
@@ -78,7 +82,9 @@ class UserController extends Controller
                 return $user;
             });
 
-            $roles = Role::where('created_by', creatorId())->pluck('label', 'id');
+            $roles = Role::where('created_by', creatorId())
+                ->whereNotIn('name', ['vendor', 'client'])
+                ->pluck('label', 'id');
             $branches = $this->tenantBranchOptions();
 
             return Inertia::render('users/index', [

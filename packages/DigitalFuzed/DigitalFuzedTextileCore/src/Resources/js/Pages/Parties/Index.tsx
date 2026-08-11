@@ -258,7 +258,7 @@ export default function Index({
                                                 size="sm"
                                                 onClick={() => {
                                                     const url = row.party_type === 'supplier'
-                                                        ? route('account.vendors.index', { supplier_type: row.supplier_type ?? '' })
+                                                        ? route('vendors.index', { supplier_type: row.supplier_type ?? '' })
                                                         : route('account.customers.index');
                                                     router.visit(url);
                                                 }}

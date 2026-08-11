@@ -233,7 +233,7 @@ export default function Index() {
 
     return (
         <AuthenticatedLayout
-            breadcrumbs={[{label: t('Accounting'), url:route('account.index')},{label: t('Vendors')}]}
+            breadcrumbs={[{label: t('Vendors Management'), url: route('vendors.index')}]}
             pageTitle={t('Manage Vendors')}
             pageActions={
                 <div className="flex gap-2">

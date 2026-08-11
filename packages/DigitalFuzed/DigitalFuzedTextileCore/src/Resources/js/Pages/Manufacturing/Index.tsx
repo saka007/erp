@@ -660,14 +660,14 @@ export default function Index({
                                 emptyLabel={useVendorSizingFlow ? t('Select sizing vendor') : t('Select party')}
                                 helperText={useVendorSizingFlow ? <>
                                     {t('Vendor receiving this yarn for sizing.')} {' '}
-                                    <a className="font-medium text-emerald-700 underline-offset-2 hover:underline" href={route('account.vendors.index', { supplier_type: 'sizing' })}>
+                                    <a className="font-medium text-emerald-700 underline-offset-2 hover:underline" href={route('vendors.index', { supplier_type: 'sizing' })}>
                                         {t('Manage sizing vendors')}
                                     </a>
                                 </> : t('Parties are derived from customer profiles and existing workflow records.')}
                                 disabled={(useVendorSizingFlow ? sizingVendorOptions : resolvedPartyOptions).length === 0}
                                 disabledReason={useVendorSizingFlow ? <>
                                     {t('No sizing vendors found.')} {' '}
-                                    <a className="font-medium text-emerald-700 underline-offset-2 hover:underline" href={route('account.vendors.index', { supplier_type: 'sizing' })}>
+                                    <a className="font-medium text-emerald-700 underline-offset-2 hover:underline" href={route('vendors.index', { supplier_type: 'sizing' })}>
                                         {t('Manage sizing vendors')}
                                     </a>
                                 </> : t('No party options available yet. Create customer or prior workflow records.')}
@@ -1819,9 +1819,9 @@ export default function Index({
                                         options={powerloomVendorOptions}
                                         includeEmpty
                                         emptyLabel={t('Select powerloom vendor')}
-                                        helperText={<a className="font-medium text-emerald-700 underline-offset-2 hover:underline" href={route('account.vendors.index', { supplier_type: 'powerloom' })}>{t('Manage powerloom vendors')}</a>}
+                                        helperText={<a className="font-medium text-emerald-700 underline-offset-2 hover:underline" href={route('vendors.index', { supplier_type: 'powerloom' })}>{t('Manage powerloom vendors')}</a>}
                                         disabled={powerloomVendorOptions.length === 0}
-                                        disabledReason={<a className="font-medium text-emerald-700 underline-offset-2 hover:underline" href={route('account.vendors.index', { supplier_type: 'powerloom' })}>{t('Add a powerloom vendor first')}</a>}
+                                        disabledReason={<a className="font-medium text-emerald-700 underline-offset-2 hover:underline" href={route('vendors.index', { supplier_type: 'powerloom' })}>{t('Add a powerloom vendor first')}</a>}
                                         required
                                     />
                                 )}
