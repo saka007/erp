@@ -13,6 +13,7 @@ export interface WorkflowStage {
 export interface SupplierSummary {
     id: number;
     name: string;
+    supplier_type?: string | null;
     contact_person?: string | null;
     contact_mobile?: string | null;
     primary_email?: string | null;

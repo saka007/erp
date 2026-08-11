@@ -75,6 +75,7 @@ export default function Index({
     partyOptions,
     lotReferenceOptions,
     suppliers,
+    requisitionSupplierTypeMap,
     items,
     warehouses,
     recentActivity,
@@ -90,6 +91,7 @@ export default function Index({
     partyOptions: string[];
     lotReferenceOptions: string[];
     suppliers: SupplierSummary[];
+    requisitionSupplierTypeMap?: Record<string, string[]>;
     items: ProductItem[];
     warehouses: Array<{ id: number; name: string; address?: string | null; branch_id?: number | null }>;
     recentActivity: ActivityItem[];
@@ -142,7 +144,16 @@ export default function Index({
     const approvedPurchaseOrders = purchaseOrders.filter((row) => row.status === 'approved');
     const releasedGrns = grns.filter((row) => row.status === 'released');
     const accessibleInvoiceIds = new Set(purchaseInvoices.map((invoice) => invoice.id));
-    const resolvedPartyOptions = partyOptions.map((value) => ({ value, label: value }));
+    const requisitionType = requisitionForm.data.requisition_type;
+    const allowedSupplierTypes = requisitionSupplierTypeMap?.[requisitionType] ?? [];
+    const typeRestricted = allowedSupplierTypes.length > 0;
+    const filteredSuppliers = typeRestricted
+        ? suppliers.filter((supplier) => allowedSupplierTypes.includes(supplier.supplier_type ?? ''))
+        : suppliers;
+    const filteredSupplierNames = new Set(filteredSuppliers.map((supplier) => supplier.name));
+    const resolvedPartyOptions = partyOptions
+        .filter((value) => !typeRestricted || filteredSupplierNames.has(value))
+        .map((value) => ({ value, label: value }));
     const resolvedLotReferenceOptions = lotReferenceOptions.map((value) => ({ value, label: value }));
     const resolvedUnitOptions = buildUnitOptions(unitOptions);
     const selectedSupplierCredit = (() => {
@@ -350,7 +361,9 @@ export default function Index({
                                                 options={resolvedPartyOptions}
                                                 includeEmpty
                                                 emptyLabel={t('Select supplier/party')}
-                                                helperText={t('Party options are derived from vendor profiles and existing workflow records.')}
+                                                helperText={typeRestricted
+                                                    ? t('Only suppliers of the selected requisition type are listed.')
+                                                    : t('Party options are derived from vendor profiles and existing workflow records.')}
                                                 disabled={resolvedPartyOptions.length === 0}
                                                 disabledReason={t('No party options available yet. Create vendor profile first.')}
                                             />
@@ -376,7 +389,19 @@ export default function Index({
                                             <SelectField
                                                 label={t('Requisition Type')}
                                                 value={requisitionForm.data.requisition_type}
-                                                onChange={(v) => requisitionForm.setData('requisition_type', v)}
+                                                onChange={(v) => {
+                                                    const newAllowedTypes = requisitionSupplierTypeMap?.[v] ?? [];
+                                                    const newTypeRestricted = newAllowedTypes.length > 0;
+                                                    const currentParty = requisitionForm.data.party_name;
+                                                    const stillEligible = currentParty === '' || !newTypeRestricted || suppliers.some(
+                                                        (supplier) => supplier.name === currentParty && newAllowedTypes.includes(supplier.supplier_type ?? ''),
+                                                    );
+                                                    requisitionForm.setData((data) => ({
+                                                        ...data,
+                                                        requisition_type: v,
+                                                        ...(stillEligible ? {} : { party_name: '', vendor_id: '', product_service_item_id: '', rate: '' }),
+                                                    }));
+                                                }}
                                                 options={[
                                                     { value: 'yarn', label: t('Yarn') },
                                                     { value: 'beam', label: t('Beam') },

@@ -28,6 +28,24 @@ class TextileProcurementController extends Controller
     use HasBranchWarehouseScope;
     use ProvidesRecentActivity;
 
+    /**
+     * Maps a requisition type to the vendor supplier_type values that are
+     * eligible to fulfil it. An empty array means no restriction (any vendor).
+     *
+     * @var array<string, list<string>>
+     */
+    public const REQUISITION_SUPPLIER_TYPE_MAP = [
+        'yarn' => ['yarn'],
+        'beam' => ['sizing', 'powerloom'],
+        'grey_fabric' => ['powerloom'],
+        'finished_fabric' => ['processing', 'dyeing'],
+        'chemical' => ['chemical'],
+        'packing_material' => [],
+        'spare_part' => ['spare_part'],
+        'service' => ['processing', 'sizing', 'dyeing', 'job_worker', 'transport'],
+        'general' => [],
+    ];
+
     public function __construct(protected TextileOperatingPolicyService $policyService)
     {
     }
@@ -49,6 +67,7 @@ class TextileProcurementController extends Controller
             'partyOptions' => $this->partyOptions(),
             'lotReferenceOptions' => $this->lotReferenceOptions(),
             'suppliers' => $this->supplierSummaries(),
+            'requisitionSupplierTypeMap' => self::REQUISITION_SUPPLIER_TYPE_MAP,
             'items' => $this->items(),
             'warehouses' => $this->warehouses(),
             'recentActivity' => $this->recentActivity(),
@@ -104,6 +123,22 @@ class TextileProcurementController extends Controller
         $quantity = (float) $validated['quantity'];
         $invoiceAmount = $rate !== null ? round($rate * $quantity, 2) : null;
 
+        $requisitionType = $validated['requisition_type'] ?? 'general';
+
+        // Enforce vendor type eligibility for the chosen requisition type.
+        if (! empty($validated['vendor_id'])) {
+            $allowedTypes = self::REQUISITION_SUPPLIER_TYPE_MAP[$requisitionType] ?? [];
+            $vendor = Schema::hasTable('vendors')
+                ? Vendor::query()->where('created_by', creatorId())->find((int) $validated['vendor_id'])
+                : null;
+
+            if ($vendor && ! empty($allowedTypes) && ! in_array($vendor->supplier_type, $allowedTypes, true)) {
+                return back()->withErrors([
+                    'party_name' => __('The selected supplier is not eligible for this requisition type.'),
+                ]);
+            }
+        }
+
         $product = null;
         if (! empty($validated['product_service_item_id'])) {
             $product = ProductServiceItem::query()
@@ -116,7 +151,7 @@ class TextileProcurementController extends Controller
         try {
             $service->createRequisition(array_merge($validated, [
                 'metadata' => [
-                    'requisition_type' => $validated['requisition_type'] ?? 'general',
+                    'requisition_type' => $requisitionType,
                     'priority' => $validated['priority'] ?? null,
                     'required_for' => $validated['required_for'] ?? null,
                     'expected_date' => $validated['expected_date'] ?? null,
@@ -548,6 +583,7 @@ class TextileProcurementController extends Controller
                 return [
                     'id' => $vendor->id,
                     'name' => $vendor->company_name,
+                    'supplier_type' => $vendor->supplier_type,
                     'contact_person' => $vendor->contact_person_name,
                     'contact_mobile' => $vendor->contact_person_mobile,
                     'primary_email' => $vendor->primary_email,
