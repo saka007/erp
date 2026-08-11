@@ -94,8 +94,8 @@ export default function Index({
 
     const invoiceNumberLink = (row: InvoiceRow, kind: 'sales' | 'purchase') => {
         const href = kind === 'sales'
-            ? route('sales-invoices.show', { salesInvoice: row.id })
-            : route('purchase-invoices.show', { purchaseInvoice: row.id });
+            ? route('sales-invoices.show', { sales_invoice: row.id })
+            : route('purchase-invoices.show', { purchase_invoice: row.id });
 
         return (
             <a
