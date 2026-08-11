@@ -157,6 +157,7 @@ export const textileWorkspaces: TextileWorkspace[] = [
         routeName: 'textile.dispatch.index',
         capability: 'dispatch',
         sections: [
+            { id: 'overview', label: 'Overview', icon: LayoutDashboard },
             { id: 'planning', label: 'Dispatch Planning', icon: Truck },
             { id: 'tracking', label: 'Dispatch Tracking', icon: Gauge },
         ],
