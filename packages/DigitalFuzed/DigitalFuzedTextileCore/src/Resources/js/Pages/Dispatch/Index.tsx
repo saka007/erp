@@ -1,9 +1,10 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, LayoutDashboard, Navigation, Plus, Truck } from 'lucide-react';
+import { Check, FileText, LayoutDashboard, Navigation, Plus, Truck } from 'lucide-react';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import NoRecordsFound from '@/components/no-records-found';
 import { TextileField as Field } from '@/components/textile/textile-field';
 import { TextileFormCard } from '@/components/textile/textile-form-card';
@@ -41,6 +42,8 @@ interface WorkflowDocument {
         freight_amount?: number | null;
         tracking_status?: string | null;
         current_location?: string | null;
+        job_work_invoice_id?: number | null;
+        job_work_invoice_number?: string | null;
     } | null;
 }
 
@@ -171,6 +174,37 @@ export default function Index({
 
     const finalizeTracking = (id: number) => {
         router.post(route('textile.dispatch.trackings.finalize'), { tracking_id: id }, { preserveScroll: true });
+    };
+
+    const [invoicePlan, setInvoicePlan] = useState<WorkflowDocument | null>(null);
+    const [invoiceRate, setInvoiceRate] = useState('');
+    const [invoiceSubmitting, setInvoiceSubmitting] = useState(false);
+    const invoiceForm = useForm<{ dispatch_plan_id: string; rate: string }>({
+        dispatch_plan_id: '',
+        rate: '',
+    });
+
+    const openInvoiceDialog = (row: WorkflowDocument) => {
+        setInvoicePlan(row);
+        setInvoiceRate('');
+        invoiceForm.clearErrors();
+        invoiceForm.setData('dispatch_plan_id', String(row.id));
+        invoiceForm.setData('rate', '');
+    };
+
+    const generateJobWorkInvoice = () => {
+        if (!invoicePlan) return;
+        setInvoiceSubmitting(true);
+        invoiceForm.post(route('textile.dispatch.job-work-invoices.generate'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                setInvoicePlan(null);
+                setInvoiceSubmitting(false);
+            },
+            onError: () => {
+                setInvoiceSubmitting(false);
+            },
+        });
     };
 
     const activeTrackingCount = dispatchTrackings.filter((row) => row.metadata?.tracking_status === 'in_transit').length;
@@ -450,6 +484,39 @@ export default function Index({
                                                             statuses: textileActionableStatuses.draft,
                                                             actions: [{ label: t('Approve Plan'), icon: Check, onClick: (row) => approvePlan(row.id) }],
                                                         },
+                                                        {
+                                                            statuses: ['approved', 'released', 'closed'],
+                                                            actions: [
+                                                                {
+                                                                    label: t('Generate Invoice'),
+                                                                    icon: FileText,
+                                                                    onClick: (row) => openInvoiceDialog(row as unknown as WorkflowDocument),
+                                                                    when: (row) => {
+                                                                        const doc = row as unknown as WorkflowDocument;
+                                                                        const sourceType = doc.metadata?.source_type;
+                                                                        const canInvoice = sourceType === 'yarn_dispatch' || sourceType === 'job_work_outward';
+                                                                        const alreadyInvoiced = Boolean(doc.metadata?.job_work_invoice_id);
+                                                                        return canInvoice && !alreadyInvoiced;
+                                                                    },
+                                                                },
+                                                            ],
+                                                            noVisibleActionContent: (row) => {
+                                                                const metadata = (row as unknown as WorkflowDocument).metadata;
+                                                                const invoiceNumber = metadata?.job_work_invoice_number;
+                                                                const invoiceId = metadata?.job_work_invoice_id;
+                                                                if (invoiceNumber && invoiceId) {
+                                                                    return (
+                                                                        <a
+                                                                            href={route('sales-invoices.show', { salesInvoice: invoiceId })}
+                                                                            className="text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:underline"
+                                                                        >
+                                                                            {t('Invoice')} {invoiceNumber}
+                                                                        </a>
+                                                                    );
+                                                                }
+                                                                return null;
+                                                            },
+                                                        },
                                                     ]),
                                                 }),
                                                 { key: 'source_type', header: t('Source'), render: (_value: unknown, row: WorkflowDocument) => metadataLabel(row.metadata?.source_type) },
@@ -474,6 +541,39 @@ export default function Index({
             ) : (
                 <NoRecordsFound icon={Truck} title={t('Dispatch is not enabled')} description={t('Enable a dispatch source capability in Textile Operating Model (Sales Allocation/Dispatch, Job-Work Outward, or Yarn Dispatch) to use dispatch workflows.')} />
             )}
+
+            <Dialog open={invoicePlan !== null} onOpenChange={(open) => !open && setInvoicePlan(null)}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>{t('Generate Job-Work Invoice')}</DialogTitle>
+                        <DialogDescription>
+                            {invoicePlan ? `${invoicePlan.document_number} — ${invoicePlan.party_name || '-'}` : '-'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <Field
+                            label={t('Rate (per unit, optional)')}
+                            value={invoiceRate}
+                            onChange={(value: string) => {
+                                setInvoiceRate(value);
+                                invoiceForm.setData('rate', value);
+                            }}
+                            placeholder={t('e.g. 15.00')}
+                            helperText={t('Leave empty to create the invoice without a rate. The rate can be finalized on the invoice later.')}
+                        />
+                        <TextileFormErrors errors={invoiceForm.errors} />
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setInvoicePlan(null)} disabled={invoiceSubmitting}>
+                            {t('Cancel')}
+                        </Button>
+                        <Button type="button" onClick={generateJobWorkInvoice} disabled={invoiceSubmitting}>
+                            <FileText className="mr-2 h-4 w-4" />
+                            {invoiceSubmitting ? t('Generating...') : t('Generate Invoice')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AuthenticatedLayout>
     );
 }

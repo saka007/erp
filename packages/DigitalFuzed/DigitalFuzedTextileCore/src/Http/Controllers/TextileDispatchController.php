@@ -10,6 +10,7 @@ use DigitalFuzed\TextileCore\Models\TextileWorkflowDocument;
 use DigitalFuzed\TextileCore\Services\TextileDispatchService;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextilePartyBranchService;
+use DigitalFuzed\TextileCore\Services\TextileSalesService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -197,6 +198,28 @@ class TextileDispatchController extends Controller
         }
 
         return back()->with('success', __('Dispatch tracking finalized successfully.'));
+    }
+
+    public function generateJobWorkInvoice(Request $request, TextileSalesService $service)
+    {
+        $this->authorizeTextileAccess();
+        $this->authorizeDispatchCapability('dispatch_plan_id');
+
+        $validated = $request->validate([
+            'dispatch_plan_id' => ['required', 'integer', 'min:1'],
+            'rate' => ['nullable', 'numeric', 'gte:0'],
+        ]);
+
+        try {
+            $service->createJobWorkInvoiceFromDispatchPlan(
+                (int) $validated['dispatch_plan_id'],
+                isset($validated['rate']) && $validated['rate'] !== '' && $validated['rate'] !== null ? (float) $validated['rate'] : null
+            );
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['dispatch_plan_id' => __($exception->getMessage())]);
+        }
+
+        return back()->with('success', __('Job-work invoice generated successfully.'));
     }
 
     private function documents(string $type)

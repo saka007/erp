@@ -199,6 +199,7 @@ Route::middleware(['web', 'auth', 'verified', 'PlanModuleCheck:TextileCore'])->g
     Route::post('/textile/dispatch/plans/approve', [TextileDispatchController::class, 'approveDispatchPlan'])->name('textile.dispatch.plans.approve');
     Route::post('/textile/dispatch/trackings', [TextileDispatchController::class, 'storeDispatchTracking'])->name('textile.dispatch.trackings.store');
     Route::post('/textile/dispatch/trackings/finalize', [TextileDispatchController::class, 'finalizeDispatchTracking'])->name('textile.dispatch.trackings.finalize');
+    Route::post('/textile/dispatch/job-work-invoices/generate', [TextileDispatchController::class, 'generateJobWorkInvoice'])->name('textile.dispatch.job-work-invoices.generate');
     Route::get('/textile/dispatch-drivers', [TextileDispatchDriverController::class, 'index'])->name('textile.dispatch-drivers.index');
     Route::post('/textile/dispatch-drivers', [TextileDispatchDriverController::class, 'store'])->name('textile.dispatch-drivers.store');
     Route::post('/textile/dispatch-drivers/update', [TextileDispatchDriverController::class, 'update'])->name('textile.dispatch-drivers.update');

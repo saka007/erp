@@ -655,6 +655,159 @@ class TextileSalesService
         return $challan;
     }
 
+    /**
+     * Generates a job-work (`type = service`) sales invoice from a yarn
+     * dispatch plan (yarn → sizing vendor, source_type = yarn_dispatch).
+     *
+     * Idempotent: the dispatch plan metadata carries `job_work_invoice_id`,
+     * so repeated calls return the existing invoice instead of creating
+     * duplicates. The sizing vendor is resolved through its linked client
+     * user (or created on demand), mirroring the challan invoice flow.
+     */
+    public function createJobWorkInvoiceFromDispatchPlan(int $dispatchPlanId, ?float $rate = null): TextileWorkflowDocument
+    {
+        $plan = $this->findTenantDocument($dispatchPlanId, 'dispatch_plan');
+
+        if (! in_array($plan->status, ['approved', 'released', 'closed'], true)) {
+            throw new RuntimeException('Dispatch plan must be approved before generating the job-work invoice.');
+        }
+
+        $metadata = is_array($plan->metadata) ? $plan->metadata : [];
+        $sourceType = $metadata['source_type'] ?? null;
+
+        if (! in_array($sourceType, ['yarn_dispatch', 'job_work_outward'], true)) {
+            throw new RuntimeException('Job-work invoices can only be generated for yarn dispatch or job-work outward dispatches.');
+        }
+
+        $existingInvoiceId = isset($metadata['job_work_invoice_id']) ? (int) $metadata['job_work_invoice_id'] : null;
+        if ($existingInvoiceId) {
+            $invoice = SalesInvoice::query()
+                ->where('id', $existingInvoiceId)
+                ->where('created_by', $plan->created_by)
+                ->first();
+
+            if ($invoice) {
+                $plan->setAttribute('job_work_invoice_created_now', false);
+
+                return $plan;
+            }
+        }
+
+        if (! class_exists(\App\Models\SalesInvoice::class) || ! Schema::hasTable('sales_invoices')) {
+            throw new RuntimeException('Sales invoice module is not available.');
+        }
+
+        $partyName = trim((string) ($metadata['party_name'] ?? $plan->party_name));
+        if ($partyName === '') {
+            throw new RuntimeException('Dispatch plan has no party to invoice.');
+        }
+
+        $vendor = null;
+        if (Schema::hasTable('vendors')) {
+            $vendor = \Workdo\Account\Models\Vendor::query()
+                ->where('created_by', $plan->created_by)
+                ->where('company_name', $partyName)
+                ->first();
+        }
+
+        $customerId = $vendor?->user_id ? (int) $vendor->user_id : null;
+
+        if ($customerId === null) {
+            $email = $vendor?->contact_person_email ?: 'jobwork' . ($vendor?->id ?? $plan->id) . '@' . str_replace(['https://', 'http://'], '', (string) config('app.url'));
+            $user = User::firstOrCreate(
+                ['email' => $email],
+                [
+                    'name' => $vendor?->company_name ?: ($plan->party_name ?: 'Job Work Party ' . $plan->id),
+                    'password' => \Illuminate\Support\Str::random(16),
+                    'type' => 'client',
+                    'creator_id' => $plan->creator_id,
+                    'created_by' => $plan->created_by,
+                    'lang' => 'en',
+                    'email_verified_at' => now(),
+                ]
+            );
+            if ($vendor) {
+                $vendor->user_id = $user->id;
+                $vendor->save();
+            }
+            $customerId = (int) $user->id;
+        }
+
+        $quantity = (float) $plan->quantity;
+        if ($quantity <= 0) {
+            throw new RuntimeException('Dispatch quantity must be greater than zero to generate an invoice.');
+        }
+
+        $itemName = 'Job Work - Sizing';
+        if ($sourceType === 'job_work_outward') {
+            $itemName = 'Job Work - Processing';
+        }
+
+        // Resolve (or create) a tenant-scoped service item so the invoice is
+        // never a bare total-only record and shows under core service items.
+        $serviceItem = \Workdo\ProductService\Models\ProductServiceItem::query()
+            ->where('created_by', $plan->created_by)
+            ->where('type', 'service')
+            ->where('name', $itemName)
+            ->first();
+
+        if (! $serviceItem) {
+            $serviceItem = \Workdo\ProductService\Models\ProductServiceItem::query()->create([
+                'name' => $itemName,
+                'sku' => 'TX-JW-' . $plan->id,
+                'type' => 'service',
+                'unit' => null,
+                'purchase_price' => 0,
+                'sale_price' => $rate ?? 0,
+                'is_active' => 1,
+                'creator_id' => $plan->creator_id,
+                'created_by' => $plan->created_by,
+            ]);
+        }
+
+        $invoiceRate = $rate ?? (float) ($serviceItem->sale_price ?? 0);
+        $subtotal = round($invoiceRate * $quantity, 2);
+
+        $invoiceDate = now()->toDateString();
+        $invoice = SalesInvoice::query()->create([
+            'invoice_number' => sprintf('TX-JW-%s', str_pad((string) $plan->id, 6, '0', STR_PAD_LEFT)),
+            'invoice_date' => $invoiceDate,
+            'due_date' => $invoiceDate,
+            'customer_id' => $customerId,
+            'warehouse_id' => null,
+            'subtotal' => $subtotal,
+            'tax_amount' => 0,
+            'discount_amount' => 0,
+            'total_amount' => $subtotal,
+            'paid_amount' => 0,
+            'balance_amount' => $subtotal,
+            'status' => 'draft',
+            'type' => 'service',
+            'payment_terms' => null,
+            'notes' => sprintf('Draft job-work invoice from dispatch %s (%s). Party: %s.', $plan->id, $plan->document_number, $partyName),
+            'creator_id' => $plan->creator_id,
+            'created_by' => $plan->created_by,
+        ]);
+
+        SalesInvoiceItem::query()->create([
+            'invoice_id' => $invoice->id,
+            'product_id' => (int) $serviceItem->id,
+            'quantity' => $quantity,
+            'unit_price' => $invoiceRate,
+            'discount_percentage' => 0,
+            'tax_percentage' => 0,
+        ]);
+
+        $metadata['job_work_invoice_id'] = $invoice->id;
+        $metadata['job_work_invoice_number'] = $invoice->invoice_number;
+        $metadata['job_work_invoice_status'] = $invoice->status;
+        $plan->metadata = $metadata;
+        $plan->save();
+        $plan->setAttribute('job_work_invoice_created_now', true);
+
+        return $plan;
+    }
+
     protected function resolveCustomerProfile(array $payload): array
     {
         if (!Schema::hasTable('customers')) {
