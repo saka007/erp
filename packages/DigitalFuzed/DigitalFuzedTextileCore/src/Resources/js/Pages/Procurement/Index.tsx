@@ -16,7 +16,7 @@ import { TextileWorkspace, countSectionStatuses } from '@/components/textile/tex
 import { TextileInfoPanel, WorkflowStage, SupplierSummary, ActivityItem } from '@/components/textile/textile-info-panel';
 import { getTextileWorkspace } from '@/components/textile/textile-workspaces';
 import { buildUnitOptions, formatTextileLabel } from '@/components/textile/textile-form-options';
-import { createTextileWorkflowActions, createTextileWorkflowColumns, createTextileWorkflowSelectOptions, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
+import { createTextileWorkflowActions, createTextileWorkflowColumns, textileActionableStatuses } from '@/components/textile/textile-workflow-columns';
 import { PageProps } from '@/types';
 
 interface WorkflowDocument {
@@ -29,6 +29,8 @@ interface WorkflowDocument {
     unit?: string | null;
     status: string;
     purchase_invoice_id?: number | null;
+    source_reference_id?: number | null;
+    source_action?: string | null;
     metadata?: Record<string, unknown>;
 }
 
@@ -61,6 +63,54 @@ interface VendorPriceListEntry {
     unit_price?: number | null;
     min_quantity?: number | null;
     currency_code?: string | null;
+}
+
+interface SourceSelectOption {
+    value: string;
+    label: string;
+    group?: string;
+    disabled?: boolean;
+    disabledReason?: string;
+}
+
+/**
+ * Builds workflow select options, marking any row whose id is present in
+ * `consumedIds` as disabled with `consumedReason` so already-processed source
+ * documents (e.g. a requisition that already produced an RFQ) cannot be
+ * re-selected. Label format mirrors `createTextileWorkflowSelectOptions`.
+ */
+function createSourceOptions(
+    rows: WorkflowDocument[],
+    consumedIds: Set<number>,
+    consumedReason: string,
+    { recentCount = 5, recentLabel = 'Recent', olderLabel = 'Older' }: { recentCount?: number; recentLabel?: string; olderLabel?: string } = {}
+): SourceSelectOption[] {
+    const orderedRows = [...rows].sort((left, right) => right.id - left.id);
+    const shouldGroupByRecency = orderedRows.length > recentCount;
+
+    return orderedRows.map((row, index) => {
+        const segments = [row.document_number];
+
+        if (row.party_name) {
+            segments.push(row.party_name);
+        }
+
+        if (row.lot_reference) {
+            segments.push(`Lot ${row.lot_reference}`);
+        }
+
+        segments.push(`${row.quantity} ${row.unit || '-'}`);
+
+        const consumed = consumedIds.has(row.id);
+
+        return {
+            value: String(row.id),
+            label: segments.join(' | '),
+            group: shouldGroupByRecency ? (index < recentCount ? recentLabel : olderLabel) : undefined,
+            disabled: consumed,
+            disabledReason: consumed ? consumedReason : undefined,
+        };
+    });
 }
 
 export default function Index({
@@ -144,6 +194,29 @@ export default function Index({
     const approvedPurchaseOrders = purchaseOrders.filter((row) => row.status === 'approved');
     const releasedGrns = grns.filter((row) => row.status === 'released');
     const accessibleInvoiceIds = new Set(purchaseInvoices.map((invoice) => invoice.id));
+
+    // Source documents that have already been converted downstream must not be
+    // selectable again in the "create next step" dropdowns. The consumed source
+    // id is read from the downstream document's `source_reference_id` (written
+    // with the matching `source_action`), mirroring the backend linkage.
+    const requisitionIdsWithRfq = new Set(
+        rfqs.filter((row) => row.source_action === 'request_for_quote').map((row) => row.source_reference_id).filter((id): id is number => id != null)
+    );
+    const requisitionIdsWithPo = new Set(
+        purchaseOrders.filter((row) => row.source_action === 'convert_to_po').map((row) => row.source_reference_id).filter((id): id is number => id != null)
+    );
+    const rfqIdsWithPo = new Set(
+        purchaseOrders.filter((row) => row.source_action === 'convert_rfq_to_po').map((row) => row.source_reference_id).filter((id): id is number => id != null)
+    );
+    const poIdsWithGrn = new Set(
+        grns.filter((row) => row.source_action === 'goods_receipt').map((row) => row.source_reference_id).filter((id): id is number => id != null)
+    );
+    const grnIdsWithQc = new Set(
+        incomingQcs.filter((row) => row.source_action === 'incoming_inspection').map((row) => row.source_reference_id).filter((id): id is number => id != null)
+    );
+    const grnIdsWithClaim = new Set(
+        supplierClaims.filter((row) => row.source_action === 'supplier_claim').map((row) => row.source_reference_id).filter((id): id is number => id != null)
+    );
     const requisitionType = requisitionForm.data.requisition_type;
     const allowedSupplierTypes = requisitionSupplierTypeMap?.[requisitionType] ?? [];
     const typeRestricted = allowedSupplierTypes.length > 0;
@@ -552,15 +625,15 @@ export default function Index({
                                     label={t('From Approved Requisition')}
                                     value={rfqForm.data.requisition_id}
                                     onChange={(v) => rfqForm.setData('requisition_id', v)}
-                                    options={createTextileWorkflowSelectOptions(approvedRequisitions)}
+                                    options={createSourceOptions(approvedRequisitions, requisitionIdsWithRfq, t('RFQ already created'))}
                                     includeEmpty
                                     emptyLabel={t('Select approved requisition')}
-                                    helperText={t('Only approved requisitions are listed.')}
+                                    helperText={t('Only approved requisitions are listed. Requisitions already converted to an RFQ are disabled.')}
                                     disabled={approvedRequisitions.length === 0}
                                     disabledReason={t('No approved requisition found. Approve a requisition first.')}
                                     required
                                 />
-                                <Button type="submit" disabled={rfqForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create RFQ')}</Button>
+                                <Button type="submit" disabled={rfqForm.processing} className="self-center"><Plus className="mr-2 h-4 w-4" />{t('Create RFQ')}</Button>
                             </form>
                                 }
                                 table={
@@ -626,10 +699,10 @@ export default function Index({
                                             label={t('From Approved RFQ')}
                                             value={purchaseOrderForm.data.source_id}
                                             onChange={(v) => purchaseOrderForm.setData('source_id', v)}
-                                            options={createTextileWorkflowSelectOptions(approvedRfqs)}
+                                            options={createSourceOptions(approvedRfqs, rfqIdsWithPo, t('PO already created'))}
                                             includeEmpty
                                             emptyLabel={t('Select approved RFQ')}
-                                            helperText={t('Purchase order is created from an approved or closed RFQ.')}
+                                            helperText={t('Purchase order is created from an approved or closed RFQ. RFQs already converted to a purchase order are disabled.')}
                                             disabled={approvedRfqs.length === 0}
                                             disabledReason={t('No approved RFQ found. Send an RFQ first.')}
                                             required
@@ -639,10 +712,10 @@ export default function Index({
                                             label={t('From Approved Requisition')}
                                             value={purchaseOrderForm.data.source_id}
                                             onChange={(v) => purchaseOrderForm.setData('source_id', v)}
-                                            options={createTextileWorkflowSelectOptions(approvedRequisitions)}
+                                            options={createSourceOptions(approvedRequisitions, requisitionIdsWithPo, t('PO already created'))}
                                             includeEmpty
                                             emptyLabel={t('Select approved requisition')}
-                                            helperText={t('Single flow enabled: purchase order is created from approved requisition.')}
+                                            helperText={t('Single flow enabled: purchase order is created from approved requisition. Requisitions already converted to a purchase order are disabled.')}
                                             disabled={approvedRequisitions.length === 0}
                                             disabledReason={t('No approved requisition found. Approve a requisition first.')}
                                             required
@@ -688,15 +761,15 @@ export default function Index({
                                         label={t('From Approved PO')}
                                         value={grnForm.data.purchase_order_id}
                                         onChange={(v) => grnForm.setData('purchase_order_id', v)}
-                                        options={createTextileWorkflowSelectOptions(approvedPurchaseOrders)}
+                                        options={createSourceOptions(approvedPurchaseOrders, poIdsWithGrn, t('GRN already created'))}
                                         includeEmpty
                                         emptyLabel={t('Select approved PO')}
-                                        helperText={t('Only approved purchase orders are listed.')}
+                                        helperText={t('Only approved purchase orders are listed. POs already received are disabled.')}
                                         disabled={approvedPurchaseOrders.length === 0}
                                         disabledReason={t('No approved PO found. Send proforma on a purchase order first.')}
                                         required
                                     />
-                                    <Button type="submit" disabled={grnForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create GRN')}</Button>
+                                    <Button type="submit" disabled={grnForm.processing} className="self-center"><Plus className="mr-2 h-4 w-4" />{t('Create GRN')}</Button>
                                 </form>
                                 }
                                 table={
@@ -751,15 +824,15 @@ export default function Index({
                                         label={t('From Released GRN')}
                                         value={incomingQcForm.data.grn_id}
                                         onChange={(v) => incomingQcForm.setData('grn_id', v)}
-                                        options={createTextileWorkflowSelectOptions(releasedGrns)}
+                                        options={createSourceOptions(releasedGrns, grnIdsWithQc, t('QC already created'))}
                                         includeEmpty
                                         emptyLabel={t('Select released GRN')}
-                                        helperText={t('Only released GRN entries are listed.')}
+                                        helperText={t('Only released GRN entries are listed. GRNs already inspected are disabled.')}
                                         disabled={releasedGrns.length === 0}
                                         disabledReason={t('No released GRN found. Release a GRN first.')}
                                         required
                                     />
-                                    <Button type="submit" disabled={incomingQcForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Create Incoming QC')}</Button>
+                                    <Button type="submit" disabled={incomingQcForm.processing} className="self-center"><Plus className="mr-2 h-4 w-4" />{t('Create Incoming QC')}</Button>
                                 </form>
                                 }
                                 table={
@@ -802,10 +875,10 @@ export default function Index({
                                     label={t('From Released GRN')}
                                     value={supplierClaimForm.data.grn_id}
                                     onChange={(v) => supplierClaimForm.setData('grn_id', v)}
-                                    options={createTextileWorkflowSelectOptions(releasedGrns)}
+                                    options={createSourceOptions(releasedGrns, grnIdsWithClaim, t('Claim already created'))}
                                     includeEmpty
                                     emptyLabel={t('Select released GRN')}
-                                    helperText={t('Only released GRN entries are listed.')}
+                                    helperText={t('Only released GRN entries are listed. GRNs already claimed are disabled.')}
                                     disabled={releasedGrns.length === 0}
                                     disabledReason={t('No released GRN found. Release a GRN first.')}
                                     required

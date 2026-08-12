@@ -74,6 +74,8 @@ class TextileProcurementService
             throw new RuntimeException('Requisition must be approved before creating RFQ.');
         }
 
+        $this->assertNoDownstreamDocument($requisition, ['rfq'], 'RFQ already created for this requisition.');
+
         return $this->workflowService->createDocument([
             'document_type' => 'rfq',
             'source_reference_type' => 'textile_workflow_document',
@@ -111,6 +113,8 @@ class TextileProcurementService
                 throw new RuntimeException('RFQ must be sent before creating purchase order.');
             }
 
+            $this->assertNoDownstreamDocument($rfq, ['purchase_order'], 'Purchase order already created for this RFQ.');
+
             return $this->workflowService->createDocument([
                 'document_type' => 'purchase_order',
                 'source_reference_type' => 'textile_workflow_document',
@@ -134,6 +138,8 @@ class TextileProcurementService
         if ($requisition->status !== 'approved') {
             throw new RuntimeException('Requisition must be approved before creating purchase order.');
         }
+
+        $this->assertNoDownstreamDocument($requisition, ['purchase_order'], 'Purchase order already created for this requisition.');
 
         return $this->workflowService->createDocument([
             'document_type' => 'purchase_order',
@@ -162,6 +168,8 @@ class TextileProcurementService
         if ($purchaseOrder->status !== 'approved') {
             throw new RuntimeException('Purchase order must be approved before creating GRN.');
         }
+
+        $this->assertNoDownstreamDocument($purchaseOrder, ['grn'], 'GRN already created for this purchase order.');
 
         $lotReference = isset($payload['lot_reference']) ? trim((string) $payload['lot_reference']) : trim((string) ($purchaseOrder->lot_reference ?? ''));
         if ($lotReference === '') {
@@ -374,6 +382,8 @@ class TextileProcurementService
             throw new RuntimeException('GRN must be released before creating incoming QC.');
         }
 
+        $this->assertNoDownstreamDocument($grn, ['incoming_qc'], 'Incoming QC already created for this GRN.');
+
         return $this->workflowService->createDocument([
             'document_type' => 'incoming_qc',
             'source_reference_type' => 'textile_workflow_document',
@@ -395,6 +405,8 @@ class TextileProcurementService
         if ($grn->status !== 'released') {
             throw new RuntimeException('GRN must be released before creating supplier claim.');
         }
+
+        $this->assertNoDownstreamDocument($grn, ['supplier_claim'], 'Supplier claim already created for this GRN.');
 
         return $this->workflowService->createDocument([
             'document_type' => 'supplier_claim',
@@ -546,6 +558,26 @@ class TextileProcurementService
         }
 
         return $document;
+    }
+
+    /**
+     * Guards a "create next step" flow against re-using a source document that
+     * has already been converted downstream (e.g. creating a second RFQ from the
+     * same requisition). This mirrors the frontend disabled-option behaviour and
+     * protects the API against direct/bypassed submissions.
+     */
+    protected function assertNoDownstreamDocument(TextileWorkflowDocument $source, array $documentTypes, string $message): void
+    {
+        $hasDownstream = TextileWorkflowDocument::query()
+            ->where('created_by', $source->created_by)
+            ->where('source_reference_type', 'textile_workflow_document')
+            ->where('source_reference_id', $source->id)
+            ->whereIn('document_type', $documentTypes)
+            ->exists();
+
+        if ($hasDownstream) {
+            throw new RuntimeException($message);
+        }
     }
 
     /**
