@@ -254,6 +254,21 @@ class TextileManufacturingService
             throw new RuntimeException('Warp plan must be approved before yarn allocation.');
         }
 
+        $this->assertNoDownstreamDocument($warpPlan, ['yarn_allocation'], 'Yarn already allocated for this warp plan.');
+
+        // Take care of inventory: never allocate more yarn than the source lot
+        // has available. The reserve call below is fail-open, so gate up front.
+        $sourceYarnLot = $this->resolveWarpPlanYarnLot($warpPlan);
+        $allocationQuantity = (float) ($payload['quantity'] ?? $warpPlan->quantity ?? 0);
+        if ($sourceYarnLot !== null && $allocationQuantity > 0 && (float) $sourceYarnLot->available_quantity < $allocationQuantity) {
+            throw new RuntimeException(sprintf(
+                'Insufficient yarn stock for this warp plan (%.2f %s available, %.2f required).',
+                (float) $sourceYarnLot->available_quantity,
+                (string) ($sourceYarnLot->unit ?? $warpPlan->unit ?? 'kg'),
+                $allocationQuantity
+            ));
+        }
+
         $allocation = $this->workflowService->createDocument([
             'document_type' => 'yarn_allocation',
             'source_reference_type' => 'textile_workflow_document',
@@ -328,6 +343,8 @@ class TextileManufacturingService
             throw new RuntimeException('Yarn allocation must be completed before creating warp sheet.');
         }
 
+        $this->assertNoDownstreamDocument($yarnAllocation, ['warp_sheet'], 'Warp sheet already created for this yarn allocation.');
+
         return $this->workflowService->createDocument([
             'document_type' => 'warp_sheet',
             'source_reference_type' => 'textile_workflow_document',
@@ -350,6 +367,8 @@ class TextileManufacturingService
             throw new RuntimeException('Warp sheet must be completed before creating warp production.');
         }
 
+        $this->assertNoDownstreamDocument($warpSheet, ['warp_production'], 'Warp production already recorded for this warp sheet.');
+
         return $this->workflowService->createDocument([
             'document_type' => 'warp_production',
             'source_reference_type' => 'textile_workflow_document',
@@ -371,6 +390,8 @@ class TextileManufacturingService
         if (! in_array($warpProduction->status, ['approved', 'released', 'closed'], true)) {
             throw new RuntimeException('Warp production must be completed before creating sizing recipe.');
         }
+
+        $this->assertNoDownstreamDocument($warpProduction, ['sizing_recipe'], 'Sizing recipe already created for this warp production.');
 
         return $this->workflowService->createDocument([
             'document_type' => 'sizing_recipe',
@@ -419,6 +440,8 @@ class TextileManufacturingService
             throw new RuntimeException('Beam must be approved before issuing.');
         }
 
+        $this->assertNoDownstreamDocument($beam, ['beam_issue'], 'Beam already issued.');
+
         return $this->workflowService->createDocument([
             'document_type' => 'beam_issue',
             'source_reference_type' => 'textile_workflow_document',
@@ -441,6 +464,8 @@ class TextileManufacturingService
             throw new RuntimeException('Beam issue must be completed before beam return.');
         }
 
+        $this->assertNoDownstreamDocument($beamIssue, ['beam_return'], 'Beam return already recorded for this beam issue.');
+
         return $this->workflowService->createDocument([
             'document_type' => 'beam_return',
             'source_reference_type' => 'textile_workflow_document',
@@ -462,6 +487,8 @@ class TextileManufacturingService
         if (! in_array($beam->status, ['approved', 'released', 'closed'], true)) {
             throw new RuntimeException('Beam must be completed before beam inspection.');
         }
+
+        $this->assertNoDownstreamDocument($beam, ['beam_inspection'], 'Beam inspection already recorded for this beam.');
 
         return $this->workflowService->createDocument([
             'document_type' => 'beam_inspection',
@@ -487,6 +514,8 @@ class TextileManufacturingService
         if (! in_array($beam->status, ['approved', 'released', 'closed'], true)) {
             throw new RuntimeException('Beam must be completed before beam cost capture.');
         }
+
+        $this->assertNoDownstreamDocument($beam, ['beam_cost'], 'Beam cost already captured for this beam.');
 
         $quantity = (float) ($payload['quantity'] ?? $beam->quantity ?? 0);
         $costAmount = (float) ($payload['cost_amount'] ?? 0);
@@ -549,6 +578,8 @@ class TextileManufacturingService
             throw new RuntimeException('Loom master must be completed before recording breakdown.');
         }
 
+        $this->assertNoDownstreamDocument($loomMaster, ['loom_breakdown'], 'Breakdown already recorded for this loom.');
+
         return $this->workflowService->createDocument([
             'document_type' => 'loom_breakdown',
             'source_reference_type' => 'textile_workflow_document',
@@ -576,6 +607,8 @@ class TextileManufacturingService
         if (! in_array($loomMaster->status, ['approved', 'released', 'closed'], true)) {
             throw new RuntimeException('Loom master must be completed before recording maintenance.');
         }
+
+        $this->assertNoDownstreamDocument($loomMaster, ['loom_maintenance'], 'Maintenance already recorded for this loom.');
 
         return $this->workflowService->createDocument([
             'document_type' => 'loom_maintenance',
@@ -782,6 +815,8 @@ class TextileManufacturingService
         if ($beam->status !== 'approved') {
             throw new RuntimeException('Beam must be approved before creating production batch.');
         }
+
+        $this->assertNoDownstreamDocument($beam, ['production_batch'], 'Production batch already created for this beam.');
 
         return $this->workflowService->createDocument([
             'document_type' => 'production_batch',
@@ -1048,6 +1083,8 @@ class TextileManufacturingService
         if ($batch->status !== 'released') {
             throw new RuntimeException('Production batch must be released before weaving output.');
         }
+
+        $this->assertNoDownstreamDocument($batch, ['weaving_output'], 'Weaving output already recorded for this batch.');
 
         $output = $this->workflowService->createDocument([
             'document_type' => 'weaving_output',
@@ -1434,6 +1471,8 @@ class TextileManufacturingService
     {
         $output = $this->findTenantDocument($weavingOutputId, 'weaving_output');
 
+        $this->assertNoDownstreamDocument($output, ['grey_fabric_roll'], 'Grey fabric roll already generated for this weaving output.');
+
         $rollNumber = trim((string) ($payload['roll_number'] ?? ''));
         if ($rollNumber === '') {
             $rollNumber = sprintf('ROLL-%s-%s', date('Ymd'), substr((string) uniqid('', true), -6));
@@ -1518,6 +1557,8 @@ class TextileManufacturingService
             throw new RuntimeException('Production batch must be released before recording waste.');
         }
 
+        $this->assertNoDownstreamDocument($batch, ['waste'], 'Waste already recorded for this batch.');
+
         return $this->workflowService->createDocument([
             'document_type' => 'waste',
             'source_reference_type' => 'textile_workflow_document',
@@ -1539,6 +1580,8 @@ class TextileManufacturingService
         if ($output->status !== 'approved' && $output->status !== 'released' && $output->status !== 'closed') {
             throw new RuntimeException('Weaving output must be completed before recording rework.');
         }
+
+        $this->assertNoDownstreamDocument($output, ['rework'], 'Rework already recorded for this weaving output.');
 
         return $this->workflowService->createDocument([
             'document_type' => 'rework',
@@ -1572,6 +1615,26 @@ class TextileManufacturingService
         }
 
         return $document;
+    }
+
+    /**
+     * Guards a "create next step" flow against re-using a source document that
+     * has already been converted downstream (e.g. a second yarn allocation from
+     * the same warp plan). Mirrors the frontend disabled-option behaviour and
+     * protects the API against direct/bypassed submissions.
+     */
+    protected function assertNoDownstreamDocument(TextileWorkflowDocument $source, array $documentTypes, string $message): void
+    {
+        $hasDownstream = TextileWorkflowDocument::query()
+            ->where('created_by', $source->created_by)
+            ->where('source_reference_type', 'textile_workflow_document')
+            ->where('source_reference_id', $source->id)
+            ->whereIn('document_type', $documentTypes)
+            ->exists();
+
+        if ($hasDownstream) {
+            throw new RuntimeException($message);
+        }
     }
 
     private function createGreyRollHistory(TextileWorkflowDocument $roll, string $event, array $extra = []): TextileWorkflowDocument

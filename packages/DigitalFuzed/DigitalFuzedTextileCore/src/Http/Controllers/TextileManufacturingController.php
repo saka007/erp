@@ -38,7 +38,7 @@ class TextileManufacturingController extends Controller
         $this->authorizeCapabilityOrAbort('manufacturing');
 
         return Inertia::render('DigitalFuzedTextileCore/Manufacturing/Index', [
-            'warpPlans' => $this->documents('warp_plan'),
+            'warpPlans' => $this->warpPlanOptions(),
             'yarnAllocations' => $this->documents('yarn_allocation'),
             'warpSheets' => $this->documents('warp_sheet'),
             'warpProductions' => $this->documents('warp_production'),
@@ -973,6 +973,42 @@ class TextileManufacturingController extends Controller
         TextileBranchScope::applyWorkflowScope($query);
 
         return $query->latest()->get();
+    }
+
+    /**
+     * Warp plans enriched with the source yarn lot's current availability so
+     * the allocation dropdown can disable plans whose stock is insufficient.
+     * Mirrors TextileManufacturingService::resolveWarpPlanYarnLot; availability
+     * is null when no yarn lot resolves (fail-open, backend allows).
+     */
+    private function warpPlanOptions()
+    {
+        $warpPlans = $this->documents('warp_plan');
+
+        $yarnLots = TextileLot::query()
+            ->where('created_by', creatorId())
+            ->where('material_type', TextileLot::TYPE_YARN)
+            ->get();
+
+        $lotsById = $yarnLots->keyBy('id');
+        $lotsByReference = $yarnLots->keyBy('lot_reference');
+
+        return $warpPlans->map(function (TextileWorkflowDocument $warpPlan) use ($lotsById, $lotsByReference) {
+            $lot = null;
+            $sourceType = (string) ($warpPlan->source_reference_type ?? '');
+            $sourceId = (int) ($warpPlan->source_reference_id ?? 0);
+
+            if (in_array($sourceType, ['textile_lot', 'inventory_lot'], true) && $sourceId > 0 && isset($lotsById[$sourceId])) {
+                $lot = $lotsById[$sourceId];
+            } elseif (is_string($warpPlan->lot_reference) && trim($warpPlan->lot_reference) !== '' && isset($lotsByReference[$warpPlan->lot_reference])) {
+                $lot = $lotsByReference[$warpPlan->lot_reference];
+            }
+
+            $warpPlan->yarn_available_quantity = $lot !== null ? (float) $lot->available_quantity : null;
+            $warpPlan->yarn_unit = $lot !== null ? (string) ($lot->unit ?? 'kg') : (string) ($warpPlan->unit ?? 'kg');
+
+            return $warpPlan;
+        });
     }
 
     private function unitOptions(): array

@@ -35,6 +35,61 @@ interface WorkflowDocument {
     status: string;
     metadata?: Record<string, unknown>;
     created_at?: string | null;
+    yarn_available_quantity?: number | null;
+    yarn_unit?: string | null;
+}
+
+interface SourceSelectOption {
+    value: string;
+    label: string;
+    group?: string;
+    disabled?: boolean;
+    disabledReason?: string;
+}
+
+/**
+ * Builds workflow select options, disabling any row whose id is present in
+ * `disabledById` with the row-specific reason (e.g. already-created downstream
+ * documents or insufficient stock). Label format mirrors
+ * `createTextileWorkflowSelectOptions`.
+ */
+function createSourceOptions(
+    rows: WorkflowDocument[],
+    disabledById: Map<number, string>,
+    { recentCount = 5, recentLabel = 'Recent', olderLabel = 'Older' }: { recentCount?: number; recentLabel?: string; olderLabel?: string } = {}
+): SourceSelectOption[] {
+    const orderedRows = [...rows].sort((left, right) => right.id - left.id);
+    const shouldGroupByRecency = orderedRows.length > recentCount;
+
+    return orderedRows.map((row, index) => {
+        const segments = [row.document_number];
+
+        if (row.party_name) {
+            segments.push(row.party_name);
+        }
+
+        if (row.lot_reference) {
+            segments.push(`Lot ${row.lot_reference}`);
+        }
+
+        segments.push(`${row.quantity} ${row.unit || '-'}`);
+
+        const reason = disabledById.get(row.id);
+
+        return {
+            value: String(row.id),
+            label: segments.join(' | '),
+            group: shouldGroupByRecency ? (index < recentCount ? recentLabel : olderLabel) : undefined,
+            disabled: reason !== undefined,
+            disabledReason: reason,
+        };
+    });
+}
+
+function disableMap(ids: Set<number>, reason: string): Map<number, string> {
+    const map = new Map<number, string>();
+    ids.forEach((id) => map.set(id, reason));
+    return map;
 }
 
 export default function Index({
@@ -358,6 +413,43 @@ export default function Index({
         };
     });
     const completedWeavingOutputs = weavingOutputs.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
+    // Consumed-source guards: one-to-one lifecycle steps can only be performed
+    // once per source document. Collect the source ids that already produced a
+    // downstream document so those sources are disabled in the dropdowns.
+    const consumedSourceIds = (rows: WorkflowDocument[], action: string): Set<number> => new Set(
+        rows
+            .filter((row) => row.source_reference_type === 'textile_workflow_document' && row.source_action === action && row.source_reference_id != null)
+            .map((row) => Number(row.source_reference_id))
+    );
+    const warpPlanIdsWithAllocation = consumedSourceIds(yarnAllocations, 'yarn_allocate');
+    const yarnAllocationIdsWithWarpSheet = consumedSourceIds(warpSheets, 'warp_sheet_prepare');
+    const warpSheetIdsWithWarpProduction = consumedSourceIds(warpProductions, 'warp_production');
+    const warpProductionIdsWithSizingRecipe = consumedSourceIds(sizingRecipes, 'sizing_recipe');
+    const beamIdsWithIssue = consumedSourceIds(beamIssues, 'beam_issue');
+    const beamIssueIdsWithReturn = consumedSourceIds(beamReturns, 'beam_return');
+    const beamIdsWithInspection = consumedSourceIds(beamInspections, 'beam_inspection');
+    const beamIdsWithCost = consumedSourceIds(beamCosts, 'beam_cost_capture');
+    const loomIdsWithBreakdown = consumedSourceIds(loomBreakdowns, 'loom_breakdown');
+    const loomIdsWithMaintenance = consumedSourceIds(loomMaintenances, 'loom_maintenance');
+    const beamIdsWithBatch = consumedSourceIds(productionBatches, 'batch_start');
+    const batchIdsWithWeavingOutput = consumedSourceIds(weavingOutputs, 'weaving_complete');
+    const batchIdsWithWaste = consumedSourceIds(wastes, 'record_waste');
+    const weavingOutputIdsWithRoll = consumedSourceIds(greyFabricRolls, 'roll_generate');
+    const weavingOutputIdsWithRework = consumedSourceIds(reworks, 'record_rework');
+
+    // Yarn allocation dropdown: also disable approved warp plans whose source
+    // yarn lot has insufficient available stock (mirrors the backend guard).
+    const warpPlanAllocationDisabledById = new Map<number, string>();
+    approvedWarpPlans.forEach((plan) => {
+        if (warpPlanIdsWithAllocation.has(plan.id)) {
+            warpPlanAllocationDisabledById.set(plan.id, t('Yarn already allocated'));
+            return;
+        }
+        const available = plan.yarn_available_quantity;
+        if (available !== null && available !== undefined && (Number(plan.quantity) || 0) > available) {
+            warpPlanAllocationDisabledById.set(plan.id, `${t('Insufficient yarn stock')} (${available.toFixed(2)} ${plan.yarn_unit ?? 'kg'} ${t('available')})`);
+        }
+    });
     const resolvedSourceTypeOptions = sourceTypeOptions.length > 0
         ? sourceTypeOptions.map((value) => ({ value, label: formatTextileOptionLabel(value) }))
         : textileSourceTypeOptions;
@@ -701,7 +793,7 @@ export default function Index({
                                 label={allocateYarnFormLabel}
                                 value={yarnAllocationForm.data.warp_plan_id}
                                 onChange={(v) => yarnAllocationForm.setData('warp_plan_id', v)}
-                                options={createTextileWorkflowSelectOptions(approvedWarpPlans)}
+                                options={createSourceOptions(approvedWarpPlans, warpPlanAllocationDisabledById)}
                                 includeEmpty
                                 emptyLabel={allocateYarnEmptyLabel}
                                 helperText={allocateYarnHelperText}
@@ -725,7 +817,7 @@ export default function Index({
                                 label={t('Yarn Allocation')}
                                 value={warpSheetForm.data.yarn_allocation_id}
                                 onChange={(v) => warpSheetForm.setData('yarn_allocation_id', v)}
-                                options={createTextileWorkflowSelectOptions(actionableYarnAllocations)}
+                                options={createSourceOptions(actionableYarnAllocations, disableMap(yarnAllocationIdsWithWarpSheet, t('Warp sheet already created')))}
                                 includeEmpty
                                 emptyLabel={t('Select yarn allocation')}
                                 helperText={t('Only completed yarn allocations are listed.')}
@@ -749,7 +841,7 @@ export default function Index({
                                 label={t('Warp Sheet')}
                                 value={warpProductionForm.data.warp_sheet_id}
                                 onChange={(v) => warpProductionForm.setData('warp_sheet_id', v)}
-                                options={createTextileWorkflowSelectOptions(actionableWarpSheets)}
+                                options={createSourceOptions(actionableWarpSheets, disableMap(warpSheetIdsWithWarpProduction, t('Warp production already recorded')))}
                                 includeEmpty
                                 emptyLabel={t('Select warp sheet')}
                                 helperText={t('Only completed warp sheets are listed.')}
@@ -773,7 +865,7 @@ export default function Index({
                                 label={t('Warp Production')}
                                 value={sizingRecipeForm.data.warp_production_id}
                                 onChange={(v) => sizingRecipeForm.setData('warp_production_id', v)}
-                                options={createTextileWorkflowSelectOptions(actionableWarpProductions)}
+                                options={createSourceOptions(actionableWarpProductions, disableMap(warpProductionIdsWithSizingRecipe, t('Sizing recipe already created')))}
                                 includeEmpty
                                 emptyLabel={t('Select warp production')}
                                 helperText={t('Only completed warp production entries are listed.')}
@@ -850,7 +942,7 @@ export default function Index({
                                 label={t('Beam')}
                                 value={beamInspectionForm.data.beam_id}
                                 onChange={(v) => beamInspectionForm.setData('beam_id', v)}
-                                options={createTextileWorkflowSelectOptions(actionableBeams)}
+                                options={createSourceOptions(actionableBeams, disableMap(beamIdsWithInspection, t('Beam inspection already recorded')))}
                                 includeEmpty
                                 emptyLabel={t('Select beam')}
                                 helperText={t('Only completed beams are listed for inspection.')}
@@ -885,7 +977,7 @@ export default function Index({
                                 label={t('Beam')}
                                 value={beamCostForm.data.beam_id}
                                 onChange={(v) => beamCostForm.setData('beam_id', v)}
-                                options={createTextileWorkflowSelectOptions(actionableBeams)}
+                                options={createSourceOptions(actionableBeams, disableMap(beamIdsWithCost, t('Beam cost already captured')))}
                                 includeEmpty
                                 emptyLabel={t('Select beam')}
                                 helperText={t('Only completed beams are listed for cost capture.')}
@@ -1273,7 +1365,7 @@ export default function Index({
                                     label={t('Create Batch from Approved Beam')}
                                     value={batchForm.data.beam_id}
                                     onChange={(v) => batchForm.setData('beam_id', v)}
-                                    options={createTextileWorkflowSelectOptions(beamBatchApprovedBeams)}
+                                    options={createSourceOptions(beamBatchApprovedBeams, disableMap(beamIdsWithBatch, t('Production batch already created')))}
                                     includeEmpty
                                     emptyLabel={t('Select approved beam')}
                                     helperText={t('Only approved beams are listed.')}
@@ -1321,7 +1413,7 @@ export default function Index({
                                 label={t('From Approved Beam')}
                                 value={beamIssueForm.data.beam_id}
                                 onChange={(v) => beamIssueForm.setData('beam_id', v)}
-                                options={createTextileWorkflowSelectOptions(approvedBeams)}
+                                options={createSourceOptions(approvedBeams, disableMap(beamIdsWithIssue, t('Beam already issued')))}
                                 includeEmpty
                                 emptyLabel={t('Select approved beam')}
                                 helperText={t('Only approved beams are listed.')}
@@ -1345,7 +1437,7 @@ export default function Index({
                                 label={t('From Beam Issue')}
                                 value={beamReturnForm.data.beam_issue_id}
                                 onChange={(v) => beamReturnForm.setData('beam_issue_id', v)}
-                                options={createTextileWorkflowSelectOptions(actionableBeamIssues)}
+                                options={createSourceOptions(actionableBeamIssues, disableMap(beamIssueIdsWithReturn, t('Beam return already recorded')))}
                                 includeEmpty
                                 emptyLabel={t('Select beam issue')}
                                 helperText={t('Only completed beam issues are listed.')}
@@ -1534,7 +1626,7 @@ export default function Index({
                                 label={t('Loom')}
                                 value={loomBreakdownForm.data.loom_master_id}
                                 onChange={(v) => loomBreakdownForm.setData('loom_master_id', v)}
-                                options={createTextileWorkflowSelectOptions(actionableLoomMasters)}
+                                options={createSourceOptions(actionableLoomMasters, disableMap(loomIdsWithBreakdown, t('Breakdown already recorded')))}
                                 includeEmpty
                                 emptyLabel={t('Select loom')}
                                 helperText={t('Only active loom masters are listed.')}
@@ -1595,7 +1687,7 @@ export default function Index({
                                 label={t('Loom')}
                                 value={loomMaintenanceForm.data.loom_master_id}
                                 onChange={(v) => loomMaintenanceForm.setData('loom_master_id', v)}
-                                options={createTextileWorkflowSelectOptions(actionableLoomMasters)}
+                                options={createSourceOptions(actionableLoomMasters, disableMap(loomIdsWithMaintenance, t('Maintenance already recorded')))}
                                 includeEmpty
                                 emptyLabel={t('Select loom')}
                                 helperText={t('Only active loom masters are listed.')}
@@ -2319,7 +2411,7 @@ export default function Index({
                                 onSuccess: () => weavingOutputForm.reset('batch_id', 'quantity'),
                             });
                         }}>
-                            <SelectField label={t('Batch')} value={weavingOutputForm.data.batch_id} onChange={(v) => weavingOutputForm.setData('batch_id', v)} options={createTextileWorkflowSelectOptions(releasedBatches)} includeEmpty emptyLabel={t('Select released batch')} helperText={t('Only released production batches are listed.')} disabled={releasedBatches.length === 0} disabledReason={t('No released batch found. Release a production batch first.')} required />
+                            <SelectField label={t('Batch')} value={weavingOutputForm.data.batch_id} onChange={(v) => weavingOutputForm.setData('batch_id', v)} options={createSourceOptions(releasedBatches, disableMap(batchIdsWithWeavingOutput, t('Weaving output already recorded')))} includeEmpty emptyLabel={t('Select released batch')} helperText={t('Only released production batches are listed.')} disabled={releasedBatches.length === 0} disabledReason={t('No released batch found. Release a production batch first.')} required />
                             <Field label={t('Output Qty')} type="number" value={weavingOutputForm.data.quantity} onChange={(v) => weavingOutputForm.setData('quantity', v)} required />
                             <SelectField label={t('Unit')} value={weavingOutputForm.data.unit} onChange={(v) => weavingOutputForm.setData('unit', v)} options={resolvedUnitOptions} includeEmpty emptyLabel={t('Select unit')} helperText={t('Units are derived from Unit Conversion master.')} />
                             <Button type="submit" disabled={weavingOutputForm.processing} className="self-end"><Plus className="mr-2 h-4 w-4" />{t('Record Output')}</Button>
@@ -2482,7 +2574,7 @@ export default function Index({
                                 onSuccess: () => greyFabricRollForm.reset('weaving_output_id', 'roll_number', 'roll_barcode', 'roll_qr_code', 'roll_weight', 'roll_length', 'gsm', 'width', 'grade', 'warehouse', 'operator_name', 'notes'),
                             });
                         }}>
-                            <SelectField label={t('Weaving Output')} value={greyFabricRollForm.data.weaving_output_id} onChange={(v) => greyFabricRollForm.setData('weaving_output_id', v)} options={createTextileWorkflowSelectOptions(completedWeavingOutputs)} includeEmpty emptyLabel={t('Select weaving output')} helperText={t('Only completed weaving outputs are listed.')} disabled={completedWeavingOutputs.length === 0} disabledReason={t('No weaving output found. Record weaving output first.')} required />
+                            <SelectField label={t('Weaving Output')} value={greyFabricRollForm.data.weaving_output_id} onChange={(v) => greyFabricRollForm.setData('weaving_output_id', v)} options={createSourceOptions(completedWeavingOutputs, disableMap(weavingOutputIdsWithRoll, t('Grey fabric roll already generated')))} includeEmpty emptyLabel={t('Select weaving output')} helperText={t('Only completed weaving outputs are listed.')} disabled={completedWeavingOutputs.length === 0} disabledReason={t('No weaving output found. Record weaving output first.')} required />
                             <div className="grid grid-cols-3 gap-3">
                                 <Field label={t('Roll Number')} value={greyFabricRollForm.data.roll_number} onChange={(v) => greyFabricRollForm.setData('roll_number', v)} />
                                 <Field label={t('Roll Barcode')} value={greyFabricRollForm.data.roll_barcode} onChange={(v) => greyFabricRollForm.setData('roll_barcode', v)} />
@@ -2779,7 +2871,7 @@ export default function Index({
                                     label={t('Batch')}
                                     value={wasteForm.data.batch_id}
                                     onChange={(v) => wasteForm.setData('batch_id', v)}
-                                    options={createTextileWorkflowSelectOptions(releasedBatches)}
+                                    options={createSourceOptions(releasedBatches, disableMap(batchIdsWithWaste, t('Waste already recorded')))}
                                     includeEmpty
                                     emptyLabel={t('Select released batch')}
                                     helperText={t('Only released production batches are listed.')}
@@ -2854,7 +2946,7 @@ export default function Index({
                                     label={t('Weaving Output')}
                                     value={reworkForm.data.weaving_output_id}
                                     onChange={(v) => reworkForm.setData('weaving_output_id', v)}
-                                    options={createTextileWorkflowSelectOptions(weavingOutputs)}
+                                    options={createSourceOptions(weavingOutputs, disableMap(weavingOutputIdsWithRework, t('Rework already recorded')))}
                                     includeEmpty
                                     emptyLabel={t('Select weaving output')}
                                     helperText={t('Select a weaving output to create a rework entry.')}
