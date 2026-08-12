@@ -8,6 +8,7 @@ use DigitalFuzed\TextileCore\Models\TextileReferenceMaster;
 use DigitalFuzed\TextileCore\Models\TextileUnitConversion;
 use DigitalFuzed\TextileInventory\Models\TextileLot;
 use DigitalFuzed\TextileCore\Services\TextileManufacturingService;
+use DigitalFuzed\TextileCore\Services\TextileNumberingService;
 use DigitalFuzed\TextileCore\Services\TextileOperatingPolicyService;
 use DigitalFuzed\TextileCore\Services\TextilePartyBranchService;
 use DigitalFuzed\TextileCore\Support\TextileBranchScope;
@@ -28,8 +29,10 @@ class TextileManufacturingController extends Controller
 {
     use ProvidesRecentActivity;
 
-    public function __construct(protected TextileOperatingPolicyService $policyService)
-    {
+    public function __construct(
+        protected TextileOperatingPolicyService $policyService,
+        protected TextileNumberingService $numberingService
+    ) {
     }
 
     public function index()
@@ -96,6 +99,7 @@ class TextileManufacturingController extends Controller
             'sizingVendorOptions' => $this->sizingVendorOptions(),
             'powerloomVendorOptions' => $this->powerloomVendorOptions(),
             'yarnLotOptions' => $this->yarnLotOptions(),
+            'nextTakhaNumber' => $this->numberingService->peek('takha'),
             'recentActivity' => $this->recentActivity(),
         ]);
     }
@@ -738,10 +742,10 @@ class TextileManufacturingController extends Controller
         $validated = $request->validate([
             'production_assignment_id' => ['nullable', 'required_without:weaving_output_id', 'integer', 'min:1'],
             'weaving_output_id' => ['nullable', 'required_without:production_assignment_id', 'integer', 'min:1'],
-            'takha_number' => ['nullable', 'required_without:takhas', 'string', 'max:100'],
+            'takha_number' => ['nullable', 'string', 'max:100'],
             'quantity' => ['nullable', 'required_without:takhas', 'numeric', 'gt:0'],
-            'takhas' => ['nullable', 'required_without:takha_number', 'array', 'min:1'],
-            'takhas.*.takha_number' => ['required', 'string', 'max:100', 'distinct'],
+            'takhas' => ['nullable', 'required_without_all:takha_number,quantity', 'array', 'min:1'],
+            'takhas.*.takha_number' => ['nullable', 'string', 'max:100'],
             'takhas.*.quantity' => ['required', 'numeric', 'gt:0'],
             'unit' => ['nullable', 'string', 'max:50'],
             'production_date' => ['nullable', 'date'],

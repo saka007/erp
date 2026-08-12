@@ -151,6 +151,7 @@ export default function Index({
     sizingVendorOptions,
     powerloomVendorOptions,
     yarnLotOptions,
+    nextTakhaNumber,
     recentActivity,
 }: {
     warpPlans: WorkflowDocument[];
@@ -211,6 +212,7 @@ export default function Index({
     sizingVendorOptions: Array<{ value: string; label: string }>;
     powerloomVendorOptions: Array<{ value: string; label: string }>;
     yarnLotOptions: Array<{ id: number; value: string; label: string; available_quantity: string; unit: string }>;
+    nextTakhaNumber: string;
     recentActivity: ActivityItem[];
 }) {
     const { t } = useTranslation();
@@ -413,6 +415,18 @@ export default function Index({
         };
     });
     const completedWeavingOutputs = weavingOutputs.filter((row) => ['approved', 'released', 'closed'].includes(row.status));
+    // Takha numbers are auto-generated on the backend with the TAKHA- prefix.
+    // The preview below shows the next expected number so the user only has to
+    // enter quantity; the form sends an empty takha_number and the backend
+    // assigns the authoritative sequential number (TAKHA-000001, ...).
+    const takhaNumberPreview = (offset = 0): string => {
+        const match = String(nextTakhaNumber || '').match(/^(.+?)-(\d+)$/);
+        if (!match) {
+            return String(nextTakhaNumber || '');
+        }
+        const [, prefix, numberPart] = match;
+        return `${prefix}-${String(parseInt(numberPart, 10) + offset).padStart(6, '0')}`;
+    };
     // Consumed-source guards: one-to-one lifecycle steps can only be performed
     // once per source document. Collect the source ids that already produced a
     // downstream document so those sources are disabled in the dropdowns.
@@ -2271,8 +2285,6 @@ export default function Index({
                     ? Math.max(0, Number(selectedLoomAllocation?.quantity ?? 0) - selectedLoomRecordedQuantity)
                     : Math.max(0, assignmentRemainingQuantity);
                 const enteredTakhaQuantity = takhaEntryForm.data.takhas.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
-                const enteredTakhaNumbers = takhaEntryForm.data.takhas.map((row) => row.takha_number.trim()).filter(Boolean);
-                const hasDuplicateTakhaNumbers = new Set(enteredTakhaNumbers).size !== enteredTakhaNumbers.length;
                 const takhaSteps: WorkflowStep[] = [
                     { id: 'takha-entry', title: t('Record / Receive Takha'), icon: Factory, count: takhaEntries.length, form: (
                         <TextileFormCard showHeader={false}>
@@ -2336,32 +2348,28 @@ export default function Index({
                                     <Field label={selectedAssignmentMode === 'powerloom_vendor' ? t('Received Date') : t('Production Date')} type="date" value={takhaEntryForm.data.production_date} onChange={(value) => takhaEntryForm.setData('production_date', value)} required />
                                 </div>
                                 {selectedAssignmentMode !== 'powerloom_vendor' ? <SelectField label={t('Operator')} value={takhaEntryForm.data.operator_name} onChange={(value) => takhaEntryForm.setData('operator_name', value)} options={resolvedOperatorOptions} includeEmpty emptyLabel={t('Select operator')} /> : null}
-                                <div className="overflow-hidden rounded-md border border-border">
-                                    <div className="grid grid-cols-[minmax(0,1fr)_110px_84px] gap-2 bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground sm:grid-cols-[minmax(0,1fr)_180px_84px]">
-                                        <span>{t('Takha Number')}</span>
-                                        <span>{t('Quantity')}</span>
-                                        <span className="text-center">{t('Actions')}</span>
-                                    </div>
-                                    {takhaEntryForm.data.takhas.map((takha, index) => <div key={index} className="grid grid-cols-[minmax(0,1fr)_110px_84px] items-center gap-2 border-t border-border px-3 py-2 sm:grid-cols-[minmax(0,1fr)_180px_84px]">
-                                        <Input value={takha.takha_number} placeholder={t('Enter Takha number')} onChange={(event) => {
-                                            const rows = [...takhaEntryForm.data.takhas];
-                                            rows[index] = { ...takha, takha_number: event.target.value };
-                                            takhaEntryForm.setData('takhas', rows);
-                                        }} required />
-                                        <Input type="number" value={takha.quantity} placeholder="0.00" step="0.01" min="0.01" onChange={(event) => {
-                                            const rows = [...takhaEntryForm.data.takhas];
-                                            rows[index] = { ...takha, quantity: event.target.value };
-                                            takhaEntryForm.setData('takhas', rows);
-                                        }} required />
-                                        <div className="flex justify-end gap-1">
-                                            {index === takhaEntryForm.data.takhas.length - 1 ? <Button type="button" variant="outline" className="h-9 w-9 p-0" onClick={() => takhaEntryForm.setData('takhas', [...takhaEntryForm.data.takhas, { takha_number: '', quantity: '' }])} title={t('Add another Takha')}><Plus className="h-4 w-4" /></Button> : null}
-                                            <Button type="button" variant="outline" className="h-9 w-9 p-0" disabled={takhaEntryForm.data.takhas.length === 1} onClick={() => takhaEntryForm.setData('takhas', takhaEntryForm.data.takhas.filter((_row, rowIndex) => rowIndex !== index))} title={t('Remove Takha')}><Trash2 className="h-4 w-4" /></Button>
+                                    <div className="overflow-hidden rounded-md border border-border">
+                                        <div className="grid grid-cols-[minmax(0,1fr)_110px_84px] gap-2 bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground sm:grid-cols-[minmax(0,1fr)_180px_84px]">
+                                            <span>{t('Takha Number')}</span>
+                                            <span>{t('Quantity')}</span>
+                                            <span className="text-center">{t('Actions')}</span>
                                         </div>
-                                    </div>)}
-                                </div>
-                                <p className="text-right text-sm text-muted-foreground">{t('Entered')}: {enteredTakhaQuantity.toFixed(2)} / {availableTakhaQuantity.toFixed(2)} {takhaEntryForm.data.unit}{hasDuplicateTakhaNumbers ? ` · ${t('Duplicate Takha numbers')}` : ''}</p>
-                                <Field label={t('Notes')} value={takhaEntryForm.data.notes} onChange={(value) => takhaEntryForm.setData('notes', value)} />
-                                <Button type="submit" disabled={takhaEntryForm.processing || enteredTakhaQuantity <= 0 || enteredTakhaQuantity > availableTakhaQuantity + 0.01 || hasDuplicateTakhaNumbers || enteredTakhaNumbers.length !== takhaEntryForm.data.takhas.length} className="w-full"><Plus className="mr-2 h-4 w-4" />{selectedAssignmentMode === 'powerloom_vendor' ? t('Receive Takhas') : t('Record Takhas')}</Button>
+                                        {takhaEntryForm.data.takhas.map((takha, index) => <div key={index} className="grid grid-cols-[minmax(0,1fr)_110px_84px] items-center gap-2 border-t border-border px-3 py-2 sm:grid-cols-[minmax(0,1fr)_180px_84px]">
+                                            <Input value={takhaNumberPreview(index)} readOnly aria-label={t('Takha Number')} />
+                                            <Input type="number" value={takha.quantity} placeholder="0.00" step="0.01" min="0.01" onChange={(event) => {
+                                                const rows = [...takhaEntryForm.data.takhas];
+                                                rows[index] = { ...takha, quantity: event.target.value };
+                                                takhaEntryForm.setData('takhas', rows);
+                                            }} required />
+                                            <div className="flex justify-end gap-1">
+                                                {index === takhaEntryForm.data.takhas.length - 1 ? <Button type="button" variant="outline" className="h-9 w-9 p-0" onClick={() => takhaEntryForm.setData('takhas', [...takhaEntryForm.data.takhas, { takha_number: '', quantity: '' }])} title={t('Add another Takha')}><Plus className="h-4 w-4" /></Button> : null}
+                                                <Button type="button" variant="outline" className="h-9 w-9 p-0" disabled={takhaEntryForm.data.takhas.length === 1} onClick={() => takhaEntryForm.setData('takhas', takhaEntryForm.data.takhas.filter((_row, rowIndex) => rowIndex !== index))} title={t('Remove Takha')}><Trash2 className="h-4 w-4" /></Button>
+                                            </div>
+                                        </div>)}
+                                    </div>
+                                    <p className="text-right text-sm text-muted-foreground">{t('Entered')}: {enteredTakhaQuantity.toFixed(2)} / {availableTakhaQuantity.toFixed(2)} {takhaEntryForm.data.unit}</p>
+                                    <Field label={t('Notes')} value={takhaEntryForm.data.notes} onChange={(value) => takhaEntryForm.setData('notes', value)} />
+                                    <Button type="submit" disabled={takhaEntryForm.processing || enteredTakhaQuantity <= 0 || enteredTakhaQuantity > availableTakhaQuantity + 0.01} className="w-full"><Plus className="mr-2 h-4 w-4" />{selectedAssignmentMode === 'powerloom_vendor' ? t('Receive Takhas') : t('Record Takhas')}</Button>
                             </form>
                         </TextileFormCard>
                     ) },
@@ -2451,7 +2459,7 @@ export default function Index({
                         }}>
                             <SelectField label={t('Weaving Output')} value={takhaEntryForm.data.weaving_output_id} onChange={(v) => takhaEntryForm.setData('weaving_output_id', v)} options={createTextileWorkflowSelectOptions(completedWeavingOutputs)} includeEmpty emptyLabel={t('Select weaving output')} helperText={t('Only completed weaving outputs are listed.')} disabled={completedWeavingOutputs.length === 0} disabledReason={t('No weaving output found. Record weaving output first.')} required />
                             <div className="grid grid-cols-2 gap-3">
-                                <Field label={t('Takha Number')} value={takhaEntryForm.data.takha_number} onChange={(v) => takhaEntryForm.setData('takha_number', v)} required />
+                                <Field label={t('Takha Number')} value={takhaNumberPreview(0)} onChange={() => undefined} disabled />
                                 <Field label={t('Quantity')} type="number" value={takhaEntryForm.data.quantity} onChange={(v) => takhaEntryForm.setData('quantity', v)} required />
                             </div>
                             <div className="grid grid-cols-2 gap-3">

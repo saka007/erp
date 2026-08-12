@@ -1043,14 +1043,40 @@ class TextileManufacturingAdminTest extends TestCase
             ])
             ->assertSessionHasErrors('production_assignment_id');
 
-        // Missing takha number is rejected.
+        // Missing takha number is auto-generated (TAKHA- prefix, sequential).
         $this->actingAs($companyA)
             ->post(route('textile.manufacturing.takha-entries.store'), [
                 'weaving_output_id' => $weavingOutput->id,
                 'quantity' => 10,
                 'unit' => 'mtr',
             ])
-            ->assertSessionHasErrors('takha_number');
+            ->assertSessionHasNoErrors();
+
+        $autoTakha = TextileWorkflowDocument::where('document_type', 'takha_entry')
+            ->where('created_by', $companyA->id)
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($autoTakha);
+        $this->assertSame('TAKHA-000001', $autoTakha->lot_reference);
+        $this->assertSame('TAKHA-000001', $autoTakha->metadata['takha_number']);
+
+        // Auto-generation continues sequentially for subsequent entries.
+        $this->actingAs($companyA)
+            ->post(route('textile.manufacturing.takha-entries.store'), [
+                'weaving_output_id' => $weavingOutput->id,
+                'quantity' => 10,
+                'unit' => 'mtr',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $generated = TextileWorkflowDocument::where('document_type', 'takha_entry')
+            ->where('created_by', $companyA->id)
+            ->where('lot_reference', 'like', 'TAKHA-%')
+            ->orderBy('id')
+            ->pluck('lot_reference')
+            ->all();
+        $this->assertContains('TAKHA-000001', $generated);
+        $this->assertContains('TAKHA-000002', $generated);
     }
 
     private function company(): User

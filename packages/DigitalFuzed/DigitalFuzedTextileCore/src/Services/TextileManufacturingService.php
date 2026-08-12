@@ -18,7 +18,8 @@ class TextileManufacturingService
         protected TextileLotAutoCreationService $lotAutoCreationService,
         protected TextileOperatingPolicyService $policyService,
         protected TextileConsumptionService $consumptionService,
-        protected TextileLedgerService $ledgerService
+        protected TextileLedgerService $ledgerService,
+        protected TextileNumberingService $numberingService
     ) {
     }
 
@@ -963,7 +964,8 @@ class TextileManufacturingService
 
         $takhaNumber = trim((string) ($payload['takha_number'] ?? ''));
         if ($takhaNumber === '') {
-            throw new RuntimeException('Takha number is required for takha entry.');
+            // Standard takha numbering: TAKHA-000001, TAKHA-000002, ...
+            $takhaNumber = $this->numberingService->next('takha');
         }
         $duplicateNumberQuery = TextileWorkflowDocument::query()
             ->where('created_by', $assignment->created_by)
@@ -1284,7 +1286,8 @@ class TextileManufacturingService
 
         $takhaNumber = trim((string) ($payload['takha_number'] ?? ''));
         if ($takhaNumber === '') {
-            throw new RuntimeException('Takha number is required for takha entry.');
+            // Standard takha numbering: TAKHA-000001, TAKHA-000002, ...
+            $takhaNumber = $this->numberingService->next('takha');
         }
 
         $quantity = (float) ($payload['quantity'] ?? 0);
