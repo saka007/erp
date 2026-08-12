@@ -1432,8 +1432,12 @@ Progress note (2026-08-04):
 - [x] Line items carry product/service, quantity, unit, rate — never a bare total-only invoice for a new flow.
 - [x] UI action is wired from the workflow page (row action / button), plus menu placement for the hub page.
 - [x] Generated invoice number is visible on the workflow record and opens the core invoice view.
-- [x] Feature tests cover happy path + idempotency + tenant isolation; `php artisan test tests/Feature/Textile` green (122 passed, 1731 assertions).
+- [x] Feature tests cover happy path + idempotency + tenant isolation; `php artisan test tests/Feature/Textile` green (129 passed, 1744 assertions).
 - [x] `npm run build` green; deployed via GitHub Actions (push to main triggers deploy; rsync causes file-ownership 403s on CloudLinux) and verified in browser.
+
+### Procurement dropdown polish (2026-08)
+- [x] **Consumed-source disabling in all procurement dropdowns** — frontend now disables source options that already produced a downstream document: requisitions with an existing RFQ (RFQ form), requisitions/RFQs with an existing PO (PO form), POs with an existing GRN (GRN form), GRNs with an existing QC (QC form), GRNs with an existing claim (Claim form). New shared `createSourceOptions()` helper in `Procurement/Index.tsx` mirrors `createTextileWorkflowSelectOptions` label format and sets `disabled`/`disabledReason` (rendered by `TextileSelectField`). Create buttons aligned with the dropdown (`self-center` in the `grid-cols-[1fr_auto]` rows).
+- [x] **Backend double-creation guards (defense in depth)** — `TextileProcurementService::assertNoDownstreamDocument()` wired into `createRfq`, `createPurchaseOrder` (both requisition and RFQ paths), `createGrn`, `createIncomingQc`, `createSupplierClaim`; direct/bypassed API submissions can no longer create a second downstream document from the same source. Tests: `tests/Feature/Textile/TextileProcurementConsumedSourceTest.php` 7/7 green (double RFQ/PO-from-requisition/PO-from-RFQ/GRN/QC/claim rejection + distinct-sources independence). Verified: full textile suite 129 passed / 1744 assertions, `npx tsc --noEmit` clean, `npm run build` green, deployed via GitHub Actions (commit `82d9eb051`, run `31551545898`).
 
 ## Delivery order from here
 
