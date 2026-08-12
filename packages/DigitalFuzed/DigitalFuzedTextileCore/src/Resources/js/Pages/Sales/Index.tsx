@@ -306,7 +306,7 @@ export default function Index({
 
                     return invoiceNumber && invoiceId ? (
                         <a
-                            href={route('sales-invoices.show', { salesInvoice: invoiceId })}
+                            href={route('sales-invoices.show', { sales_invoice: invoiceId })}
                             className="text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:underline"
                         >
                             {t('Invoice')} {invoiceNumber}
