@@ -17,6 +17,8 @@ class TextileQualityService
 
     public function createInspection(array $payload): TextileWorkflowDocument
     {
+        $this->assertNoDuplicateInspectionForLot($payload['lot_reference'] ?? null);
+
         $metadata = [
             'qc_stage' => $payload['qc_stage'] ?? null,
             'inspection_result' => $payload['inspection_result'] ?? null,
@@ -151,6 +153,54 @@ class TextileQualityService
             'status' => 'approved',
             'metadata' => ['reason' => $reason],
         ]);
+    }
+
+    /**
+     * Enforce that a takha lot can be inspected only once. Any existing
+     * inspection (draft, approved, rejected, etc.) for the same takha blocks a
+     * new one, so a takha cannot accumulate multiple inspection records.
+     * Only enforced for takha lots (grey-fabric takha entries from weaving
+     * output); generic lots may still go through multiple QC stages.
+     */
+    protected function assertNoDuplicateInspectionForLot(?string $lotReference): void
+    {
+        $lotReference = trim((string) ($lotReference ?? ''));
+
+        if ($lotReference === '') {
+            return;
+        }
+
+        if (! $this->isTakhaLot($lotReference)) {
+            return;
+        }
+
+        $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
+
+        $existing = TextileWorkflowDocument::query()
+            ->where('document_type', 'inspection')
+            ->where('lot_reference', $lotReference)
+            ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId))
+            ->exists();
+
+        if ($existing) {
+            throw new RuntimeException('An inspection already exists for this takha lot. A takha can be inspected only once.');
+        }
+    }
+
+    /**
+     * Whether a lot reference maps to a takha lot (grey-fabric takha entry).
+     */
+    protected function isTakhaLot(string $lotReference): bool
+    {
+        $tenantId = auth()->check() && function_exists('creatorId') ? creatorId() : auth()->id();
+
+        return TextileLot::query()
+            ->where('lot_reference', $lotReference)
+            ->where('material_type', TextileLot::TYPE_GREY_FABRIC)
+            ->where('source_document_type', 'takha_entry')
+            ->whereNotNull('source_document_id')
+            ->when($tenantId !== null, fn ($q) => $q->where('created_by', $tenantId))
+            ->exists();
     }
 
     protected function findTenantDocument(int $documentId, string $documentType): TextileWorkflowDocument

@@ -224,6 +224,79 @@ class TextileQualityAdminTest extends TestCase
             ->assertSessionHasErrors('certificate_id');
     }
 
+    public function test_company_cannot_create_duplicate_inspection_for_same_takha_lot(): void
+    {
+        AddOn::create([
+            'module' => 'TextileCore',
+            'name' => 'Textile Core',
+            'package_name' => 'textile-core',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        AddOn::create([
+            'module' => 'TextileInventory',
+            'name' => 'Textile Inventory',
+            'package_name' => 'textile-inventory',
+            'is_enable' => true,
+            'monthly_price' => 0,
+            'yearly_price' => 0,
+        ]);
+
+        $company = $this->company();
+
+        TextileLot::create([
+            'lot_reference' => 'TAKHA-DUP-1',
+            'received_quantity' => 20,
+            'available_quantity' => 20,
+            'status' => 'active',
+            'material_type' => TextileLot::TYPE_GREY_FABRIC,
+            'source_document_type' => 'takha_entry',
+            'source_document_id' => 1,
+            'created_by' => $company->id,
+            'creator_id' => $company->id,
+        ]);
+
+        $payload = [
+            'source_reference_type' => 'final_qc',
+            'source_action' => 'final_qc',
+            'party_name' => 'Alpha Fibers',
+            'lot_reference' => 'TAKHA-DUP-1',
+            'quantity' => 20,
+            'unit' => 'mtr',
+            'qc_stage' => 'final_qc',
+            'inspection_result' => 'pass',
+            'defects' => [],
+            'notes' => 'First inspection',
+        ];
+
+        // First inspection for the takha is allowed.
+        $this->actingAs($company)
+            ->post(route('textile.quality.inspections.store'), $payload)
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('textile_workflow_documents', [
+            'document_type' => 'inspection',
+            'lot_reference' => 'TAKHA-DUP-1',
+            'created_by' => $company->id,
+        ]);
+
+        // A second inspection for the same takha is rejected.
+        $this->actingAs($company)
+            ->post(route('textile.quality.inspections.store'), $payload)
+            ->assertSessionHasErrors('lot_reference');
+
+        $this->assertSame(
+            1,
+            TextileWorkflowDocument::query()
+                ->where('created_by', $company->id)
+                ->where('document_type', 'inspection')
+                ->where('lot_reference', 'TAKHA-DUP-1')
+                ->count()
+        );
+    }
+
     private function company(): User
     {
         $plan = Plan::create([

@@ -260,6 +260,13 @@ Verification gate: `npx tsc --noEmit` 0 errors; `npm run build` pass; `php artis
 - Fix: Quality index now serves `takhaOptions` — grey-fabric takha lots from weaving output with qty, unit (from takha entry doc), parent weaving-output reference, and inspection status (QC passed / QC pending / uninspected). When `qc_stage = final_qc`, the Fabric Inspection form shows a dedicated **"Takha Entry (Grey Fabric)"** picker that auto-fills qty+unit and shows the source grey lot; the flat lot picker remains for incoming/process/shade QC.
 - Verification: new test `test_per_takha_qc_granularity_one_takha_passes_another_rejected` — one output lot, two takhas, takha-1 passes (movement `weaving→quality-approved`), takha-2 fails (no movement, no approved inspection, sales gate blocks). Ledger test file => 7 passed (63 assertions); full textile suite => 74 passed (1334 assertions); `npx tsc --noEmit` => 0 errors; `npm run build` => pass.
 
+**Duplicate takha inspection prevented (2026-08-18):**
+- **Problem reported**: on `/textile/quality?section=inspection` multiple inspections could be created for the same takha lot (e.g. TAKHA-000001 had an Approved inspection AND an extra Draft inspection).
+- **Policy** (user-confirmed): a takha lot can be inspected only ONCE — blocked as soon as ANY inspection exists (draft or passed).
+- **Backend** (`TextileQualityService@createInspection`): new guard `assertNoDuplicateInspectionForLot` rejects creating an inspection for a grey-fabric takha lot (`material_type=grey_fabric`, `source_document_type=takha_entry`) that already has any inspection document (`document_type=inspection`, same `lot_reference`, tenant-scoped) — error surfaces on `lot_reference`. Scoped to takha lots only, so generic lots can still go through multiple QC stages (incoming/process/shade).
+- **Frontend** (`TextileQualityController@takhaOptions`): the "Takha Entry (Grey Fabric)" picker now excludes takhas that already have an inspection, so only UNinspected takhas are offered; `inspection_status` is always `uninspected` for the returned options.
+- **Verification**: new test `test_company_cannot_create_duplicate_inspection_for_same_takha_lot` (first inspection passes, second rejected with `lot_reference` error, only 1 inspection row persists). `TextileQualityAdminTest` => 2 passed (42 assertions); full textile suite => 146 passed + 2 pre-existing dashboard failures (unrelated, confirmed failing on clean master); `npx tsc --noEmit` => 0 errors.
+
 Verification gate per slice: `npx tsc --noEmit` 0 errors; `npm run build` pass; `php artisan test tests/Feature/Textile/` pass; browser check — section renders, deep links work, menu/submenu navigable, controlled fields select-based; navigation acceptance checklist satisfied.
 
 ---

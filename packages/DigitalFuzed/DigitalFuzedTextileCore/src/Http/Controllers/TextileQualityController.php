@@ -386,10 +386,11 @@ class TextileQualityController extends Controller
             ->get(['lot_reference', 'document_number', 'metadata'])
             ->keyBy(fn ($document) => trim((string) $document->lot_reference));
 
-        $approvedTakhas = TextileWorkflowDocument::query()
+        // Any takha that already has an inspection (draft, approved, etc.)
+        // cannot be inspected again — restrict options to uninspected takhas.
+        $inspectedTakhas = TextileWorkflowDocument::query()
             ->where('created_by', $tenantId)
             ->where('document_type', 'inspection')
-            ->whereIn('status', ['approved', 'released'])
             ->whereNotNull('lot_reference')
             ->pluck('lot_reference')
             ->map(fn ($value) => trim((string) $value))
@@ -397,22 +398,9 @@ class TextileQualityController extends Controller
             ->unique()
             ->values();
 
-        $pendingTakhas = TextileWorkflowDocument::query()
-            ->where('created_by', $tenantId)
-            ->where('document_type', 'inspection')
-            ->where('status', 'draft')
-            ->whereNotNull('lot_reference')
-            ->pluck('lot_reference')
-            ->map(fn ($value) => trim((string) $value))
-            ->filter(fn ($value) => $value !== '')
-            ->unique()
-            ->values();
-
-        return $takhaLots->map(function (TextileLot $lot) use ($approvedTakhas, $pendingTakhas, $takhaSourceUnits, $takhaSourceDocs) {
-            $inspectionStatus = $approvedTakhas->contains($lot->lot_reference)
-                ? 'passed'
-                : ($pendingTakhas->contains($lot->lot_reference) ? 'pending' : 'uninspected');
-
+        return $takhaLots
+            ->filter(fn (TextileLot $lot) => ! $inspectedTakhas->contains($lot->lot_reference))
+            ->map(function (TextileLot $lot) use ($takhaSourceUnits, $takhaSourceDocs) {
             $label = $this->readableTakhaLabel($lot, $takhaSourceDocs->get(trim((string) $lot->lot_reference)));
 
             return [
@@ -421,8 +409,8 @@ class TextileQualityController extends Controller
                 'quantity' => (float) $lot->available_quantity,
                 'unit' => (string) ($takhaSourceUnits->get($lot->lot_reference) ?? 'mtr'),
                 'parent_lot_reference' => (string) ($lot->parent_lot_reference ?? ''),
-                'inspection_status' => $inspectionStatus,
-                'label' => $inspectionStatus === 'passed' ? sprintf('%s (QC passed)', $label) : ($inspectionStatus === 'pending' ? sprintf('%s (QC pending)', $label) : $label),
+                'inspection_status' => 'uninspected',
+                'label' => $label,
             ];
         })->values()->all();
     }
